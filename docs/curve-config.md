@@ -1,0 +1,128 @@
+# The bonding curve configuration
+
+> Every parameter of Vaulty #1's Meteora DBC config, and **why that value and not another**.
+> Written 21 September 2026, before the config exists, because **a DBC config is effectively
+> irreversible once a pool is open** — changing it means launching a different token.
+>
+> Grounded in the `@meteora-ag/dynamic-bonding-curve-sdk` parameter reference. Values marked
+> **TO VERIFY** have not yet been confirmed against the program on mainnet and **must not be
+> treated as settled**.
+
+## How the curve is expressed
+
+The SDK offers several builders. We use **`buildCurveWithMarketCap`**, which takes an
+`initialMarketCap` and a `migrationMarketCap` and derives `sqrtStartPrice` and the `curve`
+array for us.
+
+This matters beyond convenience: it means **every number in this document is one a human can
+argue about**. Nobody has to audit our square-root arithmetic to check our reasoning — they
+check two market caps and a supply.
+
+---
+
+## Decided
+
+### Token
+
+| parameter | value | why |
+|---|---|---|
+| `tokenType` | `0` — SPL | No extensions needed. Token-2022 with transfer hooks would require Meteora's TokenBadge, which is admin-granted. SPL is permissionless. |
+| `tokenBaseDecimal` | `6` | Matches USDC. Backing per token is a number a person reads off the page; 9 decimals adds noise to a figure meant to be compared by eye. |
+| `tokenQuoteDecimal` | `6` | USDC. |
+| `tokenAuthorityOption` | **Immutable** | We never need to rewrite the token's metadata, and an immutable token removes an entire class of "what could the team do to this" questions. The cost of keeping the authority is higher than any use we have for it. |
+
+### Fees
+
+| parameter | value | why |
+|---|---|---|
+| `collectFeeMode` | `0` — **QuoteToken** | **The load-bearing choice.** Fees arrive in USDC, the currency cards are bought in. Collecting in the output token would mean holding our own token and selling it to buy cards — a worse look and a worse mechanism. |
+| `baseFeeParams` | flat **1000 bps (10%)** — fee scheduler with `startingFeeBps = endingFeeBps = 1000` | The fee *is* the product. It is what fills the vault. A scheduler that decays would mean the vault grows fastest when nobody is trading and slowest when they are. **TO VERIFY: the program's maximum base fee.** Meteora's own StockLaunch advertises 0–50%, so 10% should be well inside it. |
+| `dynamicFeeEnabled` | `false` | We publish "10% of every trade". A dynamic fee makes that sentence untrue on a volatile day. A predictable number we can print beats a marginally better one we would have to qualify. |
+| `enableFirstSwapWithMinFee` | `false` | No reason to give the first buyer a discount the page does not explain. |
+| `creatorTradingFeePercentage` | **TO DECIDE** | We are both the partner (config creator) and the token creator, so this splits our own fee between two wallets we control. Set deliberately rather than by default, and record which wallet is which. |
+
+### Migration
+
+| parameter | value | why |
+|---|---|---|
+| `migrationOption` | `1` — **DAMM V2** | Our own census of the chain: pools that came from a DBC curve are **14.5% of DAMM v2 pools but 76% of its fees**. It is where the trading actually lands, and its API already exposes TVL, volume and permanent-lock, which the proof page can read. |
+| `migrationFee.feePercentage` | **TO DECIDE** (0–99 allowed) | Taken out of the migrating liquidity. Every point here is a point less depth in the graduated pool. |
+| `migratedPoolFee.poolFeeBps` | **TO DECIDE** (10–1000 allowed) | The fee the *graduated* pool charges. It keeps feeding the vault after migration, so it should not be an afterthought. |
+
+---
+
+## Needs a number, and the trade-off is real
+
+### `initialMarketCap`
+
+The vault opens with roughly **$916** of realisable backing (37 cards minus what the gacha's
+own stock rules require — see the sizing note in the plan).
+
+Setting the initial market cap **near that number** starts the ratio at about **1.0×**, and
+the page's opening sentence becomes true and simple: *this token is worth about what is in the
+box, and the box only grows.*
+
+- **Much lower** and the token launches visibly below its own backing, which invites a question
+  we would rather answer with a mechanism than a paragraph.
+- **Much higher** and early buyers pay a premium for a promise rather than for cards.
+
+**Proposal: ≈ $900–1,000.** It is the only value that makes the ratio mean what we say it means.
+
+### `migrationMarketCap`
+
+The graduation threshold, and a genuine tension:
+
+| lower (e.g. $5–10k) | higher (e.g. $30k+) |
+|---|---|
+| graduation is plausible inside the hackathon window | graduation means real trading happened |
+| gives judges a visible milestone and a DAMM v2 pool to inspect | thin graduation looks like theatre |
+| **unlocks vesting** — see the finding below | may never happen, and then nothing unlocks |
+
+For reference, **Meteora's own StockLaunch graduates at $750** equivalent, so a low threshold
+is not unusual in this ecosystem.
+
+### `totalTokenSupply`, `percentageSupplyOnMigration`, `leftover`
+
+Follow from the two market caps above and from how much of the supply the seed admission takes.
+**Derive, do not guess** — and re-check that the seed allocation is not an implausible share of
+the float once the numbers are chosen.
+
+---
+
+## 🔴 Finding that changes the admission design
+
+`lockedVesting` has a field named **`cliffDurationFromMigrationTime`**, and the whole vesting
+schedule is anchored to **migration**, not to launch.
+
+**Consequence:** if the pool never graduates, the DBC's own vesting never starts. A seed
+allocation "with vesting" through this parameter is only vested *after* graduation — before
+that it is governed by whatever else holds it.
+
+This matters because vesting is not decoration here: it is what stops whoever seeded the vault
+from selling into the people who bought after them, and it is a thing judges and buyers look
+for specifically.
+
+**Options, none of them decided:**
+
+1. **Set `migrationMarketCap` low enough that graduation is realistic**, so the DBC vesting
+   actually engages.
+2. **Hold the seed allocation somewhere that does not depend on migration**, and say exactly
+   where and under what terms.
+3. **Do not take a seed allocation at the launch at all** — admit the operator's cards after the
+   curve is running, at the same published rule as anyone else.
+
+Option 3 is the cleanest story and the weakest one for the operator's economics. This is a
+decision for the PO, and it should be made before the config is written, not after.
+
+---
+
+## Before anything is created on mainnet
+
+- [ ] confirm the program's **maximum base fee** in bps
+- [ ] confirm `migrationQuoteThreshold` units and how it relates to `migrationMarketCap`
+- [ ] run `buildCurveWithMarketCap` with the chosen numbers and **read back the derived
+      `sqrtStartPrice` and `curve` array**, then sanity-check the implied price at both ends
+- [ ] rehearse the full creation off mainnet, and write the runbook from the rehearsal rather
+      than from this document
+- [ ] confirm which wallet is partner and which is creator, and that the **fee claimer is the
+      wallet we intend** — the fee is the entire mechanism, and it goes wherever this points
