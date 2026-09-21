@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────
+# LISTA BRANCA. Ignora TUDO por omissão e libera ficheiro a ficheiro.
+# Este repositório é PÚBLICO: um segredo que chegue aqui está
+# comprometido no instante em que sai daqui — apagar o commit não
+# resolve, a única resposta correcta é RODAR A CHAVE.
+# Regra de desenho: se um ficheiro precisa de um segredo para
+# funcionar, está do lado errado da fronteira e não entra.
+# ─────────────────────────────────────────────────────────────
+*
+!*/
+
+# raiz
+!.gitignore
+!README.md
+!LICENSE
+!package.json
+!package-lock.json
+!.githooks/pre-commit
+!setup.sh
+
+# código
+!src/**/*.js
+!src/**/*.mjs
+!src/**/*.json
+!web/**/*.html
+!web/**/*.css
+!web/**/*.js
+!web/**/*.svg
+!docs/**/*.md
+
+# exemplos de configuração — NUNCA o ficheiro real
+!*.example
+
+# nunca, em circunstância nenhuma
+.env
+.env.*
+*.key
+*.pem
+*keypair*.json
+*secret*
+node_modules/
