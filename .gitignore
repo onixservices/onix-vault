@@ -17,6 +17,7 @@
 !package-lock.json
 !.githooks/pre-commit
 !setup.sh
+!.gitattributes
 
 # código
 !src/**/*.js
