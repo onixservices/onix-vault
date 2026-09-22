@@ -1,0 +1,12 @@
+{
+  "name": "vaulty",
+  "version": "0.1.0",
+  "description": "Auditable, card-backed vaults on Solana. Reads the chain, signs nothing.",
+  "license": "MIT",
+  "private": false,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test \"src/**/*.test.js\"",
+    "backing": "node src/reader/cli.js"
+  }
+}
