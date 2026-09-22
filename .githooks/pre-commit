@@ -16,7 +16,7 @@ staged=$(git diff --cached --name-only --diff-filter=ACM)
 # ── 1. ficheiros que nunca entram, pelo nome ────────────────────────────────
 while IFS= read -r f; do
   case "$f" in
-    *.env|*.env.*|*.key|*.pem|*keypair*.json|*secret*|*.p12|*.pfx)
+    *.env|*.env.*|*.key|*.pem|*keypair*.json|*secret*|*.p12|*.pfx|web/config.js|config.json)
       red "BLOQUEADO  nome de ficheiro proibido: $f"; fail=1 ;;
   esac
 done <<< "$staged"

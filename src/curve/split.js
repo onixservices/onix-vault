@@ -35,4 +35,6 @@ function splitOfTrade(feeBps, split = OPERATOR_SPLIT) {
   };
 }
 
-module.exports = { PROTOCOL_FEE_PERCENT, OPERATOR_SPLIT, splitOfTrade };
+const api = { PROTOCOL_FEE_PERCENT, OPERATOR_SPLIT, splitOfTrade };
+if (typeof module !== 'undefined' && module.exports) module.exports = api;
+else if (typeof window !== 'undefined') window.VaultySplit = api;

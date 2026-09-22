@@ -41,3 +41,8 @@
 *keypair*.json
 *secret*
 node_modules/
+!web/config.example.js
+
+# a config REAL do site nunca entra (a lista branca acima libertava-a)
+web/config.js
+config.json
