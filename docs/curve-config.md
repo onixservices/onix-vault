@@ -36,18 +36,37 @@ check two market caps and a supply.
 | parameter | value | why |
 |---|---|---|
 | `collectFeeMode` | `0` — **QuoteToken** | **The load-bearing choice.** Fees arrive in USDC, the currency cards are bought in. Collecting in the output token would mean holding our own token and selling it to buy cards — a worse look and a worse mechanism. |
-| `baseFeeParams` | flat **1000 bps (10%)** — fee scheduler with `startingFeeBps = endingFeeBps = 1000` | The fee *is* the product. It is what fills the vault. A scheduler that decays would mean the vault grows fastest when nobody is trading and slowest when they are. **TO VERIFY: the program's maximum base fee.** Meteora's own StockLaunch advertises 0–50%, so 10% should be well inside it. |
+| `baseFeeParams` | flat **1000 bps (10%)** — fee scheduler with `startingFeeBps = endingFeeBps = 1000` | The fee *is* the product. It is what fills the vault. A scheduler that decays would mean the vault grows fastest when nobody is trading and slowest when they are. ✅ **Verified in the program source** (`constants.rs`): `MIN_FEE_BPS = 25`, `MAX_FEE_BPS = 9900`. 10% is well inside. ⚠️ **`RateLimiter` mode is deprecated** in the program (`DeprecatedBaseFeeMode`) — use the scheduler. |
 | `dynamicFeeEnabled` | `false` | We publish "10% of every trade". A dynamic fee makes that sentence untrue on a volatile day. A predictable number we can print beats a marginally better one we would have to qualify. |
 | `enableFirstSwapWithMinFee` | `false` | No reason to give the first buyer a discount the page does not explain. |
 | `creatorTradingFeePercentage` | **TO DECIDE** | We are both the partner (config creator) and the token creator, so this splits our own fee between two wallets we control. Set deliberately rather than by default, and record which wallet is which. |
+
+### 🔴 The protocol's cut — verified in the program, and it changes what the page says
+
+`state/config.rs::get_fee_on_amount`: **`protocol_fee = trading_fee × 20%`**, taken *before*
+anything reaches the partner or creator (`PROTOCOL_FEE_PERCENT = 20`). A referral, if any,
+is paid out of the protocol's share, not ours.
+
+So with a 10% trade fee: **2% of every trade goes to Meteora, 8% reaches us**, and the
+published 50 / 30 / 20 split applies to that 8%:
+
+```
+trade ─ 10% fee ─┬─ 2%  Meteora (protocol take, fixed by the program)
+                 └─ 8%  ─┬─ 4.0%  buys a card
+                         ├─ 2.4%  buys back the token
+                         └─ 1.6%  operator
+```
+
+The page must show the protocol's cut. "10% of every trade buys cards" would be a lie by
+omission; "4% of every trade buys cards" is the true sentence.
 
 ### Migration
 
 | parameter | value | why |
 |---|---|---|
 | `migrationOption` | `1` — **DAMM V2** | Our own census of the chain: pools that came from a DBC curve are **14.5% of DAMM v2 pools but 76% of its fees**. It is where the trading actually lands, and its API already exposes TVL, volume and permanent-lock, which the proof page can read. |
-| `migrationFee.feePercentage` | **TO DECIDE** (0–99 allowed) | Taken out of the migrating liquidity. Every point here is a point less depth in the graduated pool. |
-| `migratedPoolFee.poolFeeBps` | **TO DECIDE** (10–1000 allowed) | The fee the *graduated* pool charges. It keeps feeding the vault after migration, so it should not be an afterthought. |
+| `migrationFee.feePercentage` | **TO DECIDE** — ✅ verified max `99` (`MAX_MIGRATION_FEE_PERCENTAGE`) | Taken out of the migrating liquidity. Every point here is a point less depth in the graduated pool. |
+| `migratedPoolFee.poolFeeBps` | **TO DECIDE** — ✅ verified range `10–1000` bps (0.1%–10%) | The fee the *graduated* pool charges. It keeps feeding the vault after migration, so it should not be an afterthought. |
 
 ---
 
@@ -118,7 +137,9 @@ decision for the PO, and it should be made before the config is written, not aft
 
 ## Before anything is created on mainnet
 
-- [ ] confirm the program's **maximum base fee** in bps
+- [x] ~~confirm the program's maximum base fee~~ — `25..9900` bps, verified in `constants.rs`
+- [ ] **lock/vesting durations are capped at 2 years** (`MAX_LOCK_DURATION_IN_SECONDS`) — keep the vesting schedule inside that
+- [ ] the curve has at most **16 points** (`MAX_CURVE_POINT`) — `buildCurveWithMarketCap` stays well under
 - [ ] confirm `migrationQuoteThreshold` units and how it relates to `migrationMarketCap`
 - [ ] run `buildCurveWithMarketCap` with the chosen numbers and **read back the derived
       `sqrtStartPrice` and `curve` array**, then sanity-check the implied price at both ends
