@@ -53,8 +53,19 @@ operator's own inventory and no waiting list. Demand is the thing this launch me
 Meteora published **StockLaunch on 15 September 2026** — bonding curves whose fees
 accumulate in a vault of the reference asset — and named "a new asset class beyond
 memecoins" as the goal of its track. Three of the four declared entries in that track chose
-tokenized stocks. Physical collectibles with on-chain custody proof is the asset class
-nobody has brought.
+tokenized stocks.
+
+And Meteora already tried this exact asset class itself. **`$SV151` (Dynamic Assets, Meteora
++ Sunrise, June 2026)**: a $160k presale to buy sealed Pokémon packs, trading fees that buy
+more packs, a page with reserve NAV and mNAV, 10% of supply for people who deposit packs —
+and **no redemption**. Read on 30 September 2026: reserve **$288.8k** (up from $160k — the
+fee engine works), market cap ~$277k, **mNAV 0.95×**, and 0.80× at its low. The market
+discounts backing it cannot reach, even while that backing grows.
+
+That is the precedent and the gap in one object: the mechanism is proven, the exit is
+missing. Vaulty adds the exit — redemption with a published rule, and a gacha door — on
+backing a third-party custodian already put on chain, where the reserve's contents are
+verifiable from the wallet rather than from the team's reporting.
 
 ## Where it goes if it works
 

@@ -19,11 +19,18 @@ program) and after the vault's own share:
 
 Every leg is a public transaction. The split is printed on the vault page, not in a Discord.
 
-Two further lines exist and are **not** in the number above:
+Three further lines exist and are **not** in the number above. None of them is an
+operator fee; all of them raise backing per token, which is the asset the operator is
+paid on:
 
-- **Admission.** A card enters a vault at 80% of its realisable value. The 20% is not a fee
-  — it stays in the vault — but it is what makes running a vault worth doing: every
-  admission strengthens the asset the operator is paid on.
+- **Admission.** A card enters a vault at 80% of its realisable value. The 20% stays in
+  the vault.
+- **Redemption.** A holder burns tokens worth `max(insured, market) × 1.15` for a specific
+  card. The 15% premium stays in the vault. This is the door Meteora + Sunrise's `$SV151`
+  (Jun 2026) does not have — and it trades at 0.80–0.95× of its reserve.
+- **Gacha.** Any gacha buys a card from the vault at `max(insured, market)` through the
+  vault API (`docs/vault-api.md`) — above the 0.89× the market pays on a listing. Onix's
+  own gacha is the first integrator, by the same public endpoints.
 - **After graduation.** The DAMM v2 pool the token migrates to charges its own fee, and the
   curve's migrated liquidity is permanently locked. That pool keeps feeding the vault after
   the curve is gone.
@@ -63,5 +70,6 @@ the window is the curve, the vault, the reader and the proof page.
 
 Vault #1 is the seed. **Anyone who holds already-tokenized, custodied assets can run a
 vault under the same rule the operator was admitted under** — and the operator earns on
-every vault the same way it earns on its own. That is the business: not one vault, but the
-rail every vault runs on.
+every vault the same way it earns on its own. Every vault is also a prize supplier to every
+gacha through the same API. That is the business: not one vault, but the rail every vault
+runs on, with four doors that all pay the vault.
