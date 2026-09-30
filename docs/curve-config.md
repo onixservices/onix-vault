@@ -74,8 +74,9 @@ omission; "4% of every trade buys cards" is the true sentence.
 
 ### `initialMarketCap`
 
-The vault opens with roughly **$916** of realisable backing (37 cards minus what the gacha's
-own stock rules require — see the sizing note in the plan).
+The vault opens with **all 37 cards** Onix holds — roughly **$1,600 of insured value, ≈$1,420
+realisable** (decided 30 September 2026). Nothing stays outside: the gacha buys from the vault
+at the published price, so it no longer needs a stock of its own.
 
 Setting the initial market cap **near that number** starts the ratio at about **1.0×**, and
 the page's opening sentence becomes true and simple: *this token is worth about what is in the

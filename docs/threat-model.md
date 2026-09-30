@@ -93,13 +93,14 @@ keep your best.
 **Mitigation:** admission pays a published fraction of **realisable** value, not index. The
 gap stays in the vault. Dumping a bad card is a bad trade by construction.
 
-### The operator front-runs its own vault
-Onix holds cards outside the vault and also operates the vault that buys cards. That is a
-real conflict.
+### The operator competes with its own vault
+The operator runs a gacha that sells cards to players, and operates the vault that sells cards
+to gachas. That is a real conflict.
 
-**Mitigation:** the vault buys at the **same published rule** it would apply to anyone, and
-the page states plainly that the operator may be the seller. Declared is inventory; hidden
-is a conflict.
+**Mitigation:** the operator holds **no card inventory outside the vault** — all 37 cards it
+owned were admitted (30 September 2026). Its gacha buys from the vault through the same public
+API and at the same published price as any other gacha, and every such purchase is a public
+transaction. Declared is inventory; hidden is a conflict.
 
 ### The seeder exits through later buyers
 Whoever seeds a vault holds the largest position and could sell into the people who bought
@@ -111,9 +112,8 @@ applies to the operator first.
 ### Which cards stay out of the vault
 Keeping the best cards and depositing the worst is cherry-picking from the inside.
 
-**Mitigation:** the split is decided by the **existing stock rules** — what the machines'
-targets require stays out, the rest is admitted. A rule that predates this project and is
-published. Nobody picks by hand.
+**Mitigation:** none stay out. Every card the operator owned is in the vault, and the page
+lists them all. There is nothing to pick from.
 
 ### Cherry-picking on the way OUT (redemption and gacha)
 Whoever can pick a card will pick the one whose insured value lags the market.
