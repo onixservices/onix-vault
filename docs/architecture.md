@@ -63,8 +63,19 @@ Of every trade, a published share is split three ways:
          └─ 20% operator
 ```
 
-There is **no redemption**. Holders have no claim on any individual card. Value comes
-back through buybacks, and the vault only grows.
+Fees are one of **four doors**. The other three are rules, not code paths in this
+repository, and they all move backing per token the same way — up:
+
+| door | rule | who signs |
+|---|---|---|
+| admission | card in → tokens for 80% of realisable value, vested | the depositor |
+| redemption | burn tokens worth `max(insured, market) × 1.15` → that card out | the redeemer burns; the vault wallet delivers |
+| gacha | a gacha buys a card at `max(insured, market)` through the vault API | the gacha pays; the vault wallet delivers |
+
+The vault **never chooses** what leaves: a card leaves because someone burned for it or a
+gacha paid for it, at the published price. Delivery reuses the prize-delivery path Onix.Cards
+has run in production since August 2026 (sign → persist → broadcast; deliverability proved by
+simulation before anything moves). The API contract is in `docs/vault-api.md`.
 
 ### `web/` — the proof page
 

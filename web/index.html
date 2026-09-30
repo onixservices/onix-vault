@@ -122,7 +122,7 @@
     <p class="sub" style="margin:0">Of what reaches the vault after the protocol's cut, the split is 50 / 30 / 20. Both sets of numbers are shown so nobody has to do the subtraction.</p>
   </section>
 
-  <p class="note green"><b>The cards are in this wallet. They give no redemption right.</b> What they do is come back as buybacks.</p>
+  <p class="note green"><b>The cards are in this wallet. Burn <code>$VEONIX</code> and any of them is yours, at the published price.</b> Any gacha can buy them at the same price. Every trade on the curve buys more.</p>
 
   <section style="display:flex;flex-direction:column;gap:11px">
     <p class="eyebrow">What is in the vault · <span id="cnt">—</span> cards</p>
@@ -151,7 +151,7 @@
 
   <footer>
     <p><b>Read at:</b> <span id="readAt">—</span>. Every figure is re-read on every load; nothing here is cached by us.</p>
-    <p><b>Not on this page:</b> a redemption right — there is none. Value returns through buybacks.</p>
+    <p><b>Exit rules:</b> redemption burns tokens worth <code>max(insured, market) × 1.15</code> for a specific card; a gacha buys at <code>max(insured, market)</code>. The premium stays in the vault. Redemption v1 is verified by the operator and delivered from the vault wallet — every delivery is a public transaction.</p>
   </footer>
 </div>
 
@@ -192,7 +192,7 @@
   $('legend').innerHTML = [
     ['var(--edge-2)', `Meteora, ${sp.protocolPct}% of the trade`, 'The protocol keeps 20% of every fee. Fixed by the program, not by us.'],
     ['var(--gold)', `Buys a card, ${sp.buyCardPct}%`, 'Backing grows. Every holder\'s share of the vault goes up.'],
-    ['var(--verify)', `Buys back the token, ${sp.buybackPct}%`, 'How value returns to holders. There is no redemption.'],
+    ['var(--verify)', `Buys back the token, ${sp.buybackPct}%`, 'Price support. Redemption is the other way value returns.'],
     ['var(--ink-3)', `Operator, ${sp.operatorPct}%`, (C.operator || 'The operator') + '. Published here, not in a Discord.'],
   ].map(([bg, t, d]) => `<div><i style="background:${bg}"></i><span><b>${t}</b>${d}</span></div>`).join('');
 
