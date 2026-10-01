@@ -311,7 +311,7 @@
     </div>
 
     <div id="c1" class="sec">
-      <div class="note green"><b>Only items from a registered custodian can back a token.</b> The rule is the custodian's, not ours — identity and value must be written into the token, and the physical item must be redeemable. Registered today: Collector Crypt (value on chain); Phygitals (identity on chain, no value — listed, not counted).</div>
+      <p class="muted" style="font-size:14px">Items from a registered custodian (today: Collector Crypt) can go in. Anything else is shown with the reason.</p>
       <div class="walletrow">
         <button class="cta" id="c-connect" type="button">Connect wallet</button>
         <span class="faint" style="font-size:13px">or paste an address</span>
@@ -331,14 +331,19 @@
 
     <div id="c2" class="sec" style="display:none">
       <div class="form">
-        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" placeholder="e.g. Vintage watches"><small>What people see on the board.</small></div>
-        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" placeholder="e.g. VWATCH"><small>Created at launch. We check nobody else uses it.</small></div>
-        <div class="f"><label for="f-quote">Priced in</label><select id="f-quote"><option>USDC (dollars)</option></select><small>Cannot change after launch. Dollars keep the numbers easy to read.</small></div>
-        <div class="f"><label for="f-grad">When trading opens to the whole market</label><select id="f-grad"><option>at 3× what is inside (recommended)</option><option>at 5× what is inside</option><option>at 10× what is inside</option></select><small>Until then the token trades on a launch price-ladder. Lower keeps the price close to what is inside.</small></div>
-        <div class="f"><label for="f-fee">Fee on every trade</label><select id="f-fee"><option>10% · half buys the next item · 30% buys tokens back · 20% operator</option></select><small>Meteora keeps a fifth of it. Printed on your vault page.</small></div>
-        <div class="f"><label for="f-prem">Take-out price</label><select id="f-prem"><option>listed value + 15%</option></select><small>Keeps the token price from falling far below what is inside.</small></div>
+        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" placeholder="e.g. Vintage watches"></div>
+        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" placeholder="e.g. VWATCH"></div>
+        <div class="f"><label for="f-quote">Priced in</label><select id="f-quote"><option>USDC (dollars)</option></select></div>
       </div>
-      <div class="note"><b>The tokens you get for your items are locked for 12 months.</b> It is what stops whoever starts a vault from cashing out on the people who buy after. Onix accepted the same rule for Vault #1.</div>
+      <details class="adv">
+        <summary>Advanced — the defaults are the ones Vault #1 uses</summary>
+        <div class="form" style="margin-top:12px">
+          <div class="f"><label for="f-grad">Trading opens to the whole market at</label><select id="f-grad"><option>3× what is inside (recommended)</option><option>5× what is inside</option><option>10× what is inside</option></select></div>
+          <div class="f"><label for="f-fee">Fee on every trade</label><select id="f-fee"><option>10% · half buys the next item · 30% buys tokens back · 20% operator</option></select></div>
+          <div class="f"><label for="f-prem">Take-out price</label><select id="f-prem"><option>listed value + 15%</option></select></div>
+          <div class="f"><label for="f-lock">Your tokens unlock after</label><select id="f-lock"><option>12 months</option></select></div>
+        </div>
+      </details>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Next: review</button><button class="cta ghost" id="back1">Back</button></div>
     </div>
 
@@ -347,7 +352,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <div>
           <b style="font-family:'Bricolage Grotesque',sans-serif;font-size:17px">Operator-run until the program ships.</b>
-          <p class="muted" style="margin-top:6px">A vault's whole value is its custody. Until the four doors are enforced by an on-chain program (escrow, rule-bound minting and release), a stranger's vault would rest on that stranger's word — and we will not put our name on that. Today Onix operates every vault; yours launches with us holding the keys under the published rules, and moves to the program when it exists.</p>
+          <p class="muted" style="margin-top:6px">Today Onix operates every vault under the published rules — yours too. It moves to an on-chain program when that exists.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="cta" href="#/integrate">Talk to us</a><button class="cta ghost" id="back2">Back</button></div>
         </div>
       </div>
