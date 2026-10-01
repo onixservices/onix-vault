@@ -6,31 +6,46 @@
 
 ## The one rule everything else follows
 
-> **What only reads the chain is public. What signs a transaction is not.**
+> **The code is public; the key is not.**
 
-This repository is the public half. It holds no keys, reads no secrets, and needs no
-account with us. That is not only a security posture — it is the product claim:
-**anyone can verify any vault without asking us for anything.**
+Everything that makes a vault work is in this repository, including the server that
+delivers items and therefore signs. What is not here, and never will be, is the vault
+wallet's secret key: it is generated on the machine that runs the server, lives in that
+machine's `.env`, and is read by exactly one module (`server/signer.js`) behind an
+interface (`publicKey()`, `signTransaction()`) so that the key can move to a KMS or a
+multisig by configuration, without touching the rest. That is the production pattern
+Solana's own docs describe, and it is the product claim: **anyone can verify any vault
+without asking us for anything — and anyone can run one.**
 
-If a file here needs a secret to work, it is on the wrong side of the line. That is a
-design error, and it is visible immediately.
+Why the earlier rule ("what signs is not public") changed, on 1 October 2026: the vault
+API had been built inside Onix's private monorepo because it could reuse the gacha's
+signer and delivery code. That would have meant the judged work was not in the judged
+repository. The API, the delivery and the fee pipeline moved here; the private monorepo
+keeps only what is private — deployment, the vhost, the `.env`.
 
 ```
-┌─ PUBLIC · this repository ────────────┐   ┌─ PRIVATE · Onix infrastructure ──────┐
-│                                       │   │                                      │
-│  reader/     what is in a vault       │   │  fee claim      signs with the       │
-│              backing per token        │   │                 pool authority       │
-│  curve/      the DBC configuration    │   │                                      │
-│  web/        the proof page           │   │  item purchase  the existing agent,  │
-│                                       │   │                 signs with operator  │
-│  reads: Solana RPC + DAS              │   │                                      │
-│  writes: nothing                      │   │  holds: every key                    │
-└───────────────────────────────────────┘   └──────────────────────────────────────┘
+┌─ PUBLIC · this repository ──────────────────────┐   ┌─ PRIVATE · one machine's .env ─────┐
+│  src/reader   what is in a vault, per token      │   │  VAULT_SECRET_KEY  read only by     │
+│  src/curve    the DBC configuration              │   │                    server/signer.js │
+│  web/         the proof page                     │   │  RPC url           (paid endpoint)  │
+│  server/      the vault API · delivery (signs    │   └─────────────────────────────────────┘
+│               with the vault wallet) · redemptions│
+│  examples/    a complete integrator client       │   ┌─ PRIVATE · Onix monorepo ──────────┐
+│  reads: Solana RPC + DAS · writes: deliveries    │   │  deployment · vhost · fee → card   │
+│  holds: NO key                                   │   │  pipeline operations · the gacha   │
+└──────────────────────────────────────────────────┘   │  that integrates over HTTP         │
+                                                       └─────────────────────────────────────┘
 ```
 
-Also on the private side, not drawn above: **delivery** (redemption and gacha exits, signed
-with the vault wallet) and the **vault API**, which checks a burn or a payment on chain before
-any delivery is built. See `docs/vault-api.md`.
+### `server/` — the vault API and the delivery
+
+`server/vaultService.js` holds the rules; `server/app.js` the routes (`/v1/vaults/{vault}/…`);
+`server/payment.js` builds the payment transaction the integrator signs, and reads a landed
+payment back from the transaction itself; `server/transfer.js` builds the delivery by token
+standard (pNFT, classic, Core); `server/index.js` is the only place they meet: build →
+assert single unsigned signer → sign → **persist the signed transaction** → broadcast.
+`server/items.js` lists the vault from the chain through the same reader the page uses.
+The contract is `server/openapi.json`; `docs/vault-api.md` follows it.
 
 ## Components
 

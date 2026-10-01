@@ -29,6 +29,10 @@
 !web/**/*.svg
 !docs/**/*.md
 !scripts/**/*.js
+!server/**/*.js
+!server/openapi.json
+!examples/**/*.js
+!examples/**/*.md
 
 # exemplos de configuração — NUNCA o ficheiro real
 !*.example
@@ -47,3 +51,5 @@ node_modules/
 # a config REAL do site nunca entra (a lista branca acima libertava-a)
 web/config.js
 config.json
+data/
+.devnet/

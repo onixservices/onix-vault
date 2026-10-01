@@ -14,6 +14,12 @@ every state change is anchored to a public transaction: the payment or the burn 
 chain, the delivery is on chain, and the API is the thing in the middle that checks one
 before doing the other. Anyone can audit the pairs.
 
+**The contract is `server/openapi.json`; this page explains it.** The shape follows the
+one Collector Crypt's Gacha API uses with its integrators (Jupiter, Solflare): the vault
+**builds the payment transaction**, the integrator only signs and sends it, and the item is
+delivered after the payment is confirmed on chain. A complete client is in
+`examples/integrator/` — the same one Onix.Cards' gacha runs.
+
 ## The rule that both doors share
 
 ```
@@ -33,12 +39,12 @@ The premium on redemption stays in the vault. The vault never picks which card l
 
 ## Endpoints
 
-v1 serves **Vault #1** at `cards.onix.finance/api/vault/…` (one vault; the `/v1/vaults/:vault/…`
-form is reserved for when a second vault exists). Implemented 1 October 2026 in Onix.Cards'
-backend — the gacha's own worker calls these same functions, in-process, with no privileged path.
-All responses carry `readAt` (ISO time) and the source of every price.
+Served at `vault.onix.finance`. `{vault}` is the vault wallet; v1 serves one vault and answers
+404 for any other, so the paths will not change when the second vault exists. `x-api-key` is
+optional: it identifies an integrator for limits and never unlocks anything. `POST` honours
+`Idempotency-Key`. All responses carry `readAt` and the basis of every price.
 
-### `GET /api/vault/items`
+### `GET /v1/vaults/{vault}/items`
 
 Every item in the vault wallet, from the chain, with:
 
@@ -59,21 +65,26 @@ Every item in the vault wallet, from the chain, with:
 `status` is the only thing the API adds to what the chain says. A `reserved` card is still
 in the wallet and still counts in on-chain backing; the proof page labels it.
 
-### `POST /api/vault/reservations`
+### `POST /v1/vaults/{vault}/reservations`
 
 ```json
 { "mint": "…", "integrator": "<pubkey>", "winner": "<pubkey>" }
 ```
 
-→ `201 { "reservationId", "mint", "exitPriceUsd", "payTo": "<vault wallet>", "payMint": "<USDC mint>", "memo": "<reservationId>", "expiresAt" }`
-(pay to the vault wallet's USDC associated account; the integrator derives it from `payTo` + `payMint`)
+→ `201 { "reservationId", "mint", "exitPriceUsd", "payTo", "payMint", "memo": "<reservationId>", "expiresAt", "paymentTransaction": "<base64>" }`
 
-- One live reservation per card. A second request for a reserved card is `409`.
+**`paymentTransaction` is built by the vault**: ATA of the vault (idempotent), `transferChecked`
+of the exact frozen price in USDC from `integrator`, memo = reservation id. Unsigned, single
+signer = `integrator`. Sign it, send it, keep the signature. You never assemble accounts or a
+memo by hand — the mismatch class of bugs does not exist.
+
+- One live reservation per item. A second request for a reserved item is `409`.
+- `Idempotency-Key`: the same key returns the same reservation (and the same transaction).
 - `expiresAt` is **short** (minutes). Reserve only when the player has already paid you.
 - An integrator that lets reservations expire repeatedly is refused with `429` and a reason.
 - The quoted price is **frozen for the reservation window** and only for it.
 
-### `POST /api/vault/reservations/:id/settle`
+### `POST /v1/vaults/{vault}/reservations/{id}/settle`
 
 ```json
 { "paymentSignature": "…" }
@@ -96,7 +107,7 @@ same signature.
 cover the price · `410` if the reservation expired (the payment, if any, is refunded by the
 operator by hand in v1, and the page says so).
 
-### `POST /api/vault/redemptions` *(v1: recorded, verified by the operator)*
+### `POST /v1/vaults/{vault}/redemptions` *(v1: recorded, verified by the operator)*
 
 ```json
 { "mint": "…", "burnSignature": "…", "recipient": "<pubkey>" }

@@ -67,14 +67,16 @@ Both numbers are shown, always labelled, always with their age.
 | `src/reader/` | reads a vault's contents straight from Solana and computes backing per token |
 | `src/curve/` | the bonding-curve configuration and the reasoning behind each parameter |
 | `web/` | the proof page — market cap vs backing, and every card with its certificate |
+| `server/` | the vault server: the API (`/v1/vaults/{vault}/…`), the delivery that signs with the vault wallet, redemption records. `server/openapi.json` is the contract |
+| `examples/integrator/` | a complete client of the API — the one Onix.Cards' gacha runs; start here to integrate |
 | `docs/` | architecture, the curve spec, the vault API, and the honesty notes for every number |
 
-**Everything here only reads the chain.** Nothing in this repository signs a transaction
-or needs a secret, so you can run it against any vault without trusting us.
-
-Signing — claiming fees, buying cards, delivering a redeemed or purchased card — lives
-in Onix's private infrastructure. The vault API (`docs/vault-api.md`) is the boundary
-between the two.
+**The code is public; the key is not.** The reader, the curve and the page only read the
+chain and can be run against any vault without trusting us. The server is public too — it
+is the code that delivers, and you can read exactly when it signs — but the vault wallet's
+key exists only in the server's `.env`, generated there, never committed (allowlist
+`.gitignore`, a pre-commit hook that refuses keys, GitHub push protection). Run the server
+yourself with your own key and you have your own vault.
 
 ## Running it
 

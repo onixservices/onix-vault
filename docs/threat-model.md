@@ -151,15 +151,23 @@ configuration.
 ## 4. The boundary itself
 
 ### A secret reaches the public repository
-**Mitigations, layered:** the architecture means nothing here needs a secret; the
-`.gitignore` is an allowlist; a `pre-commit` hook refuses private keys, Solana keypairs, API
-keys and `.env` files; GitHub's push protection is a second, independent net.
+**Mitigations, layered:** the vault key is generated on the server and read by one module
+behind an interface; the `.gitignore` is an allowlist (`server/**/*.js`, never `.env`, never
+`*keypair*.json`); a `pre-commit` hook refuses private keys, Solana keypairs, API keys and
+`.env` files; GitHub's push protection is a second, independent net.
 **If it happens anyway:** the key is compromised the moment it lands. Deleting the commit is
 not a remedy — **rotate**.
 
-### The signing side is reached through the public side
-**Mitigation:** there is no path. This repository writes nothing and holds no credential.
-The private side never accepts instructions from it.
+### The server is made to deliver without a payment
+**Mitigations:** a delivery is built only inside `settle`, only after the payment transaction
+was read from the chain (finalized, credits the vault's USDC account with ≥ the frozen price,
+memo = reservation id); the `settling` state is the reentrancy lock; `UNIQUE(payment_sig)` is
+the last one — a payment settles one reservation, ever. The server never accepts "I paid" as
+input; it accepts a signature and reads the chain.
+
+### A delivery is broadcast twice
+**Mitigation:** sign → **persist the signed transaction** → broadcast. A rebroadcast is the
+same signature; a crash between persist and broadcast delivers once or not at all, never twice.
 
 ---
 

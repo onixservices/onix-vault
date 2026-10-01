@@ -1,19 +1,31 @@
 {
   "name": "onix-vault",
   "version": "0.1.0",
-  "description": "Auditable, card-backed vaults on Solana. Reads the chain, signs nothing.",
+  "description": "Auditable vaults for real-world assets on Solana. Reader, curve config, proof page, and the vault server (API, delivery, fee pipeline). The code is public; the key is not.",
   "license": "MIT",
   "private": false,
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test \"src/**/*.test.js\"",
+    "test": "node --test \"src/**/*.test.js\" \"server/**/*.test.js\" \"examples/**/*.test.js\"",
     "backing": "node src/reader/cli.js",
     "curve:dry-run": "node src/curve/dry-run.js",
-    "rehearse:devnet": "node scripts/rehearse-devnet.js"
+    "rehearse:devnet": "node scripts/rehearse-devnet.js",
+    "server": "node server/index.js",
+    "server:dev": "node --watch server/index.js"
   },
   "dependencies": {
-    "@meteora-ag/dynamic-bonding-curve-sdk": "^1.5.12"
+    "@meteora-ag/dynamic-bonding-curve-sdk": "^1.5.12",
+    "@metaplex-foundation/mpl-core": "^1.10.0",
+    "@metaplex-foundation/mpl-token-metadata": "^2.13.0",
+    "@metaplex-foundation/umi": "^1.5.1",
+    "@metaplex-foundation/umi-bundle-defaults": "^1.5.1",
+    "@metaplex-foundation/umi-web3js-adapters": "^1.5.1",
+    "@solana/spl-token": "^0.4.12",
+    "@solana/web3.js": "^1.98.0",
+    "better-sqlite3": "^12.2.0",
+    "bs58": "^6.0.0",
+    "express": "^4.21.2"
   }
 }
