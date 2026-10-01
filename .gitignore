@@ -27,6 +27,8 @@
 !web/**/*.css
 !web/**/*.js
 !web/**/*.svg
+!web/**/*.png
+!web/**/*.ico
 !docs/**/*.md
 !scripts/**/*.js
 !server/**/*.js
