@@ -58,17 +58,18 @@
       $('v-back').textContent = usd(st.backing.realisableUsd);
       $('v-age').textContent = ago(st.ageMs);
       $('p-wallet').textContent = VAULT;
+      tradePanel(st);
       if (st.pool) {
         $('v-mcap').textContent = usd(st.pool.mcapUsd);
         $('v-mcap-sub').textContent = 'Token price ' + usd2(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' tokens in circulation.';
         var r = st.pool.ratio; $('v-ratio').textContent = r != null ? r.toFixed(2) + '×' : '—';
         var pin = $('v-pin'); if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; }
-        $('v-buy').textContent = 'Buy the token'; $('v-buy').href = 'https://launch.meteora.ag/?pool=' + st.pool.address;
+        $('v-buy').textContent = 'Buy the token'; $('v-buy').href = '#trade';
         $('p-pool').textContent = 'Pool ' + st.pool.address + ' · mint ' + st.pool.baseMint + ' · fees so far ' + usd2(st.pool.feesLifetimeUsd) + '.';
       } else {
         $('v-mcap').textContent = '—'; $('v-mcap-sub').textContent = 'The token has ' + st.poolStatus + '. No price yet, so no number here: we do not make one up.';
         $('v-ratio').textContent = '—'; $('v-pin').style.display = 'none';
-        $('v-buy').textContent = 'Token not launched yet'; $('v-buy').removeAttribute('href');
+        $('v-buy').textContent = 'Token not launched yet'; $('v-buy').href = '#trade';
         $('p-pool').textContent = 'No pool yet: ' + st.poolStatus + '.';
       }
     });
@@ -94,6 +95,72 @@
       }).join('');
     });
   }
+  // ── the trade panel: quote on the API, sign & send in the wallet (never here) ──
+  var T = { side: 'buy', wallet: null, timer: null, busy: false };
+  function provider() { return window.solana || (window.phantom && window.phantom.solana) || null; }
+  function tradePanel(st) {
+    var p = st && st.pool, el = $('trade');
+    el.classList.toggle('off', !p);
+    $('t-state').textContent = p ? (st.poolStatus === 'live' ? 'trading' : st.poolStatus) : 'not launched';
+    $('t-state').className = 'tag' + (p ? ' live' : '');
+    $('t-price').textContent = p ? usd2(p.priceUsd) : '—';
+    $('t-mcap').textContent = p ? usd(p.mcapUsd) : '—';
+    $('t-fees2').textContent = p ? usd2(p.feesLifetimeUsd) : '—';
+    $('t-gradusd').textContent = p && p.graduationUsd ? usd(p.graduationUsd) : '$3,500';
+    var pct = p && p.graduationProgress != null ? Math.round(p.graduationProgress * 100) : 0;
+    $('t-pct').textContent = p ? pct + '%' : '—'; $('t-prog').style.width = pct + '%';
+    $('t-left').textContent = p ? (p.graduationUsd ? usd(Math.max(0, p.graduationUsd - p.mcapUsd)) + ' to go · until then it trades here, on the launch price-ladder.' : '') : 'Opens when the token launches. Until then there is nothing to buy, and we say so.';
+    $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? 'Buy' : 'Sell') : 'Connect wallet') : 'Opens when the token launches';
+    $('t-unit').textContent = T.side === 'buy' ? 'USDC' : '$VEONIX';
+  }
+  function quoteNow() {
+    var v = parseFloat($('t-amount').value);
+    if (!(v > 0) || !(STATS && STATS.pool)) { $('t-quote').textContent = 'You receive —'; return; }
+    $('t-quote').textContent = 'Quoting…';
+    fetch('/v1/vaults/' + VAULT + '/trades/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ side: T.side, amount: v }) })
+      .then(function (r) { return r.json(); })
+      .then(function (q) {
+        if (q.error) { $('t-quote').textContent = q.error; return; }
+        $('t-quote').textContent = 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' $VEONIX' : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
+      }).catch(function (e) { $('t-quote').textContent = 'Could not quote: ' + e.message; });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (b) {
+    b.addEventListener('click', function () {
+      Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); T.side = b.dataset.side; tradePanel(STATS); quoteNow();
+    });
+  });
+  $('t-amount').addEventListener('input', function () { clearTimeout(T.timer); T.timer = setTimeout(quoteNow, 350); });
+  $('t-go').addEventListener('click', function () {
+    if (!(STATS && STATS.pool) || T.busy) return;
+    var w = provider();
+    if (!w || !w.connect) { $('t-msg').textContent = 'No Solana wallet found in this browser.'; return; }
+    if (!T.wallet) {
+      w.connect().then(function (r) { T.wallet = (r && r.publicKey ? r.publicKey : w.publicKey).toString(); $('t-msg').textContent = 'Wallet ' + short(T.wallet); tradePanel(STATS); })
+        .catch(function () { $('t-msg').textContent = 'Wallet connection was declined.'; });
+      return;
+    }
+    var v = parseFloat($('t-amount').value);
+    if (!(v > 0)) { $('t-msg').textContent = 'Enter an amount.'; return; }
+    T.busy = true; $('t-go').textContent = 'Building…'; $('t-msg').textContent = '';
+    fetch('/v1/vaults/' + VAULT + '/trades/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: T.wallet, side: T.side, amount: v }) })
+      .then(function (r) { return r.json(); })
+      .then(function (b) {
+        if (b.error) throw new Error(b.error);
+        $('t-go').textContent = 'Confirm in your wallet…';
+        // Phantom simulates and sends it itself: the shape that never trips its warnings
+        return w.request({ method: 'signAndSendTransaction', params: { message: b.message } });
+      })
+      .then(function (r) {
+        var sig = r && r.signature ? r.signature : String(r);
+        $('t-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + sig.slice(0, 8) + '…</a>';
+        $('t-amount').value = ''; $('t-quote').textContent = 'You receive —';
+        setTimeout(function () { loadStats().then(function (st) { tradePanel(st); renderVault(); }); }, 4000);
+      })
+      .catch(function (e) { $('t-msg').textContent = e && e.message ? e.message : 'Cancelled.'; })
+      .then(function () { T.busy = false; tradePanel(STATS); });
+  });
+
   var tabs = document.querySelectorAll('.tabs button');
   Array.prototype.forEach.call(tabs, function (b) {
     b.addEventListener('click', function () {

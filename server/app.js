@@ -24,9 +24,10 @@ const { VaultError } = require('./vaultService');
  * @param {object} deps.stats        { read(), ageMs() } — backing + pool, read server-side
  * @param {function} deps.readWallet (wallet) => { eligible, ineligible }
  * @param {object} deps.vaultMeta    { name, operator, custodians } — what the board shows next to the numbers
+ * @param {object} [deps.trader]     { quote(), build() } — the Buy door (quotes + unsigned swaps for the user's wallet)
  * @param {string} [deps.webDir]     static page (web/); null = API only
  */
-function buildApp({ service, stats, readWallet, vaultWallet, vaultMeta = {}, signerConfigured = () => false, itemsAge = () => null, webDir = path.join(__dirname, '..', 'web') }) {
+function buildApp({ service, stats, readWallet, trader = null, vaultWallet, vaultMeta = {}, signerConfigured = () => false, itemsAge = () => null, webDir = path.join(__dirname, '..', 'web') }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '64kb' }));
@@ -51,6 +52,18 @@ function buildApp({ service, stats, readWallet, vaultWallet, vaultMeta = {}, sig
   app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {
     if (!readWallet) throw new VaultError(503, 'wallet reader not configured');
     res.json({ readAt: new Date().toISOString(), ...(await readWallet(req.params.wallet)) });
+  }));
+
+  // ── the Buy door: quote on the live pool; build the swap for the USER to sign (never signed here) ──
+  app.post('/v1/vaults/:vault/trades/quote', onlyThisVault, wrap(async (req, res) => {
+    if (!trader) throw new VaultError(409, 'token not launched — there is no pool to trade on yet');
+    const { side, amount, slippageBps } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await trader.quote({ side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
+  }));
+  app.post('/v1/vaults/:vault/trades/build', onlyThisVault, wrap(async (req, res) => {
+    if (!trader) throw new VaultError(409, 'token not launched — there is no pool to trade on yet');
+    const { owner, side, amount, slippageBps } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await trader.build({ owner, side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
   }));
 
   app.get('/v1/vaults/:vault/items', onlyThisVault, wrap(async (req, res) => {

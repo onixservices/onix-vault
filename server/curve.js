@@ -1,0 +1,90 @@
+/**
+ * server/curve.js — the Buy door. Quotes on the live pool state and builds the swap
+ * transaction for the USER'S wallet to sign. The server never signs here: the result is
+ * an unsigned transaction with a single signer (the user), no pre-signed accounts, and
+ * the serialized message Phantom's `signAndSendTransaction` takes — so the wallet
+ * simulates and sends it itself (the only shape that never trips its warnings).
+ *
+ * Quote and swap come from Meteora's own SDK (`@meteora-ag/dynamic-bonding-curve-sdk`);
+ * this file only converts units and asserts the shape.
+ */
+'use strict';
+const { PublicKey, Transaction } = require('@solana/web3.js');
+const BN = require('bn.js');
+const { checkSingleSignerUnsigned } = require('./txAssertions');
+
+function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
+const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
+
+/**
+ * @param {object} deps
+ * @param {string|null} deps.pool            the DBC pool address (null until launch)
+ * @param {function} deps.getClient          async () => DynamicBondingCurveClient (or a fake)
+ * @param {function} deps.getCurrentPoint    async () => BN (slot or timestamp, per the config's activationType)
+ * @param {function} deps.getLatestBlockhash async () => string
+ */
+function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClient, getCurrentPoint, getLatestBlockhash }) {
+  const toUnits = (n, d) => new BN(Math.round(n * 10 ** d).toString());
+  const fromUnits = (bn, d) => Number(bn.toString()) / 10 ** d;
+
+  function check({ side, amount }) {
+    if (!pool) throw err(409, 'token not launched — there is no pool to trade on yet');
+    if (side !== 'buy' && side !== 'sell') throw err(400, 'side must be buy or sell');
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) throw err(400, 'amount must be a positive number');
+  }
+
+  async function _quote({ side, amount, slippageBps = 100 }) {
+    const client = await getClient();
+    const poolPk = new PublicKey(pool);
+    const vp = await client.state.getPool(poolPk);
+    const cfg = await client.state.getPoolConfig(vp.poolState ? vp.poolState.config : vp.config);
+    const sell = side === 'sell';
+    const amountIn = toUnits(amount, sell ? baseDecimals : quoteDecimals);
+    const q = client.pool.swapQuote({
+      virtualPool: vp, config: cfg, swapBaseForQuote: sell, amountIn, slippageBps,
+      hasReferral: false, eligibleForFirstSwapWithMinFee: false, currentPoint: await getCurrentPoint(cfg),
+    });
+    const outDec = sell ? quoteDecimals : baseDecimals;
+    return {
+      raw: { amountIn, minimumAmountOut: q.minimumAmountOut, poolPk },
+      view: {
+        side, amountIn: amount, amountOut: fromUnits(q.outputAmount, outDec), minimumAmountOut: fromUnits(q.minimumAmountOut, outDec),
+        tradingFeeUsd: fromUnits(q.tradingFee, quoteDecimals), protocolFeeUsd: fromUnits(q.protocolFee, quoteDecimals),
+        slippageBps, unitIn: sell ? 'token' : 'USDC', unitOut: sell ? 'USDC' : 'token',
+      },
+    };
+  }
+
+  async function quote(args) { check(args); return (await _quote(args)).view; }
+
+  async function build({ owner, side, amount, slippageBps = 100 }) {
+    check({ side, amount });
+    let ownerPk; try { ownerPk = new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
+    const { raw, view } = await _quote({ side, amount, slippageBps });
+    const client = await getClient();
+    const tx = await client.pool.swap({ owner: ownerPk, pool: raw.poolPk, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: side === 'sell', referralTokenAccount: null });
+    tx.feePayer = ownerPk;
+    tx.recentBlockhash = await getLatestBlockhash();
+    // compile first (signatures are derived at compile time), then assert on what we send
+    const bytes = tx.serialize({ requireAllSignatures: false, verifySignatures: false });
+    const compiled = Transaction.from(bytes);
+    const fail = checkSingleSignerUnsigned(compiled, owner);
+    if (fail) throw new Error(`swap tx does not pass assertions: ${fail.assertion} (${fail.message})`);
+    return { quote: view, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
+  }
+
+  return { quote, build };
+}
+
+/** Production deps: the SDK over our RPC. */
+function productionCurveDeps({ rpcUrl, chain }) {
+  let client = null, conn = null, sdk = null;
+  const load = () => { if (!sdk) { sdk = require('@meteora-ag/dynamic-bonding-curve-sdk'); const { Connection } = require('@solana/web3.js'); conn = new Connection(rpcUrl, 'confirmed'); client = sdk.DynamicBondingCurveClient.create(conn, 'confirmed'); } };
+  return {
+    getClient: async () => { load(); return client; },
+    getCurrentPoint: async (cfg) => { load(); return sdk.getCurrentPoint(conn, cfg.activationType); },
+    getLatestBlockhash: () => chain.getLatestBlockhash(),
+  };
+}
+
+module.exports = { createCurveTrader, productionCurveDeps };

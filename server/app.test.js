@@ -17,6 +17,7 @@ const service = {
   listActivity: () => [{ type: 'gacha', at: 1, mint: 'M', to: 'W' }],
 };
 const stats = { read: async () => ({ readAt: 1, items: { count: 1 }, backing: { indexUsd: 20, realisableUsd: 17.8, multiplier: 0.89 }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 };
+const trader = { quote: async (a) => ({ side: a.side, amountIn: a.amount, amountOut: a.amount * 100, tradingFeeUsd: a.amount * 0.08 }), build: async (a) => ({ quote: { amountOut: a.amount * 100 }, transaction: 'AAAA', message: 'BBBB', owner: a.owner }) };
 const readWallet = async (w) => { if (w === 'bad') { const e = new Error('not a wallet address'); e.statusCode = 400; throw e; } return { wallet: w, total: 1, eligible: [{ mint: 'E' }], ineligible: [] }; };
 
 // the reader's age moves when listItems re-reads the chain: the age served must be the
@@ -26,7 +27,7 @@ service.listItems = async () => { age = 0; return [{ mint: 'M', exitPriceUsd: 20
 
 let server, base;
 before(async () => {
-  const app = buildApp({ service, stats, readWallet, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => age, vaultMeta: { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'] } });
+  const app = buildApp({ service, stats, readWallet, trader, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => age, vaultMeta: { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'] } });
   await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -53,6 +54,20 @@ describe('routes — what the page reads', () => {
     assert.equal(ok.status, 200); assert.equal(ok.body.eligible[0].mint, 'E');
     const bad = await j('/v1/wallets/bad/eligible-items');
     assert.equal(bad.status, 400); assert.match(bad.body.error, /not a wallet/);
+  });
+  test('POST trades/quote and trades/build pass through; amount is coerced; another :vault is 404', async () => {
+    const q = await post(`/v1/vaults/${VAULT}/trades/quote`, { side: 'buy', amount: '10' });
+    assert.equal(q.status, 200); assert.equal(q.body.amountOut, 1000); assert.equal(q.body.tradingFeeUsd, 0.8);
+    const b = await post(`/v1/vaults/${VAULT}/trades/build`, { owner: 'W', side: 'sell', amount: 2 });
+    assert.equal(b.status, 200); assert.equal(b.body.transaction, 'AAAA'); assert.equal(b.body.message, 'BBBB'); assert.equal(b.body.owner, 'W');
+    assert.equal((await post(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/trades/quote`, { side: 'buy', amount: 1 })).status, 404);
+  });
+  test('without a trader (no pool yet) the trade routes answer 409 "not launched"', async () => {
+    const app2 = buildApp({ service, stats, readWallet, vaultWallet: VAULT, webDir: null });
+    const srv = await new Promise((r) => { const s = app2.listen(0, '127.0.0.1', () => r(s)); });
+    const res = await fetch(`http://127.0.0.1:${srv.address().port}/v1/vaults/${VAULT}/trades/quote`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ side: 'buy', amount: 1 }) });
+    const body = await res.json(); srv.close();
+    assert.equal(res.status, 409); assert.match(body.error, /not launched/);
   });
   test('the page is served at / (static web/), and unknown /v1 paths are 404 JSON', async () => {
     const res = await fetch(base + '/'); assert.equal(res.status, 200); assert.match(res.headers.get('content-type'), /text\/html/);

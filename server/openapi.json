@@ -532,6 +532,142 @@
           }
         }
       }
+    },
+    "/v1/vaults/{vault}/trades/quote": {
+      "post": {
+        "summary": "Quote a buy (USDC → token) or sell (token → USDC) on the live pool",
+        "description": "Meteora DBC quote on the current pool state. 409 until the token launches.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "side",
+                  "amount"
+                ],
+                "properties": {
+                  "side": {
+                    "type": "string",
+                    "enum": [
+                      "buy",
+                      "sell"
+                    ]
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "USDC for buy, tokens for sell"
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "default": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "quote",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Quote"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/trades/build": {
+      "post": {
+        "summary": "Build the swap for the user's wallet to sign — unsigned, single signer = owner, nothing pre-signed",
+        "description": "Returns the base64 transaction and the base58 message Phantom's signAndSendTransaction takes. The server never signs trades.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "owner",
+                  "side",
+                  "amount"
+                ],
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "side": {
+                    "type": "string",
+                    "enum": [
+                      "buy",
+                      "sell"
+                    ]
+                  },
+                  "amount": {
+                    "type": "number"
+                  },
+                  "slippageBps": {
+                    "type": "integer",
+                    "default": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "unsigned swap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "quote": {
+                      "$ref": "#/components/schemas/Quote"
+                    },
+                    "transaction": {
+                      "type": "string",
+                      "description": "base64, unsigned"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "base58 serialized message, for signAndSendTransaction"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -820,6 +956,38 @@
                 "type": "boolean"
               }
             }
+          }
+        }
+      },
+      "Quote": {
+        "type": "object",
+        "properties": {
+          "side": {
+            "type": "string"
+          },
+          "amountIn": {
+            "type": "number"
+          },
+          "amountOut": {
+            "type": "number"
+          },
+          "minimumAmountOut": {
+            "type": "number"
+          },
+          "tradingFeeUsd": {
+            "type": "number"
+          },
+          "protocolFeeUsd": {
+            "type": "number"
+          },
+          "slippageBps": {
+            "type": "integer"
+          },
+          "unitIn": {
+            "type": "string"
+          },
+          "unitOut": {
+            "type": "string"
           }
         }
       }

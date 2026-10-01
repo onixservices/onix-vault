@@ -196,11 +196,13 @@
         <h2 style="margin-top:8px"><span id="v-n"></span> items, backing one token</h2>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <a class="cta" id="v-buy" href="#/vault/1">Buy the token</a>
+        <a class="cta" id="v-buy" href="#trade">Buy the token</a>
         <a class="cta ghost" href="#/create">Admit a card</a>
       </div>
     </div>
 
+    <div class="vgrid">
+      <div class="vleft">
     <div class="pair">
       <div><div class="lab">What the market pays</div><div class="val" id="v-mcap">—</div><div class="sub" id="v-mcap-sub">Token price × tokens in circulation.</div></div>
       <div class="mid"><div class="lab" style="margin:0">Market ÷ inside</div><div class="ratio" id="v-ratio"></div><div class="sub" style="margin:0;text-align:center">market over backing</div></div>
@@ -219,6 +221,27 @@
         <div><b>If it drops below the floor</b> it is cheaper to buy tokens and take an item out than to buy the item — so people do, and the price comes back up.</div>
         <div><b>If it rises above the ceiling</b> it pays to put an item in and sell the tokens — same thing, the other way.</div>
       </div>
+    </div>
+
+      </div>
+      <aside class="trade" id="trade" aria-label="Trade the token">
+        <div class="trade-top"><span class="eyebrow" id="t-sym">$VEONIX</span><span class="tag" id="t-state">not launched</span></div>
+        <div class="trade-stats">
+          <div><span class="lab">Price</span><b id="t-price">—</b></div>
+          <div><span class="lab">Market cap</span><b id="t-mcap">—</b></div>
+          <div><span class="lab">Fees so far</span><b id="t-fees2">—</b></div>
+        </div>
+        <div class="mature">
+          <div class="mhd"><span>Opens to the whole market at <b id="t-gradusd">—</b></span><b id="t-pct">—</b></div>
+          <div class="prog"><i id="t-prog" style="width:0%"></i></div>
+          <p class="faint" id="t-left">Until then it trades here, on the launch price-ladder.</p>
+        </div>
+        <div class="tabs2" role="tablist"><button class="on" data-side="buy" type="button">Buy</button><button data-side="sell" type="button">Sell</button></div>
+        <label class="amt"><input id="t-amount" type="number" min="0" step="any" placeholder="0.00" inputmode="decimal" aria-label="amount"><span id="t-unit">USDC</span></label>
+        <div class="q" id="t-quote">You receive —</div>
+        <button class="cta block" id="t-go" type="button">Connect wallet</button>
+        <p class="faint" id="t-msg" style="font-size:12px;min-height:16px"></p>
+      </aside>
     </div>
 
     <div class="tabs" role="tablist">
