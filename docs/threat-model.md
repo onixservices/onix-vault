@@ -139,6 +139,28 @@ The reservation step of the vault API could be used to lock the whole vault for 
 without settling is cut off; a reserved card is still in the wallet and still counts in the
 on-chain backing — only the *displayed* backing labels it.
 
+### Anyone can create a vault and the board becomes a dump
+The Robinhood Chain launchpad Noxa launched 60,000 tokens in two weeks with no gate, took $12M in
+fees and disappeared (July 2026). A vault platform with no gate would be the same, with real items.
+
+**Mitigations (the gate is above, not below):** a vault can only be created over a **custodian we
+registered** (we verified identity + value on chain, physical redemption, the collections) — nobody
+adds a custodian; a vault is **one custodian + one category**, chosen from the registry, never free
+text; only items that pass the vault's rules can be built by the UI, strays never count; creation,
+when it opens: an opening lot of the creator's own items (≥ 5 or ≥ $500 realisable), a non-token
+creation fee, one vault per wallet per custodian, and **no creator powers** — admission tokens come
+from the curve, exits go through the program, the creator earns the operator's leg of the fee and
+nothing else; the board ranks by backing and activity, with a minimum to appear. Until the program
+exists, creation is operator-run (request access).
+
+### Where admission tokens come from
+The curve mints the whole supply into the pool; nobody can mint more. So the sender of an item is
+owed tokens that the **vault buys on the curve** with its own USDC (fees, gacha sales) — worth 80% of
+realisable, locked 12 months. **Mitigation for the gap:** when the vault has no USDC the admission is
+listed publicly as `tokens pending` and is paid in order as USDC arrives; the operator cannot jump the
+queue. The operator seeded Vault #1 as a donation and **holds no tokens** — there is no allocation to
+dump.
+
 ### The vault becomes the house
 If the vault itself ran the draw, token holders would be exposed to gambling regulation on
 top of everything else.

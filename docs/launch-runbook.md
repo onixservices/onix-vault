@@ -86,6 +86,17 @@ find the step where *we* fumble.
 - [ ] write down every command that was actually run, in order. That list replaces §2 below
       if it differs.
 
+> ✅ **LAUNCHED 1 October 2026, 05:23 UTC** (`scripts/launch-mainnet.js --go`, run on the server by the
+> vault wallet). Opening lot: 10 cards (index $173 · realisable $153.97). Config `HGQcs4rggC3TMD2Qg1wJ4GbFe5N9oxRrjW4UeV1knZbv`
+> (tx `jUEDRkb9…`) · pool **`7nkXnMdJbG4kxXAPc9HGnn5VBn2b1hcWkzxEMSKGptec`** (tx `3YFxCXtz…`) · mint
+> **`4WHGpxzPw9o9m3hWhxYhWB4nJDeSfWb17xPwdXuDB2Vp`** (`Veonix` · `$VEONIX`, metadata
+> `https://vault.onix.finance/token/veonix.json`). Read back: quote = USDC, fee claimer = vault wallet,
+> start price $0.000015397, supply 10,000,000, graduation $3,500 (≈ $607 USDC to graduate), fee 10% flat,
+> not migrated. The vault's SOL (0.12) was lent by the Cards operator wallet (`fundVaultSol.js`).
+> What the first run taught: the Cards reconcile in production was not passing `VAULT_WALLET`
+> (the canary was marked `gone` — fixed and tested before the lot moved); the cheapest card in the
+> inventory had no insured value and would not have counted — the lot was picked from the eligible 37.
+
 ## 2. Mainnet — in this order
 
 Reversible until the line. Irreversible after it.

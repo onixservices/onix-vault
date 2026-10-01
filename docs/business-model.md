@@ -96,3 +96,12 @@ vault under the same rule the operator was admitted under** — and the operator
 every vault the same way it earns on its own. Every vault is also a prize supplier to every
 gacha through the same API. That is the business: not one vault, but the rail every vault
 runs on, with four doors that all pay the vault.
+
+## The operator holds no tokens (1 October 2026)
+
+Vault #1 was seeded with Onix's own cards **as a donation**: the operator received no tokens for
+them, there is no allocation and no vesting, and the DBC's `lockedVesting` is zero. Onix earns the
+operator's leg of the fee (20% of the 10%) and nothing else. Third parties who send a card are owed
+tokens that the vault **buys on the curve** with its USDC (80% of realisable, locked 12 months) —
+the curve is the only source of tokens, for everyone. This is the simplest honest answer to "who is
+dumping on me": nobody holds a bag.

@@ -60,6 +60,31 @@ number the API did not serve with its source and age.
 Anyone who prefers their own RPC can run `web/verify.html` with their own endpoint, or the CLI
 reader (`npm run backing`): same decoder, same numbers.
 
+### The Admit door — "Send a card"
+
+A vault is a **rule**, not a wallet that accepts anything (`server/admissions.js`, `VAULT_RULES`):
+registered custodian(s), a category, a minimum value. Vault #1: Collector Crypt · graded cards · no
+minimum. Three calls, the same shape as the gacha door:
+
+| endpoint | what |
+|---|---|
+| `GET /v1/vaults/{vault}/eligible-items?wallet=` | what in a wallet passes **this vault's** rules; the rest with the reason |
+| `POST /v1/vaults/{vault}/admissions/build` `{ owner, mint }` | the transfer owner → vault, **unsigned, single signer = owner**, plus the base58 message for `signAndSendTransaction`; 404 if the owner does not hold it, 422 if it fails the rules; returns `owedUsd` and `lockMonths` |
+| `POST /v1/vaults/{vault}/admissions` `{ mint, owner, signature, valueUsd }` | records it (`pending`); a sweep reads the chain and marks it `admitted` when the vault owns the item. `GET …/admissions` lists every one, with both signatures once the tokens are bought |
+
+**What the sender is owed:** tokens worth `custodian value × 0.89 × 0.80`, **bought on the curve by the
+vault as soon as it has the USDC** (fees, gacha sales), locked for the vault's lock period (12 months).
+Nobody mints tokens — the supply is the curve's. If the vault has no USDC, the admission waits in the
+public list as `tokens pending`. Anything sent to the vault wallet outside this flow does not count and
+is returned by the operator. Enforcement by an on-chain program (the transfer fails if the rule fails)
+is the roadmap; until then the UI cannot build what the rule refuses, and the count ignores it.
+
+### The Buy door
+
+`POST /v1/vaults/{vault}/trades/quote` and `…/trades/build` — a Meteora DBC quote on the live pool and
+the swap for the **user's** wallet to sign (unsigned, single signer, the base58 message for Phantom).
+The server never signs a trade. 409 until the pool exists.
+
 ### `GET /v1/vaults/{vault}/items`
 
 Every item in the vault wallet, from the chain, with:

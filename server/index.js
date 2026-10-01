@@ -17,6 +17,8 @@ const { createItemsReader } = require('./items');
 const { createStatsReader } = require('./stats');
 const { createWalletReader } = require('./wallet');
 const { createCurveTrader, productionCurveDeps } = require('./curve');
+const { createAdmissions, VAULT_RULES } = require('./admissions');
+const das = require('../src/reader/das');
 const { createTransferBuilder, productionDeps } = require('./transfer');
 const { checkSingleSignerUnsigned } = require('./txAssertions');
 const { createVaultService, VaultError } = require('./vaultService');
@@ -65,18 +67,20 @@ function createServer({ readItems: readItemsOverride = null, db: dbOverride = nu
   });
   const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: C.GRADUATION_USD, pool: C.POOL, baseMint: C.BASE_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS }, cacheMs: C.ITEMS_CACHE_MS });
   const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
+  const admissions = createAdmissions({ db, chain, vaultWallet, rules: VAULT_RULES.vault1, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT });
   const trader = C.POOL ? createCurveTrader({ pool: C.POOL, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, ...productionCurveDeps({ rpcUrl: C.RPC_URL, chain }) }) : null;
   const vaultMeta = { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'], description: 'Graded trading cards in OmniVault, PWCC and PSA Vault', token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' } };
-  const app = buildApp({ service, stats, readWallet, trader, vaultWallet, vaultMeta, signerConfigured: signer.configured, itemsAge: readItems.ageMs || (() => null) });
-  return { app, service, db };
+  const app = buildApp({ service, stats, readWallet, trader, admissions, vaultWallet, vaultMeta, signerConfigured: signer.configured, itemsAge: readItems.ageMs || (() => null) });
+  return { app, service, db, admissions };
 }
 
 function main() {
-  const { app, service } = createServer();
+  const { app, service, admissions } = createServer();
   app.listen(C.PORT, '127.0.0.1', () => {
     console.log(`[vault] Onix.Vault server on 127.0.0.1:${C.PORT} · vault ${C.VAULT_WALLET} · signer ${defaultSigner.configured() ? 'configured' : 'NOT configured (list only)'}`);
   });
   setInterval(() => { try { service.sweepExpired(); } catch (e) { console.warn('[vault] sweep failed', e.message); } }, 60_000).unref();
+  setInterval(() => { admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn('[vault] admissions verify failed', e.message)); }, 45_000).unref();
 }
 
 if (require.main === module) main();

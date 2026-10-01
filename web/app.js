@@ -98,6 +98,7 @@
       var rows = b.activity;
       $('act-empty').style.display = rows.length ? 'none' : '';
       $('act-rows').innerHTML = rows.map(function (e) {
+        if (e.type === 'admit') { return '<div class="row"><span class="k">Admitted</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · sent by ' + short(e.from) + ' · ' + usd2(e.valueUsd) + ' listed → owed ' + usd2(e.owedUsd) + ' in $VEONIX, ' + (e.tokens === 'locked' ? 'locked' : 'tokens pending') + (e.status === 'pending' ? ' · verifying on chain' : '') + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a>' + (e.tokensSignature ? ' · <a href="https://solscan.io/tx/' + e.tokensSignature + '" target="_blank" rel="noopener">tokens</a>' : '') + '</span></div>'; }
         var k = e.type === 'gacha' ? 'Gacha' : 'Redeemed';
         var what = e.type === 'gacha' ? 'a gacha paid ' + usd2(e.priceUsd) + ' → delivered to ' + short(e.to) : 'tokens burned → ' + (e.status === 'delivered' ? 'delivered to ' : e.status + ' · ') + short(e.to);
         var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '')
@@ -300,10 +301,67 @@
     if (!reduced) setInterval(next, 2400);
   })();
 
+  // ── Send a card (the Admit door): eligible for THIS vault → pick one → sign the transfer → recorded ──
+  var SD = { wallet: null, items: [], pick: null, busy: false };
+  function sdRender() {
+    $('sd-pick').innerHTML = SD.items.eligible.map(function (c) {
+      var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
+      return '<button type="button" class="pk' + (SD.pick === c.mint ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + esc([c.gradingCompany, c.grade].filter(Boolean).join(' ')) + ' · ' + usd(c.custodianValueUsd) + ' → ' + usd2(c.owedUsd) + '</span></div></button>';
+    }).join('') + SD.items.ineligible.map(function (x) {
+      var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
+      return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>cannot go in</span></div></div>';
+    }).join('');
+    var c = SD.items.eligible.filter(function (x) { return x.mint === SD.pick; })[0];
+    $('sd-calc').style.display = c ? '' : 'none';
+    if (c) { $('sd-val').textContent = usd2(c.custodianValueUsd); $('sd-real').textContent = usd2(c.realisableUsd); $('sd-owed').textContent = usd2(c.owedUsd); }
+    $('sd-go').disabled = !c || SD.busy; $('sd-go').textContent = c ? (SD.wallet ? 'Send ' + c.name.slice(0, 24) : 'Connect wallet to send') : 'Pick a card';
+  }
+  function sdScan(addr) {
+    $('sd-summary').textContent = 'Reading ' + short(addr) + '…'; SD.items = { eligible: [], ineligible: [] }; SD.pick = null; sdRender();
+    get('/v1/vaults/' + VAULT + '/eligible-items?wallet=' + encodeURIComponent(addr)).then(function (b) {
+      SD.items = b; $('sd-summary').textContent = b.total + ' tokens in ' + short(addr) + ' · ' + b.eligible.length + ' can go in · ' + b.ineligible.length + ' cannot (each says why)';
+      sdRender();
+    }).catch(function (e) { $('sd-summary').textContent = 'Could not read that wallet: ' + e.message; });
+  }
+  $('sd-pick').addEventListener('click', function (e) { var b = e.target.closest('button.pk'); if (!b) return; SD.pick = SD.pick === b.dataset.mint ? null : b.dataset.mint; sdRender(); });
+  $('sd-scan').addEventListener('click', function () { var a = $('sd-addr').value.trim(); if (a) sdScan(a); });
+  $('sd-addr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var a = $('sd-addr').value.trim(); if (a) sdScan(a); } });
+  function sdConnect() {
+    var w = provider();
+    if (!w || !w.connect) { $('sd-msg').textContent = 'No Solana wallet found in this browser — paste an address to see what could go in.'; return Promise.reject(new Error('no wallet')); }
+    return w.connect().then(function (r) { SD.wallet = (r && r.publicKey ? r.publicKey : w.publicKey).toString(); $('sd-addr').value = SD.wallet; sdScan(SD.wallet); return SD.wallet; });
+  }
+  $('sd-connect').addEventListener('click', function () { sdConnect().catch(function () {}); });
+  $('sd-go').addEventListener('click', function () {
+    if (SD.busy) return;
+    var c = SD.items.eligible.filter(function (x) { return x.mint === SD.pick; })[0]; if (!c) return;
+    if (!SD.wallet) { sdConnect().catch(function () {}); return; }
+    if (SD.wallet !== $('sd-addr').value.trim()) { $('sd-msg').textContent = 'The connected wallet is not the one scanned. Scan your own wallet to send from it.'; return; }
+    var w = provider(); SD.busy = true; sdRender(); $('sd-go').textContent = 'Building…'; $('sd-msg').textContent = '';
+    fetch('/v1/vaults/' + VAULT + '/admissions/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: SD.wallet, mint: c.mint }) })
+      .then(function (r) { return r.json(); })
+      .then(function (b) {
+        if (b.error) throw new Error(b.error);
+        $('sd-go').textContent = 'Confirm in your wallet…';
+        return w.request({ method: 'signAndSendTransaction', params: { message: b.message } }).then(function (r) { return { sig: r && r.signature ? r.signature : String(r), b: b }; });
+      })
+      .then(function (x) {
+        return fetch('/v1/vaults/' + VAULT + '/admissions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mint: c.mint, owner: SD.wallet, signature: x.sig, valueUsd: x.b.valueUsd }) })
+          .then(function (r) { return r.json(); }).then(function (rec) {
+            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + x.sig + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> · recorded, verifying on chain · you are owed ' + usd2(rec.owedUsd) + ' in $VEONIX, locked ' + rec.lockMonths + ' months. <a href="#/vault/1">See it in the vault →</a>';
+            SD.pick = null; ITEMS = null; sdScan(SD.wallet);
+          });
+      })
+      .catch(function (e) { $('sd-msg').textContent = e && e.message ? e.message : 'Cancelled.'; })
+      .then(function () { SD.busy = false; sdRender(); });
+  });
+  SD.items = { eligible: [], ineligible: [] }; sdRender();
+
   // ── router ──
   function route() {
     var h = location.hash || '#/', m, id = 'home';
     if (h.indexOf('#/app') === 0) id = 'home';
+    else if (h.indexOf('#/vault/1/send') === 0) { id = 'send'; if (META && META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); }
     else if (h.indexOf('#/vault') === 0) { id = 'vault'; renderVault(); }
     else if ((m = h.match(/^#\/item\/(.+)$/))) { id = 'item'; renderItem(m[1]); }
     else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); }
@@ -311,7 +369,7 @@
     else if (h.indexOf('#/how') === 0) id = 'how';
     if (id === 'home') renderBoard();
     Array.prototype.forEach.call(document.querySelectorAll('.screen'), function (s) { s.classList.toggle('on', s.id === 's-' + id); });
-    Array.prototype.forEach.call(document.querySelectorAll('nav a'), function (a) { a.classList.toggle('on', a.dataset.nav === id || ((id === 'vault' || id === 'item') && a.dataset.nav === 'home')); });
+    Array.prototype.forEach.call(document.querySelectorAll('nav a'), function (a) { a.classList.toggle('on', a.dataset.nav === id || ((id === 'vault' || id === 'item' || id === 'send') && a.dataset.nav === 'home')); });
     window.scrollTo({ top: 0 });
   }
   window.addEventListener('hashchange', route);

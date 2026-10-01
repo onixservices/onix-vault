@@ -25,9 +25,10 @@ const { VaultError } = require('./vaultService');
  * @param {function} deps.readWallet (wallet) => { eligible, ineligible }
  * @param {object} deps.vaultMeta    { name, operator, custodians } — what the board shows next to the numbers
  * @param {object} [deps.trader]     { quote(), build() } — the Buy door (quotes + unsigned swaps for the user's wallet)
+ * @param {object} [deps.admissions] { eligible(), build(), record(), list(), rules } — the Admit door ("Send a card")
  * @param {string} [deps.webDir]     static page (web/); null = API only
  */
-function buildApp({ service, stats, readWallet, trader = null, vaultWallet, vaultMeta = {}, signerConfigured = () => false, itemsAge = () => null, webDir = path.join(__dirname, '..', 'web') }) {
+function buildApp({ service, stats, readWallet, trader = null, admissions = null, vaultWallet, vaultMeta = {}, signerConfigured = () => false, itemsAge = () => null, webDir = path.join(__dirname, '..', 'web') }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '64kb' }));
@@ -40,14 +41,36 @@ function buildApp({ service, stats, readWallet, trader = null, vaultWallet, vaul
   // ── what the page reads (no RPC key ever reaches the browser) ──
   app.get('/v1/vaults', wrap(async (req, res) => {
     const st = stats ? await stats.read() : null;
-    res.json({ readAt: new Date().toISOString(), vaults: [{ vault: vaultWallet, ...vaultMeta, stats: st }] });
+    res.json({ readAt: new Date().toISOString(), vaults: [{ vault: vaultWallet, ...vaultMeta, rules: admissions ? admissions.rules : null, stats: st }] });
   }));
   app.get('/v1/vaults/:vault/stats', onlyThisVault, wrap(async (req, res) => {
     if (!stats) throw new VaultError(503, 'stats not configured');
     res.json({ ...(await stats.read()), ageMs: stats.ageMs() });
   }));
   app.get('/v1/vaults/:vault/activity', onlyThisVault, wrap(async (req, res) => {
-    res.json({ readAt: new Date().toISOString(), activity: service.listActivity({ limit: 50 }) });
+    const doors = service.listActivity({ limit: 50 });
+    const admits = admissions ? admissions.list({ limit: 50 }).map((a) => ({ type: 'admit', at: a.at, mint: a.mint, from: a.owner, status: a.status, tokens: a.tokens, owedUsd: a.owedUsd, valueUsd: a.valueUsd, signature: a.signature, tokensSignature: a.tokensSignature })) : [];
+    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits].sort((x, y) => y.at - x.at).slice(0, 50) });
+  }));
+
+  // ── the Admit door ("Send a card"): what in a wallet passes THIS vault's rules; the transfer for the owner to sign; the record ──
+  app.get('/v1/vaults/:vault/eligible-items', onlyThisVault, wrap(async (req, res) => {
+    if (!admissions) throw new VaultError(503, 'admissions not configured');
+    res.json({ readAt: new Date().toISOString(), ...(await admissions.eligible(String(req.query.wallet || ''))) });
+  }));
+  app.post('/v1/vaults/:vault/admissions/build', onlyThisVault, wrap(async (req, res) => {
+    if (!admissions) throw new VaultError(503, 'admissions not configured');
+    const { owner, mint } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await admissions.build({ owner, mint })) });
+  }));
+  app.post('/v1/vaults/:vault/admissions', onlyThisVault, wrap(async (req, res) => {
+    if (!admissions) throw new VaultError(503, 'admissions not configured');
+    const { mint, owner, signature, valueUsd } = req.body || {};
+    res.status(202).json(admissions.record({ mint, owner, signature, valueUsd: Number(valueUsd) }));
+  }));
+  app.get('/v1/vaults/:vault/admissions', onlyThisVault, wrap(async (req, res) => {
+    if (!admissions) throw new VaultError(503, 'admissions not configured');
+    res.json({ readAt: new Date().toISOString(), rules: admissions.rules, admissions: admissions.list() });
   }));
   app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {
     if (!readWallet) throw new VaultError(503, 'wallet reader not configured');

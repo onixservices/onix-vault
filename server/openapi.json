@@ -668,6 +668,167 @@
           }
         }
       }
+    },
+    "/v1/vaults/{vault}/eligible-items": {
+      "get": {
+        "summary": "What in a wallet passes THIS vault's rules (custodian, category, minimum value); the rest with the reason",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          },
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "eligibility for this vault"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/admissions/build": {
+      "post": {
+        "summary": "Build the transfer of an eligible item from the owner to the vault — unsigned, single signer = owner",
+        "description": "Only an item the owner holds that passes the vault's rules can be built (404 / 422 otherwise). The sender is owed tokens worth value × realisable × 80%, bought on the curve when the vault has USDC and locked for `lockMonths`.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "owner",
+                  "mint"
+                ],
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "mint": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "unsigned transfer + what is owed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mint": {
+                      "type": "string"
+                    },
+                    "valueUsd": {
+                      "type": "number"
+                    },
+                    "realisableUsd": {
+                      "type": "number"
+                    },
+                    "owedUsd": {
+                      "type": "number"
+                    },
+                    "lockMonths": {
+                      "type": "integer"
+                    },
+                    "transaction": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/admissions": {
+      "post": {
+        "summary": "Record a sent admission (the signature of the transfer); verified against the chain within a minute",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mint",
+                  "owner",
+                  "signature",
+                  "valueUsd"
+                ],
+                "properties": {
+                  "mint": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  },
+                  "valueUsd": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "recorded as pending"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "Every admission with its signature, status (pending | admitted) and what is owed",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "admissions + the vault's rules"
+          }
+        }
+      }
     }
   },
   "components": {

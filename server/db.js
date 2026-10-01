@@ -42,6 +42,23 @@ const SCHEMA = `
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS vault_admissions (
+    id TEXT PRIMARY KEY,
+    mint TEXT NOT NULL,
+    owner TEXT NOT NULL,               -- who sent the item (and is owed tokens)
+    signature TEXT NOT NULL UNIQUE,    -- the transfer the sender signed
+    value_usd REAL NOT NULL,           -- custodian value at admission
+    owed_usd REAL NOT NULL,            -- value × realisable × admission (80%)
+    lock_months INTEGER NOT NULL,
+    status TEXT NOT NULL,              -- pending (sent) | admitted (vault owns it) | rejected
+    tokens_sig TEXT,                   -- the buy on the curve + lock, once the vault has USDC
+    tokens_amount REAL,
+    note TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_adm_status ON vault_admissions (status);
 `;
 
 function open(file) {

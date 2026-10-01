@@ -37,7 +37,7 @@
   <div class="howgrid">
     <div class="verbs">
       <a href="#/vault/1"><b>Buy</b><span>the token — a share of everything inside</span></a>
-      <a href="#/create"><b>Put in</b><span>an item — get tokens, same deal for all</span></a>
+      <a href="#/vault/1/send"><b>Put in</b><span>an item — get tokens, same deal for all</span></a>
       <a href="#/vault/1"><b>Take out</b><span>the exact item you want, for tokens</span></a>
     </div>
     <div class="term" id="term" aria-live="off">
@@ -199,7 +199,7 @@
         <div class="tags" id="tk-tags"></div>
       </div>
       <div class="tacts">
-        <a class="cta ghost" href="#/create">Send a card</a>
+        <a class="cta ghost" href="#/vault/1/send">Send a card</a>
       </div>
     </div>
 
@@ -267,6 +267,8 @@
         <div class="r"><span class="k">The 0.89×</span><span>Cards sell for less than the index. <b>0.89× is the measured median</b> across our own sales; backing is shown after that haircut, with its sample and date.</span></div>
         <div class="r"><span class="k">What the market pays</span><span>Token price (from the Meteora pool) × tokens in circulation, both on chain, read with the same open-source decoder anyone can run. <b id="p-pool"></b></span></div>
         <div class="r"><span class="k">What we never do</span><span><b>Count the money people paid for the token as if it were in the vault.</b> That money sits in the trading pool, not in the vault. Two pockets, two numbers, never one total.</span></div>
+        <div class="r"><span class="k">How items get in</span><span>Only what passes <b>this vault's rules</b> — a registered custodian (Collector Crypt), a graded card, a value written on chain. The sender signs the transfer; the vault never pulls. The sender is owed <b>tokens worth 80% of what the card sells for</b>, bought on the curve as soon as the vault has the USDC, locked 12 months. Nobody mints tokens: the supply is the curve's. Anything sent outside this flow does not count and is returned.</span></div>
+        <div class="r"><span class="k">The operator</span><span>Onix seeded Vault #1 with its own cards and <b>holds no tokens</b> for them: it earns the operator's leg of the fee (20% of 10%), printed above, and nothing else. There is no allocation, no vesting, no team wallet.</span></div>
         <div class="r"><span class="k">Who signs</span><span>Only the vault wallet, only to deliver through the two exit doors, only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
       </div>
     <div class="band">
@@ -322,6 +324,34 @@
       </div>
       <div class="note"><b>Why taking an item out costs 15% more than its listed value.</b> Without it, whoever picks first picks the bargains and leaves the rest to everyone else. With it, every item that leaves makes the vault worth more per token for those who stay.</div>
     </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 3b · SEND A CARD · the Admit door ═══════════════ -->
+<section class="screen" id="s-send">
+  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><a href="#/vault/1">Vault #1</a><span>›</span><span>Send a card</span></div>
+  <div class="sec">
+    <div>
+      <p class="eyebrow" id="sd-rules">Vault #1 takes graded cards from Collector Crypt</p>
+      <h2 style="margin-top:8px">Send a card, get $VEONIX</h2>
+      <p class="muted" style="margin-top:8px;max-width:62ch">Your card goes into the vault. You get tokens worth 80% of what it sells for, locked 12 months — bought on the curve as soon as the vault has the USDC. The same deal Onix would get.</p>
+    </div>
+    <div class="walletrow">
+      <button class="cta" id="sd-connect" type="button">Connect wallet</button>
+      <span class="faint" style="font-size:13px">or paste an address</span>
+      <input id="sd-addr" class="addr" placeholder="wallet address" spellcheck="false">
+      <button class="cta ghost sm" id="sd-scan" type="button">Scan</button>
+    </div>
+    <p class="muted" id="sd-summary" style="font-size:13.5px"></p>
+    <div class="pick" id="sd-pick"></div>
+    <div class="calc" id="sd-calc" style="display:none">
+      <div><div class="lab">Listed value</div><div class="cv" id="sd-val">—</div><div class="cs">the custodian's insured value</div></div>
+      <div><div class="lab">What it sells for</div><div class="cv" id="sd-real">—</div><div class="cs">× 0.89, measured</div></div>
+      <div><div class="lab">You get</div><div class="cv v" id="sd-owed">—</div><div class="cs">in $VEONIX at the price when bought · locked 12 months</div></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta" id="sd-go" type="button" disabled>Pick a card</button><a class="cta ghost" href="#/vault/1">Back to the vault</a></div>
+    <p class="faint" id="sd-msg" style="font-size:12.5px;min-height:16px"></p>
+    <p class="faint" style="font-size:12.5px">Only what passes this vault's rules can be sent here. Anything else sent to the vault wallet directly does not count and is returned.</p>
   </div>
 </section>
 
@@ -383,7 +413,7 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         <div>
           <b style="font-family:'Bricolage Grotesque',sans-serif;font-size:17px">Operator-run until the program ships.</b>
-          <p class="muted" style="margin-top:6px">Today Onix operates every vault under the published rules — yours too. It moves to an on-chain program when that exists.</p>
+          <p class="muted" style="margin-top:6px">Today Onix operates every vault under the published rules — yours too. It moves to an on-chain program when that exists. When creation opens: any wallet, but only over a <b>registered custodian</b> and one category; an opening lot of your own items (≥ 5 or ≥ $500); a creation fee; one vault per wallet per custodian; and no powers for the creator beyond the operator's leg of the fee.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="cta" href="#/integrate">Talk to us</a><button class="cta ghost" id="back2">Back</button></div>
         </div>
       </div>

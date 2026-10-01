@@ -18,6 +18,7 @@ const service = {
 };
 const stats = { read: async () => ({ readAt: 1, items: { count: 1 }, backing: { indexUsd: 20, realisableUsd: 17.8, multiplier: 0.89 }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 };
 const trader = { quote: async (a) => ({ side: a.side, amountIn: a.amount, amountOut: a.amount * 100, tradingFeeUsd: a.amount * 0.08 }), build: async (a) => ({ quote: { amountOut: a.amount * 100 }, transaction: 'AAAA', message: 'BBBB', owner: a.owner }) };
+const admissions = { rules: { custodians: ['Collector Crypt'], category: 'graded-cards' }, eligible: async (w) => ({ wallet: w, total: 1, eligible: [{ mint: 'E', owedUsd: 10 }], ineligible: [] }), build: async (a) => ({ mint: a.mint, owedUsd: 10, transaction: 'TX', message: 'MSG' }), record: (a) => ({ id: 'A1', status: 'pending', ...a }), list: () => [{ id: 'A1', mint: 'M', owner: 'O', status: 'admitted', tokens: 'pending', owedUsd: 10, valueUsd: 14, signature: 'S', at: 5 }] };
 const readWallet = async (w) => { if (w === 'bad') { const e = new Error('not a wallet address'); e.statusCode = 400; throw e; } return { wallet: w, total: 1, eligible: [{ mint: 'E' }], ineligible: [] }; };
 
 // the reader's age moves when listItems re-reads the chain: the age served must be the
@@ -27,7 +28,7 @@ service.listItems = async () => { age = 0; return [{ mint: 'M', exitPriceUsd: 20
 
 let server, base;
 before(async () => {
-  const app = buildApp({ service, stats, readWallet, trader, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => age, vaultMeta: { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'] } });
+  const app = buildApp({ service, stats, readWallet, trader, admissions, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => age, vaultMeta: { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'] } });
   await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -46,7 +47,7 @@ describe('routes — what the page reads', () => {
     const st = await j(`/v1/vaults/${VAULT}/stats`);
     assert.equal(st.status, 200); assert.equal(st.body.poolStatus, 'not launched'); assert.equal(st.body.backing.realisableUsd, 17.8);
     const ac = await j(`/v1/vaults/${VAULT}/activity`);
-    assert.equal(ac.status, 200); assert.equal(ac.body.activity[0].type, 'gacha');
+    assert.equal(ac.status, 200); assert.ok(ac.body.activity.some((e) => e.type === 'gacha'));
     assert.equal((await j(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/stats`)).status, 404);
   });
   test('GET /v1/wallets/:wallet/eligible-items; a bad wallet is 400 with the reason', async () => {
@@ -54,6 +55,17 @@ describe('routes — what the page reads', () => {
     assert.equal(ok.status, 200); assert.equal(ok.body.eligible[0].mint, 'E');
     const bad = await j('/v1/wallets/bad/eligible-items');
     assert.equal(bad.status, 400); assert.match(bad.body.error, /not a wallet/);
+  });
+  test('the Admit door: eligible-items for THIS vault, admissions/build, record (202), list; activity merges admissions', async () => {
+    const e = await j(`/v1/vaults/${VAULT}/eligible-items?wallet=W`);
+    assert.equal(e.status, 200); assert.equal(e.body.eligible[0].mint, 'E');
+    const b = await post(`/v1/vaults/${VAULT}/admissions/build`, { owner: 'O', mint: 'M' });
+    assert.equal(b.status, 200); assert.equal(b.body.message, 'MSG');
+    const r = await post(`/v1/vaults/${VAULT}/admissions`, { mint: 'M', owner: 'O', signature: 'S', valueUsd: '14' });
+    assert.equal(r.status, 202); assert.equal(r.body.valueUsd, 14);
+    const l = await j(`/v1/vaults/${VAULT}/admissions`); assert.equal(l.status, 200); assert.equal(l.body.rules.category, 'graded-cards');
+    const ac = await j(`/v1/vaults/${VAULT}/activity`); assert.deepEqual(ac.body.activity.map((x) => x.type), ['admit', 'gacha']);
+    const v = await j('/v1/vaults'); assert.equal(v.body.vaults[0].rules.category, 'graded-cards');
   });
   test('POST trades/quote and trades/build pass through; amount is coerced; another :vault is 404', async () => {
     const q = await post(`/v1/vaults/${VAULT}/trades/quote`, { side: 'buy', amount: '10' });
