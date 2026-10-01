@@ -190,14 +190,28 @@
 <section class="screen" id="s-vault">
   <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Vault #1</span></div>
   <div class="sec">
-    <div class="hd">
-      <div>
+    <div class="thero">
+      <img class="tstone" id="tk-img" src="/token/veonix.png" alt="">
+      <div class="tcopy">
         <p class="eyebrow" id="v-eyebrow">Vault #1</p>
-        <h2 style="margin-top:8px"><span id="v-n"></span> items, backing one token</h2>
+        <h1><span id="tk-name">Veonix</span> <span class="tsym" id="tk-sym">$VEONIX</span></h1>
+        <p class="muted" id="tk-line">Backed by <b id="v-n">—</b> graded cards in Vault #1. Every trade buys the next one.</p>
+        <div class="tags" id="tk-tags"></div>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap">
+      <div class="tacts">
         <a class="cta" id="v-buy" href="#trade">Buy the token</a>
         <a class="cta ghost" href="#/create">Admit a card</a>
+      </div>
+    </div>
+
+    <div class="mature big">
+      <div class="mhd"><span>Opens to the whole market at <b id="m-grad">—</b></span><b id="m-pct">—</b></div>
+      <div class="prog"><i id="m-prog" style="width:0%"></i></div>
+      <div class="mrow">
+        <div><span class="lab">Raised so far</span><b id="m-raised">—</b></div>
+        <div><span class="lab">To go</span><b id="m-left">—</b></div>
+        <div><span class="lab">Price</span><b id="m-price">—</b></div>
+        <div><span class="lab">Fees so far</span><b id="m-fees">—</b></div>
       </div>
     </div>
 
@@ -209,19 +223,6 @@
       <div><div class="lab">What is inside</div><div class="val g" id="v-back">—</div><div class="sub"><span id="v-n2"></span> items at what the market pays (<span id="v-mult"></span>× of the custodian's index, $<span id="v-idx"></span>). <span id="v-age"></span></div></div>
     </div>
 
-    <div class="band">
-      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Where the price can go</b><span class="faint" style="font-size:12.5px">it stays near what is inside — two rules keep it there</span></div>
-      <div class="rail">
-        <div class="line"></div><div class="zone"></div>
-        <div class="m" style="left:28%">0.87× floor</div>
-        <div class="m" style="left:78%">1.25× ceiling</div>
-        <div class="pin" id="v-pin" style="display:none">—</div>
-      </div>
-      <div class="legend">
-        <div><b>If it drops below the floor</b> it is cheaper to buy tokens and take an item out than to buy the item — so people do, and the price comes back up.</div>
-        <div><b>If it rises above the ceiling</b> it pays to put an item in and sell the tokens — same thing, the other way.</div>
-      </div>
-    </div>
 
       </div>
       <aside class="trade" id="trade" aria-label="Trade the token">
@@ -230,11 +231,6 @@
           <div><span class="lab">Price</span><b id="t-price">—</b></div>
           <div><span class="lab">Market cap</span><b id="t-mcap">—</b></div>
           <div><span class="lab">Fees so far</span><b id="t-fees2">—</b></div>
-        </div>
-        <div class="mature">
-          <div class="mhd"><span>Opens to the whole market at <b id="t-gradusd">—</b></span><b id="t-pct">—</b></div>
-          <div class="prog"><i id="t-prog" style="width:0%"></i></div>
-          <p class="faint" id="t-left">Until then it trades here, on the launch price-ladder.</p>
         </div>
         <div class="tabs2" role="tablist"><button class="on" data-side="buy" type="button">Buy</button><button data-side="sell" type="button">Sell</button></div>
         <label class="amt"><input id="t-amount" type="number" min="0" step="any" placeholder="0.00" inputmode="decimal" aria-label="amount"><span id="t-unit">USDC</span></label>
@@ -274,6 +270,19 @@
         <div class="r"><span class="k">What we never do</span><span><b>Count the money people paid for the token as if it were in the vault.</b> That money sits in the trading pool, not in the vault. Two pockets, two numbers, never one total.</span></div>
         <div class="r"><span class="k">Who signs</span><span>Only the vault wallet, only to deliver through the two exit doors, only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
       </div>
+    <div class="band">
+      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Where the price can go</b><span class="faint" style="font-size:12.5px">it stays near what is inside — two rules keep it there</span></div>
+      <div class="rail">
+        <div class="line"></div><div class="zone"></div>
+        <div class="m" style="left:28%">0.87× floor</div>
+        <div class="m" style="left:78%">1.25× ceiling</div>
+        <div class="pin" id="v-pin" style="display:none">—</div>
+      </div>
+      <div class="legend">
+        <div><b>If it drops below the floor</b> it is cheaper to buy tokens and take an item out than to buy the item — so people do, and the price comes back up.</div>
+        <div><b>If it rises above the ceiling</b> it pays to put an item in and sell the tokens — same thing, the other way.</div>
+      </div>
+    </div>
       <div class="split">
         <p class="eyebrow">Where every trade goes · 10% fee</p>
         <div class="bar"><span class="s0">2% Meteora</span><span class="s1">4% buys a card</span><span class="s2">2.4% buyback</span><span class="s3">1.6% operator</span></div>

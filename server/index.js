@@ -66,7 +66,7 @@ function createServer({ readItems: readItemsOverride = null, db: dbOverride = nu
   const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: C.GRADUATION_USD, pool: C.POOL, baseMint: C.BASE_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS }, cacheMs: C.ITEMS_CACHE_MS });
   const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
   const trader = C.POOL ? createCurveTrader({ pool: C.POOL, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, ...productionCurveDeps({ rpcUrl: C.RPC_URL, chain }) }) : null;
-  const vaultMeta = { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'], description: 'Graded trading cards in OmniVault, PWCC and PSA Vault' };
+  const vaultMeta = { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'], description: 'Graded trading cards in OmniVault, PWCC and PSA Vault', token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' } };
   const app = buildApp({ service, stats, readWallet, trader, vaultWallet, vaultMeta, signerConfigured: signer.configured, itemsAge: readItems.ageMs || (() => null) });
   return { app, service, db };
 }

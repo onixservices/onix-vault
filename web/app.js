@@ -5,6 +5,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var usd = function (n) { return n == null ? '—' : '$' + Math.round(n).toLocaleString('en-US'); };
   var usd2 = function (n) { return n == null ? '—' : '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var price = function (n) { if (n == null) return '—'; if (n >= 0.01) return usd2(n); var d = Math.min(12, 2 - Math.floor(Math.log10(n)) + 2); return '$' + n.toFixed(d).replace(/0+$/, ''); };
   var short = function (a) { return a ? a.slice(0, 4) + '…' + a.slice(-4) : '—'; };
   var ago = function (ms) { if (ms == null) return ''; var s = Math.round(ms / 1000); return s < 60 ? 'read ' + s + ' s ago' : 'read ' + Math.round(s / 60) + ' min ago'; };
   var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
@@ -54,6 +55,19 @@
     loadStats().then(function (st) {
       $('v-eyebrow').textContent = (META.name || 'Vault') + ' · operated by ' + (META.operator || '—') + ' · wallet ' + short(VAULT);
       $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count;
+      var tk = META.token || {};
+      if (tk.name) $('tk-name').textContent = tk.name; if (tk.symbol) $('tk-sym').textContent = '$' + tk.symbol; if (tk.image) $('tk-img').src = tk.image;
+      $('tk-tags').innerHTML = st.pool
+        ? '<span class="tag live">trading</span><a class="tag" href="https://solscan.io/token/' + st.pool.baseMint + '" target="_blank" rel="noopener">mint ' + short(st.pool.baseMint) + '</a><a class="tag" href="https://solscan.io/account/' + st.pool.address + '" target="_blank" rel="noopener">pool ' + short(st.pool.address) + '</a><span class="tag">10% of every trade feeds the vault</span>'
+        : '<span class="tag">' + st.poolStatus + '</span>';
+      var g = st.pool && st.pool.graduationUsd ? st.pool.graduationUsd : 3500;
+      $('m-grad').textContent = usd(g);
+      if (st.pool) {
+        var pr = Math.round((st.pool.graduationProgress || 0) * 100);
+        $('m-pct').textContent = pr + '%'; $('m-prog').style.width = pr + '%';
+        $('m-raised').textContent = usd(st.pool.mcapUsd); $('m-left').textContent = usd(Math.max(0, g - st.pool.mcapUsd));
+        $('m-price').textContent = price(st.pool.priceUsd); $('m-fees').textContent = usd2(st.pool.feesLifetimeUsd);
+      } else { $('m-pct').textContent = '—'; $('m-prog').style.width = '0%'; $('m-raised').textContent = '—'; $('m-left').textContent = '—'; $('m-price').textContent = '—'; $('m-fees').textContent = '—'; }
       $('v-idx').textContent = st.backing.indexUsd.toLocaleString('en-US'); $('v-mult').textContent = st.backing.multiplier;
       $('v-back').textContent = usd(st.backing.realisableUsd);
       $('v-age').textContent = ago(st.ageMs);
@@ -61,7 +75,7 @@
       tradePanel(st);
       if (st.pool) {
         $('v-mcap').textContent = usd(st.pool.mcapUsd);
-        $('v-mcap-sub').textContent = 'Token price ' + usd2(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' tokens in circulation.';
+        $('v-mcap-sub').textContent = 'Token price ' + price(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' tokens in circulation.';
         var r = st.pool.ratio; $('v-ratio').textContent = r != null ? r.toFixed(2) + '×' : '—';
         var pin = $('v-pin'); if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; }
         $('v-buy').textContent = 'Buy the token'; $('v-buy').href = '#trade';
@@ -103,13 +117,9 @@
     el.classList.toggle('off', !p);
     $('t-state').textContent = p ? (st.poolStatus === 'live' ? 'trading' : st.poolStatus) : 'not launched';
     $('t-state').className = 'tag' + (p ? ' live' : '');
-    $('t-price').textContent = p ? usd2(p.priceUsd) : '—';
+    $('t-price').textContent = p ? price(p.priceUsd) : '—';
     $('t-mcap').textContent = p ? usd(p.mcapUsd) : '—';
     $('t-fees2').textContent = p ? usd2(p.feesLifetimeUsd) : '—';
-    $('t-gradusd').textContent = p && p.graduationUsd ? usd(p.graduationUsd) : '$3,500';
-    var pct = p && p.graduationProgress != null ? Math.round(p.graduationProgress * 100) : 0;
-    $('t-pct').textContent = p ? pct + '%' : '—'; $('t-prog').style.width = pct + '%';
-    $('t-left').textContent = p ? (p.graduationUsd ? usd(Math.max(0, p.graduationUsd - p.mcapUsd)) + ' to go · until then it trades here, on the launch price-ladder.' : '') : 'Opens when the token launches. Until then there is nothing to buy, and we say so.';
     $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? 'Buy' : 'Sell') : 'Connect wallet') : 'Opens when the token launches';
     $('t-unit').textContent = T.side === 'buy' ? 'USDC' : '$VEONIX';
   }
@@ -183,7 +193,7 @@
       $('i-cert').textContent = c.certNumber || '—'; $('i-vault').textContent = c.physicalVault || '—'; $('i-cust').textContent = c.custodian || '—';
       $('i-usd').textContent = usd2(c.custodianValueUsd); $('i-mint').textContent = c.mint;
       $('i-redeem-usd').textContent = usd2(c.redeemPriceUsd);
-      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' tokens at today\'s price · listed value + 15%' : 'listed value + 15% · in tokens once trading opens';
+      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' $VEONIX at today\'s price · listed value + 15%' : 'listed value + 15% · in tokens once trading opens';
       $('i-exit').textContent = usd2(c.exitPriceUsd);
       var res = c.status === 'reserved';
       $('i-status').textContent = res ? 'Reserved' + (c.reservedUntil ? ' · ' + Math.max(0, Math.round((c.reservedUntil - Date.now()) / 60000)) + ' min' : '') : 'Available';

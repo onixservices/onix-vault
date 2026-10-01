@@ -162,28 +162,23 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .bar span{display:flex; align-items:center; justify-content:center; font:600 11px/1 var(--mono); color:#04140f; white-space:nowrap; overflow:hidden}
 .bar .s0{background:var(--surface3); color:var(--text-muted); flex:20} .bar .s1{background:var(--brand); flex:40} .bar .s2{background:var(--aura); flex:24} .bar .s3{background:var(--text-faint); color:#fff; flex:16}
 
-/* ── trade panel (the Buy door) ── */
-.vgrid{display:grid; grid-template-columns:minmax(0,1.5fr) minmax(300px,.9fr); gap:14px; align-items:start}
-@media(max-width:900px){ .vgrid{grid-template-columns:1fr} }
-.vleft{display:flex; flex-direction:column; gap:14px; min-width:0}
-.trade{background:var(--wash),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:var(--glow-card); position:sticky; top:72px}
-.trade-top{display:flex; justify-content:space-between; align-items:center}
-.trade-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
-.trade-stats div{display:flex; flex-direction:column; gap:4px} .trade-stats .lab{margin:0}
-.trade-stats b{font:600 15px/1 var(--mono); font-variant-numeric:tabular-nums}
-.mature{display:flex; flex-direction:column; gap:7px; padding:10px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border)}
-.mature .mhd{display:flex; justify-content:space-between; gap:10px; font-size:13px; color:var(--text-muted)} .mature .mhd b{color:var(--text); font-family:var(--mono); font-weight:600}
-.mature .prog{height:6px}
-.tabs2{display:grid; grid-template-columns:1fr 1fr; gap:4px; background:var(--bg-deep); border:1px solid var(--border); border-radius:var(--r-md); padding:3px}
-.tabs2 button{background:none; border:0; border-radius:7px; padding:8px; color:var(--text-muted); font-weight:600; cursor:pointer; min-height:36px}
-.tabs2 button.on{background:var(--surface2); color:var(--text)}
-.amt{display:flex; align-items:center; gap:8px; border:1px solid var(--border2); border-radius:var(--r-md); background:var(--bg-deep); padding:0 12px}
-.amt input{flex:1; min-width:0; min-height:48px; border:0; background:transparent; color:var(--text); font:600 20px var(--mono); outline:none}
-.amt input::placeholder{color:var(--text-faint)} .amt span{font:600 12px var(--mono); color:var(--text-muted)}
-.amt:focus-within{border-color:var(--brand-a50); box-shadow:var(--glow-focus)}
-.trade .q{font:500 13px/1.4 var(--mono); color:var(--text-muted); min-height:18px}
-.trade.off .amt,.trade.off .tabs2{opacity:.5; pointer-events:none}
-.trade.off .cta{background:var(--surface2); color:var(--text-muted); box-shadow:none; cursor:default; transform:none}
+/* ── token hero + maturity ── */
+.thero{display:grid; grid-template-columns:auto 1fr auto; gap:18px; align-items:center}
+@media(max-width:760px){ .thero{grid-template-columns:auto 1fr} .thero .tacts{grid-column:1/-1} }
+.tstone{width:84px; height:84px; object-fit:contain; filter:var(--glow-crystal); border-radius:50%}
+.tcopy{display:flex; flex-direction:column; gap:6px; min-width:0}
+.tcopy h1{font-size:var(--fs-display); display:flex; gap:10px; align-items:baseline; flex-wrap:wrap}
+.tsym{font:600 .55em var(--mono); color:var(--brand); letter-spacing:0}
+.tcopy .muted b{color:var(--text)}
+.tacts{display:flex; gap:8px; flex-wrap:wrap}
+.tags a.tag{text-decoration:none}
+.mature.big{background:var(--wash),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px 18px; gap:10px}
+.mature.big .mhd{font-size:15px} .mature.big .mhd b{font-size:16px}
+.mature.big .prog{height:10px} .mature.big .prog i{box-shadow:var(--glow-positive)}
+.mrow{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:4px}
+@media(max-width:560px){ .mrow{grid-template-columns:1fr 1fr} }
+.mrow div{display:flex; flex-direction:column; gap:4px} .mrow .lab{margin:0}
+.mrow b{font:600 17px/1 var(--mono); font-variant-numeric:tabular-nums}
 
 /* ── trade panel (the Buy door) ── */
 .vgrid{display:grid; grid-template-columns:minmax(0,1.5fr) minmax(300px,.9fr); gap:14px; align-items:start}
