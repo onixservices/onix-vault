@@ -5,52 +5,824 @@
     "version": "1.0.0",
     "description": "How a gacha (ours or anyone's) buys an item out of a vault, and how a holder redeems one. Every state change is anchored to a public transaction: the payment is read from the chain before the vault delivers. The vault never holds anyone's money and never runs a draw. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing."
   },
-  "servers": [{ "url": "https://vault.onix.finance" }],
+  "servers": [
+    {
+      "url": "https://vault.onix.finance"
+    }
+  ],
   "paths": {
     "/v1/health": {
-      "get": { "summary": "What is configured (never a secret)", "responses": { "200": { "description": "ok", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } } } }
+      "get": {
+        "summary": "What is configured (never a secret)",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vaults": {
+      "get": {
+        "summary": "The vaults this server serves (one today), each with its stats",
+        "responses": {
+          "200": {
+            "description": "vaults",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "readAt": {
+                      "type": "string"
+                    },
+                    "vaults": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "vault": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "operator": {
+                            "type": "string"
+                          },
+                          "custodians": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "stats": {
+                            "$ref": "#/components/schemas/Stats"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/stats": {
+      "get": {
+        "summary": "Backing (index and realisable) and, when a pool exists, price · supply · market cap · graduation progress — read on the server",
+        "description": "Backing and the pool are two numbers and are never summed; `pool.ratio` is the only place they meet. `pool` is null and `poolStatus` says why until the curve is launched.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stats"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/activity": {
+      "get": {
+        "summary": "The doors that fired, newest first: gacha sales and redemptions, each with its signatures",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "activity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "readAt": {
+                      "type": "string"
+                    },
+                    "activity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "gacha",
+                              "redeem"
+                            ]
+                          },
+                          "at": {
+                            "type": "integer"
+                          },
+                          "mint": {
+                            "type": "string"
+                          },
+                          "to": {
+                            "type": "string"
+                          },
+                          "priceUsd": {
+                            "type": "number"
+                          },
+                          "paymentSignature": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "burnSignature": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "deliverySignature": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/wallets/{wallet}/eligible-items": {
+      "get": {
+        "summary": "What in a wallet could back a vault: items from a registered custodian with a value on chain; the rest listed with the reason",
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "eligibility",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallet": {
+                      "type": "string"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "eligible": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "ineligible": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "mint": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/v1/vaults/{vault}/items": {
       "get": {
         "summary": "Every priced item in the vault wallet, read from the chain",
-        "parameters": [{ "$ref": "#/components/parameters/vault" }],
-        "responses": { "200": { "description": "items", "content": { "application/json": { "schema": { "type": "object", "properties": { "readAt": { "type": "string", "format": "date-time" }, "itemsAgeMs": { "type": ["integer", "null"] }, "items": { "type": "array", "items": { "$ref": "#/components/schemas/Item" } } } } } } }, "404": { "$ref": "#/components/responses/Error" } }
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "readAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "itemsAgeMs": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Item"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/vaults/{vault}/reservations": {
       "post": {
         "summary": "Reserve an item for a draw; returns the payment transaction to sign",
         "description": "Reserve only when your player has already paid you. The exit price is frozen for the reservation window. The response carries `paymentTransaction` (base64, unsigned, single signer = `integrator`, memo = reservation id): sign it, send it, then settle. Honours `Idempotency-Key`.",
-        "parameters": [{ "$ref": "#/components/parameters/vault" }, { "name": "Idempotency-Key", "in": "header", "schema": { "type": "string" } }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["mint", "integrator", "winner"], "properties": { "mint": { "type": "string" }, "integrator": { "type": "string", "description": "the wallet that will pay" }, "winner": { "type": "string", "description": "the wallet that receives the item" } } } } } },
-        "responses": { "201": { "description": "reserved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "429": { "$ref": "#/components/responses/Error" } }
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mint",
+                  "integrator",
+                  "winner"
+                ],
+                "properties": {
+                  "mint": {
+                    "type": "string"
+                  },
+                  "integrator": {
+                    "type": "string",
+                    "description": "the wallet that will pay"
+                  },
+                  "winner": {
+                    "type": "string",
+                    "description": "the wallet that receives the item"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/vaults/{vault}/reservations/{id}/settle": {
       "post": {
         "summary": "Prove the payment landed; the vault delivers",
         "description": "The vault reads the transaction from the chain and checks: finalized; credits the vault's USDC account with at least the frozen price; memo equals the reservation id. Only then it builds the delivery to `winner`, asserts it has a single unsigned signer (the vault), SIMULATES it, signs, persists the signed transaction and broadcasts. A payment signature settles one reservation, ever.",
-        "parameters": [{ "$ref": "#/components/parameters/vault" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["paymentSignature"], "properties": { "paymentSignature": { "type": "string" } } } } } },
-        "responses": { "200": { "description": "settled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } }, "402": { "description": "payment does not cover the reservation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }, "409": { "description": "not found / not finalized yet / already used — retry later", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }, "410": { "description": "reservation expired; refunds are manual in v1", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }, "503": { "description": "paid, but the delivery failed (it is simulated before it is signed; a delivery that would fail on chain is never broadcast). The reservation is `delivery_failed`, keeps the payment, and the operator re-runs the delivery by hand (`scripts/retry-delivery.js`); poll `GET …/reservations/{id}` for `deliverySignature`.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } }
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "paymentSignature"
+                ],
+                "properties": {
+                  "paymentSignature": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "payment does not cover the reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not found / not finalized yet / already used — retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "reservation expired; refunds are manual in v1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "paid, but the delivery failed (it is simulated before it is signed; a delivery that would fail on chain is never broadcast). The reservation is `delivery_failed`, keeps the payment, and the operator re-runs the delivery by hand (`scripts/retry-delivery.js`); poll `GET …/reservations/{id}` for `deliverySignature`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/vaults/{vault}/reservations/{id}": {
-      "get": { "summary": "The trail of one reservation", "parameters": [{ "$ref": "#/components/parameters/vault" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "reservation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Reservation" } } } }, "404": { "$ref": "#/components/responses/Error" } } }
+      "get": {
+        "summary": "The trail of one reservation",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "reservation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reservation"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     },
     "/v1/vaults/{vault}/redemptions": {
-      "post": { "summary": "Record a burn to redeem a specific item (v1: verified by the operator)", "parameters": [{ "$ref": "#/components/parameters/vault" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["mint", "burnSignature", "recipient"], "properties": { "mint": { "type": "string" }, "burnSignature": { "type": "string" }, "recipient": { "type": "string" } } } } } }, "responses": { "202": { "description": "recorded, verifying" }, "409": { "$ref": "#/components/responses/Error" } } },
-      "get": { "summary": "Every redemption, with both signatures", "parameters": [{ "$ref": "#/components/parameters/vault" }], "responses": { "200": { "description": "list" } } }
+      "post": {
+        "summary": "Record a burn to redeem a specific item (v1: verified by the operator)",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "mint",
+                  "burnSignature",
+                  "recipient"
+                ],
+                "properties": {
+                  "mint": {
+                    "type": "string"
+                  },
+                  "burnSignature": {
+                    "type": "string"
+                  },
+                  "recipient": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "recorded, verifying"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "Every redemption, with both signatures",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/vault"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "list"
+          }
+        }
+      }
     }
   },
   "components": {
-    "parameters": { "vault": { "name": "vault", "in": "path", "required": true, "schema": { "type": "string" }, "description": "the vault wallet" } },
-    "responses": { "Error": { "description": "error with the service's status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } } },
+    "parameters": {
+      "vault": {
+        "name": "vault",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "the vault wallet"
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "error with the service's status",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
     "schemas": {
-      "Health": { "type": "object", "properties": { "ok": { "type": "boolean" }, "vaultWallet": { "type": "string" }, "signerConfigured": { "type": "boolean" }, "itemsAgeMs": { "type": ["integer", "null"] } } },
-      "Item": { "type": "object", "properties": { "mint": { "type": "string" }, "custodian": { "type": "string" }, "name": { "type": ["string", "null"] }, "category": { "type": ["string", "null"] }, "custodianValueUsd": { "type": "number" }, "custodianValueBasis": { "type": ["string", "null"] }, "marketRefUsd": { "type": ["number", "null"] }, "exitPriceUsd": { "type": "number", "description": "max(custodian value, market reference)" }, "exitPriceBasis": { "type": "string", "enum": ["custodian", "market"] }, "redeemPriceUsd": { "type": "number", "description": "exit price × 1.15" }, "status": { "type": "string", "enum": ["available", "reserved"] }, "reservedUntil": { "type": ["integer", "null"] } } },
-      "Reservation": { "type": "object", "properties": { "reservationId": { "type": "string" }, "mint": { "type": "string" }, "integrator": { "type": "string" }, "winner": { "type": "string" }, "exitPriceUsd": { "type": "number" }, "status": { "type": "string", "enum": ["reserved", "settling", "settled", "expired", "cancelled", "delivery_failed"] }, "expiresAt": { "type": "integer" }, "payTo": { "type": "string" }, "payMint": { "type": "string" }, "memo": { "type": "string" }, "paymentTransaction": { "type": "string", "description": "base64, unsigned; present on creation" }, "paymentSignature": { "type": ["string", "null"] }, "deliverySignature": { "type": ["string", "null"] } } },
-      "Error": { "type": "object", "properties": { "error": { "type": "string" }, "code": { "type": "integer" } } }
+      "Health": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "vaultWallet": {
+            "type": "string"
+          },
+          "signerConfigured": {
+            "type": "boolean"
+          },
+          "itemsAgeMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "mint": {
+            "type": "string"
+          },
+          "custodian": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "custodianValueUsd": {
+            "type": "number"
+          },
+          "custodianValueBasis": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "marketRefUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "exitPriceUsd": {
+            "type": "number",
+            "description": "max(custodian value, market reference)"
+          },
+          "exitPriceBasis": {
+            "type": "string",
+            "enum": [
+              "custodian",
+              "market"
+            ]
+          },
+          "redeemPriceUsd": {
+            "type": "number",
+            "description": "exit price × 1.15"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "reserved"
+            ]
+          },
+          "reservedUntil": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "Reservation": {
+        "type": "object",
+        "properties": {
+          "reservationId": {
+            "type": "string"
+          },
+          "mint": {
+            "type": "string"
+          },
+          "integrator": {
+            "type": "string"
+          },
+          "winner": {
+            "type": "string"
+          },
+          "exitPriceUsd": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "settling",
+              "settled",
+              "expired",
+              "cancelled",
+              "delivery_failed"
+            ]
+          },
+          "expiresAt": {
+            "type": "integer"
+          },
+          "payTo": {
+            "type": "string"
+          },
+          "payMint": {
+            "type": "string"
+          },
+          "memo": {
+            "type": "string"
+          },
+          "paymentTransaction": {
+            "type": "string",
+            "description": "base64, unsigned; present on creation"
+          },
+          "paymentSignature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deliverySignature": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "code": {
+            "type": "integer"
+          }
+        }
+      },
+      "Stats": {
+        "type": "object",
+        "properties": {
+          "readAt": {
+            "type": "integer"
+          },
+          "ageMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer"
+              }
+            }
+          },
+          "backing": {
+            "type": "object",
+            "properties": {
+              "indexUsd": {
+                "type": "number"
+              },
+              "realisableUsd": {
+                "type": "number"
+              },
+              "multiplier": {
+                "type": "number"
+              }
+            }
+          },
+          "band": {
+            "type": "object",
+            "properties": {
+              "floor": {
+                "type": "number"
+              },
+              "ceiling": {
+                "type": "number"
+              },
+              "redeemPremium": {
+                "type": "number"
+              },
+              "admission": {
+                "type": "number"
+              }
+            }
+          },
+          "poolStatus": {
+            "type": "string",
+            "description": "not launched | live | migrated | unreadable: <why>"
+          },
+          "pool": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "baseMint": {
+                "type": "string"
+              },
+              "priceUsd": {
+                "type": "number"
+              },
+              "supply": {
+                "type": "number"
+              },
+              "mcapUsd": {
+                "type": "number"
+              },
+              "ratio": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "market cap ÷ realisable backing"
+              },
+              "graduationUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "graduationProgress": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "partnerFeeClaimableUsd": {
+                "type": "number"
+              },
+              "feesLifetimeUsd": {
+                "type": "number"
+              },
+              "isMigrated": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -52,8 +52,13 @@ function expiredCountFor(db, integrator) {
   return db.prepare("SELECT COUNT(*) n FROM vault_reservations WHERE integrator = ? AND status = 'expired'").get(integrator).n;
 }
 
+/** Settled sales, newest first — the gacha door's public trail. */
+function listSettled(db, limit = 100) {
+  return db.prepare("SELECT * FROM vault_reservations WHERE status = 'settled' ORDER BY updated_at DESC LIMIT ?").all(limit);
+}
+
 function byPaymentSig(db, sig) {
   return db.prepare('SELECT * FROM vault_reservations WHERE payment_sig = ?').get(sig) || null;
 }
 
-module.exports = { add, get, byIdempotencyKey, liveForMint, listLive, listToExpire, transition, expiredCountFor, byPaymentSig };
+module.exports = { add, get, byIdempotencyKey, liveForMint, listLive, listToExpire, transition, expiredCountFor, byPaymentSig, listSettled };

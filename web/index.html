@@ -4,247 +4,716 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Onix.Vault</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;500;600&display=swap">
+<meta name="description" content="Clickable prototype of the Onix.Vault platform: the board, Vault #1 with its 37 real cards, an item with its four doors, creating a vault, integrating a gacha.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;500;600&display=swap">
 <style>
   :root{
     --ground:#f4f4f2; --panel:#ffffff; --panel-2:#faf9f6; --edge:#e2e1dc; --edge-2:#c9c8c2;
-    --ink:#14161b; --ink-2:#4f5666; --ink-3:#7c8494;
-    --gold:#8a6210; --verify:#137a4e; --warn:#a8492a; --note:#2c4a7c;
+    --ink:#14161b; --ink-2:#4f5666; --ink-3:#6b7382;
+    --gold:#8a6210; --gold-soft:#f3e7cb; --verify:#137a4e; --warn:#a8492a; --note:#2c4a7c;
+    --tile:#1b1d23;
   }
   @media (prefers-color-scheme:dark){
     :root:not([data-theme="light"]){
       --ground:#0c0d10; --panel:#14161b; --panel-2:#1a1d23; --edge:#282c35; --edge-2:#373c47;
-      --ink:#eceef2; --ink-2:#a2a9b8; --ink-3:#6e7686;
-      --gold:#d8a441; --verify:#48c98a; --warn:#e08a5f; --note:#7ba3dd;
+      --ink:#eceef2; --ink-2:#a2a9b8; --ink-3:#7f8796;
+      --gold:#d8a441; --gold-soft:#2a2314; --verify:#48c98a; --warn:#e08a5f; --note:#7ba3dd;
+      --tile:#0f1115;
     }
   }
   :root[data-theme="dark"]{
     --ground:#0c0d10; --panel:#14161b; --panel-2:#1a1d23; --edge:#282c35; --edge-2:#373c47;
-    --ink:#eceef2; --ink-2:#a2a9b8; --ink-3:#6e7686;
-    --gold:#d8a441; --verify:#48c98a; --warn:#e08a5f; --note:#7ba3dd;
+    --ink:#eceef2; --ink-2:#a2a9b8; --ink-3:#7f8796;
+    --gold:#d8a441; --gold-soft:#2a2314; --verify:#48c98a; --warn:#e08a5f; --note:#7ba3dd;
+    --tile:#0f1115;
   }
   *{box-sizing:border-box}
-  body{margin:0; background:var(--ground); color:var(--ink); font:400 15.5px/1.6 "Public Sans",system-ui,-apple-system,Segoe UI,sans-serif; padding-block:0 70px; padding-left:18px; padding-right:18px}
-  .wrap{max-width:920px; margin:0 auto; display:flex; flex-direction:column; gap:30px}
-  h1,h2{font-family:"Bricolage Grotesque","Public Sans",system-ui,sans-serif; margin:0; text-wrap:balance}
-  h1{font-weight:700; font-size:clamp(24px,4.4vw,34px); letter-spacing:-.02em; line-height:1.14}
-  h2{font-weight:600; font-size:17px; letter-spacing:-.008em}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--ground); color:var(--ink); font:400 15.5px/1.55 "Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+  h1,h2,h3,h4{font-family:"Bricolage Grotesque","Public Sans",system-ui,sans-serif; margin:0; text-wrap:balance; letter-spacing:-.015em}
+  h1{font-weight:800; font-size:clamp(30px,6vw,52px); line-height:1.05; letter-spacing:-.03em}
+  h2{font-weight:700; font-size:clamp(21px,3.4vw,28px)}
+  h3{font-weight:700; font-size:17px}
   p{margin:0}
   a{color:inherit}
-  .eyebrow{font:500 10.5px/1 "JetBrains Mono",ui-monospace,monospace; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
-  .chrome{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:13px 0; border-bottom:1px solid var(--edge)}
-  .chrome .path{font:500 12px/1 "JetBrains Mono",monospace; color:var(--ink-3)}
-  .chip{margin-left:auto; font:500 10.5px/1 "JetBrains Mono",monospace; color:var(--verify); border:1px solid var(--verify); border-radius:999px; padding:5px 10px}
-  .chip.err{color:var(--warn); border-color:var(--warn)}
-  .addr{font:500 11.5px/1.5 "JetBrains Mono",monospace; color:var(--ink-3); word-break:break-all}
-  .pair{display:grid; grid-template-columns:1fr auto 1fr; gap:1px; background:var(--edge); border:1px solid var(--edge); border-radius:9px; overflow:hidden}
-  .pair > div{background:var(--panel); padding:19px}
-  .pair .mid{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:19px 14px; min-width:104px}
-  .lab{font:500 10.5px/1.3 "JetBrains Mono",monospace; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3); margin-bottom:9px}
-  .val{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:clamp(23px,4.2vw,30px); letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1}
-  .sub{font-size:12.5px; color:var(--ink-3); margin-top:9px; line-height:1.45}
-  .g{color:var(--gold)} .v{color:var(--verify)}
-  .ratio{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:21px}
+  button{font:inherit}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+  .eyebrow{font:500 10.5px/1 "JetBrains Mono",monospace; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
+  .muted{color:var(--ink-2)}
+  .faint{color:var(--ink-3)}
+  .g{color:var(--gold)} .v{color:var(--verify)} .w{color:var(--warn)} .n{color:var(--note)}
+
+  /* ── app chrome ── */
+  .top{position:sticky; top:0; z-index:5; background:color-mix(in srgb,var(--ground) 86%,transparent); backdrop-filter:blur(10px); border-bottom:1px solid var(--edge)}
+  .top .in{max-width:1080px; margin:0 auto; padding:0 16px; height:58px; display:flex; align-items:center; gap:18px}
+  .brand{display:flex; align-items:center; gap:9px; text-decoration:none; font-family:"Bricolage Grotesque",sans-serif; font-weight:800; font-size:18px; letter-spacing:-.02em}
+  .brand i{width:14px; height:14px; transform:rotate(45deg); background:var(--gold); border-radius:2px; display:block}
+  .brand span b{color:var(--gold)}
+  nav{display:flex; gap:4px; margin-left:auto}
+  nav a{text-decoration:none; color:var(--ink-2); padding:8px 11px; border-radius:7px; font-weight:500; font-size:14px}
+  nav a.on{color:var(--ink); background:var(--panel)}
+  .cta{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 18px; border-radius:9px; border:1px solid transparent; background:var(--gold); color:#14161b; font-weight:600; text-decoration:none; cursor:pointer; white-space:nowrap}
+  .cta.ghost{background:transparent; color:var(--ink); border-color:var(--edge-2)}
+  .cta.sm{min-height:38px; padding:0 13px; font-size:14px}
+  .cta.block{width:100%}
+  @media(max-width:640px){ nav a{padding:8px 8px; font-size:13px} .top .cta{display:none} }
+
+  main{max-width:1080px; margin:0 auto; padding:0 16px 80px}
+  .screen{display:none; flex-direction:column; gap:36px; padding-top:30px}
+  .screen.on{display:flex}
+  .tags{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .tag{font:500 10.5px/1 "JetBrains Mono",monospace; letter-spacing:.07em; padding:5px 9px; border-radius:4px; border:1px solid var(--edge-2); color:var(--ink-2); white-space:nowrap}
+  .tag.live{color:var(--verify); border-color:var(--verify)}
+  .tag.mock{color:var(--warn); border-color:var(--warn)}
+  .tag.gold{color:var(--gold); border-color:var(--gold)}
+
+  /* ── hero ── */
+  .hero{display:grid; grid-template-columns:1.15fr 1fr; gap:28px; align-items:center}
+  @media(max-width:820px){ .hero{grid-template-columns:1fr} }
+  .hero .lede{font-size:17px; color:var(--ink-2); max-width:52ch; margin-top:14px}
+  .hero .acts{display:flex; gap:10px; flex-wrap:wrap; margin-top:22px}
+  .fan{position:relative; height:300px}
+  .fan img{position:absolute; bottom:0; width:38%; max-width:170px; border-radius:7px; box-shadow:0 18px 40px rgba(0,0,0,.35); background:var(--tile); object-fit:cover; aspect-ratio:3/4.2}
+  .fan img:nth-child(1){left:4%; transform:rotate(-9deg); z-index:1}
+  .fan img:nth-child(2){left:31%; transform:translateY(-14px); z-index:3}
+  .fan img:nth-child(3){left:58%; transform:rotate(9deg); z-index:2}
+  @media(max-width:820px){ .fan{height:230px} }
+
+  /* ── doors ── */
+  .doors{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px}
+  @media(max-width:820px){ .doors{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .door{background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:6px; min-height:132px}
+  .door .k{font:700 11px/1 "JetBrains Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--gold)}
+  .door b{font-family:"Bricolage Grotesque",sans-serif; font-size:17px; font-weight:700}
+  .door p{font-size:13.5px; color:var(--ink-2)}
+  .door .up{margin-top:auto; font:500 11px/1 "JetBrains Mono",monospace; color:var(--verify)}
+
+  /* ── board ── */
+  .board{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px}
+  .vcard{background:var(--panel); border:1px solid var(--edge); border-radius:12px; overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column}
+  .vcard:hover{border-color:var(--edge-2)}
+  .vcard .strip{display:grid; grid-template-columns:repeat(5,1fr); gap:2px; background:var(--tile); padding:10px; height:112px}
+  .vcard .strip img{width:100%; height:100%; object-fit:cover; border-radius:3px; opacity:.95}
+  .vcard .body{padding:14px 15px 15px; display:flex; flex-direction:column; gap:10px}
+  .vcard .head{display:flex; justify-content:space-between; gap:10px; align-items:baseline}
+  .vcard .head b{font-family:"Bricolage Grotesque",sans-serif; font-size:19px; font-weight:800}
+  .kv{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+  .kv div{display:flex; flex-direction:column; gap:3px}
+  .kv .l{font:500 10px/1 "JetBrains Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3)}
+  .kv .x{font:700 17px/1 "JetBrains Mono",monospace; font-variant-numeric:tabular-nums}
+  .prog{height:6px; border-radius:3px; background:var(--edge); overflow:hidden}
+  .prog i{display:block; height:100%; background:var(--gold); border-radius:3px}
+  .vcard.empty{border-style:dashed; align-items:center; justify-content:center; text-align:center; padding:28px; gap:10px; min-height:230px; color:var(--ink-2)}
+  .vcard.empty b{font-family:"Bricolage Grotesque",sans-serif; font-size:18px; color:var(--ink)}
+
+  /* ── vault page ── */
+  .pair{display:grid; grid-template-columns:1fr auto 1fr; gap:1px; background:var(--edge); border:1px solid var(--edge); border-radius:11px; overflow:hidden}
+  .pair>div{background:var(--panel); padding:18px}
+  .pair .mid{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-width:110px; padding:18px 14px}
+  .lab{font:500 10.5px/1.3 "JetBrains Mono",monospace; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3); margin-bottom:8px}
+  .val{font:700 clamp(24px,4.4vw,32px)/1 "JetBrains Mono",monospace; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+  .sub{font-size:12.5px; color:var(--ink-3); margin-top:8px; line-height:1.45}
+  .ratio{font:700 24px/1 "JetBrains Mono",monospace}
   @media(max-width:620px){ .pair{grid-template-columns:1fr} .pair .mid{border-block:1px solid var(--edge)} }
-  .note{border-left:3px solid var(--warn); padding:4px 0 4px 15px; color:var(--ink-2); font-size:14.5px}
-  .note b{color:var(--ink)}
-  .note.green{border-left-color:var(--verify)} .note.blue{border-left-color:var(--note)}
+  .band{background:var(--panel); border:1px solid var(--edge); border-radius:11px; padding:16px 18px; display:flex; flex-direction:column; gap:10px}
+  .band .rail{position:relative; height:34px; margin:8px 0 2px}
+  .band .rail .line{position:absolute; left:0; right:0; top:15px; height:4px; background:var(--edge)}
+  .band .rail .zone{position:absolute; left:28%; right:22%; top:13px; height:8px; background:var(--gold-soft); border:1px solid var(--gold); border-radius:4px}
+  .band .rail .pin{position:absolute; top:4px; width:26px; height:26px; margin-left:-13px; border-radius:50%; background:var(--gold); color:#14161b; display:flex; align-items:center; justify-content:center; font:700 9px/1 "JetBrains Mono",monospace}
+  .band .rail .m{position:absolute; top:34px; transform:translateX(-50%); font:500 10.5px/1.3 "JetBrains Mono",monospace; color:var(--ink-3); white-space:nowrap}
+  .band .legend{display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:13px; color:var(--ink-2); margin-top:14px}
+  .band .legend b{color:var(--ink); display:block}
+  @media(max-width:560px){ .band .legend{grid-template-columns:1fr} }
+  .tabs{display:flex; gap:4px; border-bottom:1px solid var(--edge)}
+  .tabs button{background:none; border:0; border-bottom:2px solid transparent; padding:10px 12px; color:var(--ink-2); font-weight:500; cursor:pointer; min-height:44px}
+  .tabs button.on{color:var(--ink); border-bottom-color:var(--gold)}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px}
+  .item{background:var(--panel); border:1px solid var(--edge); border-radius:10px; overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column}
+  .item:hover{border-color:var(--edge-2)}
+  .item .ph{background:var(--tile); aspect-ratio:3/4; display:flex; align-items:center; justify-content:center; position:relative}
+  .item .ph img{width:100%; height:100%; object-fit:cover}
+  .item .st{position:absolute; left:8px; top:8px; font:600 9.5px/1 "JetBrains Mono",monospace; letter-spacing:.08em; text-transform:uppercase; padding:4px 6px; border-radius:4px; background:rgba(0,0,0,.72); color:#fff}
+  .item .st.res{background:var(--warn)}
+  .item .tx{padding:10px 11px 12px; display:flex; flex-direction:column; gap:3px}
+  .item .nm{font-weight:600; font-size:13.5px; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .item .gr{font:500 10.5px/1.4 "JetBrains Mono",monospace; color:var(--ink-3)}
+  .item .pr{display:flex; justify-content:space-between; align-items:baseline; margin-top:5px}
+  .item .pr b{font:700 14.5px/1 "JetBrains Mono",monospace}
+  .item .pr span{font:500 10.5px/1 "JetBrains Mono",monospace; color:var(--gold)}
+  .feed{background:var(--panel); border:1px solid var(--edge); border-radius:11px; padding:24px; display:flex; flex-direction:column; gap:14px}
+  .feed .row{display:grid; grid-template-columns:120px 1fr auto; gap:14px; align-items:baseline; padding:11px 0; border-top:1px solid var(--edge); font-size:14px}
+  .feed .row:first-of-type{border-top:0}
+  .feed .k{font:600 11px/1.4 "JetBrains Mono",monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--gold)}
+  .feed .sig{font:500 11px/1 "JetBrains Mono",monospace; color:var(--ink-3)}
+  @media(max-width:560px){ .feed .row{grid-template-columns:1fr; gap:4px} }
+  .prov{background:var(--panel); border:1px solid var(--edge); border-radius:11px; padding:6px 20px}
+  .prov .r{display:grid; grid-template-columns:150px 1fr; gap:16px; padding:14px 0; border-bottom:1px solid var(--edge); align-items:start; font-size:14px; color:var(--ink-2)}
+  .prov .r:last-child{border-bottom:0}
+  .prov .k{font:500 11px/1.4 "JetBrains Mono",monospace; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+  .prov b{color:var(--ink)}
+  @media(max-width:560px){ .prov .r{grid-template-columns:1fr; gap:4px} }
   .split{display:flex; flex-direction:column; gap:9px}
-  .bar{display:flex; height:34px; border-radius:6px; overflow:hidden; border:1px solid var(--edge-2)}
-  .bar span{display:flex; align-items:center; justify-content:center; font:700 11.5px/1 "JetBrains Mono",monospace; color:#fff; white-space:nowrap; overflow:hidden}
-  .bar .s0{background:var(--edge-2); color:var(--ink-2)} .bar .s1{background:var(--gold)} .bar .s2{background:var(--verify)} .bar .s3{background:var(--ink-3)}
-  .legend{display:grid; grid-template-columns:repeat(auto-fit,minmax(178px,1fr)); gap:11px}
-  .legend div{font-size:13px; color:var(--ink-2); display:flex; gap:8px; align-items:flex-start}
-  .legend i{width:10px; height:10px; border-radius:3px; flex:none; margin-top:5px}
-  .legend b{color:var(--ink); display:block}
-  .scroller{overflow-x:auto; border:1px solid var(--edge); border-radius:9px; background:var(--panel)}
-  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:660px}
-  th{font:500 10.5px/1.5 "JetBrains Mono",monospace; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); text-align:left; padding:12px; border-bottom:1px solid var(--edge-2); background:var(--panel-2)}
-  td{padding:9px 12px; border-bottom:1px solid var(--edge)}
-  tbody tr:last-child td{border-bottom:none}
-  tbody tr:nth-child(even){background:var(--panel-2)}
-  td.n{text-align:right; font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
-  td.nm{font-weight:600} td.sm{color:var(--ink-2); font-size:12.5px}
-  .cert{font-family:"JetBrains Mono",monospace; font-size:11.5px; color:var(--ink-3); white-space:nowrap}
-  .badge{display:inline-block; font:500 10.5px/1 "JetBrains Mono",monospace; padding:4px 7px; border-radius:4px; border:1px solid var(--edge-2); color:var(--ink-2); white-space:nowrap}
-  tfoot td{padding:12px; font-family:"JetBrains Mono",monospace; font-weight:700; border-top:1px solid var(--edge-2); font-variant-numeric:tabular-nums}
-  .prov{display:flex; flex-direction:column; border:1px solid var(--edge); border-radius:9px; padding:4px 18px; background:var(--panel)}
-  .prov-row{display:grid; grid-template-columns:150px 1fr; gap:16px; padding:13px 0; border-bottom:1px solid var(--edge)}
-  .prov-row:last-child{border-bottom:none}
-  .prov-k{font:500 11px/1.4 "JetBrains Mono",monospace; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
-  .prov-v{color:var(--ink-2); font-size:14px} .prov-v b{color:var(--ink)}
-  @media(max-width:560px){ .prov-row{grid-template-columns:1fr; gap:5px} }
+  .bar{display:flex; height:32px; border-radius:6px; overflow:hidden; border:1px solid var(--edge-2)}
+  .bar span{display:flex; align-items:center; justify-content:center; font:700 11px/1 "JetBrains Mono",monospace; color:#fff; white-space:nowrap; overflow:hidden}
+  .bar .s0{background:var(--edge-2); color:var(--ink-2); flex:20} .bar .s1{background:var(--gold); color:#14161b; flex:40} .bar .s2{background:var(--verify); flex:24} .bar .s3{background:var(--ink-3); flex:16}
+
+  /* ── item page ── */
+  .ipage{display:grid; grid-template-columns:minmax(220px,340px) 1fr; gap:28px; align-items:start}
+  @media(max-width:760px){ .ipage{grid-template-columns:1fr} }
+  .slab{background:var(--tile); border-radius:12px; padding:14px; display:flex; align-items:center; justify-content:center}
+  .slab img{width:100%; max-width:320px; border-radius:6px; display:block}
+  .facts{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--edge); border:1px solid var(--edge); border-radius:10px; overflow:hidden}
+  .facts>div{background:var(--panel); padding:12px 14px}
+  .facts .l{font:500 10px/1 "JetBrains Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); margin-bottom:6px}
+  .facts .x{font-weight:600; font-size:14px; overflow-wrap:anywhere}
+  .door4{display:flex; flex-direction:column; gap:10px}
+  .d{background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:14px 16px; display:grid; grid-template-columns:1fr auto; gap:10px 16px; align-items:center}
+  .d .k{font:700 10.5px/1 "JetBrains Mono",monospace; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:6px}
+  .d b{font-family:"Bricolage Grotesque",sans-serif; font-size:16.5px}
+  .d p{font-size:13.5px; color:var(--ink-2); margin-top:3px}
+  .d .big{font:700 20px/1 "JetBrains Mono",monospace; white-space:nowrap}
+  .d .big small{display:block; font:500 10.5px/1.5 "JetBrains Mono",monospace; color:var(--ink-3); text-align:right}
+  @media(max-width:480px){ .d{grid-template-columns:1fr} .d .big small{text-align:left} }
+  .note{border-left:3px solid var(--gold); padding:4px 0 4px 14px; color:var(--ink-2); font-size:14px}
+  .note b{color:var(--ink)}
+  .note.blue{border-left-color:var(--note)} .note.green{border-left-color:var(--verify)} .note.warn{border-left-color:var(--warn)}
+
+  /* ── create ── */
+  .walletrow{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+  .walletrow .addr{flex:1; min-width:220px; min-height:44px; padding:0 12px; border:1px solid var(--edge-2); border-radius:8px; background:var(--panel); color:var(--ink); font:500 13px "JetBrains Mono",monospace}
+  .steps{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .step{display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--ink-3)}
+  .step i{width:24px; height:24px; border-radius:50%; border:1px solid var(--edge-2); display:flex; align-items:center; justify-content:center; font:700 11px/1 "JetBrains Mono",monospace}
+  .step.on{color:var(--ink)} .step.on i{background:var(--gold); border-color:var(--gold); color:#14161b}
+  .step.done i{background:var(--verify); border-color:var(--verify); color:#fff}
+  .pick{display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:10px}
+  .pk{position:relative; background:var(--panel); border:1px solid var(--edge); border-radius:9px; overflow:hidden; cursor:pointer; text-align:left; padding:0; color:inherit}
+  .pk img{width:100%; aspect-ratio:3/4; object-fit:cover; display:block; background:var(--tile)}
+  .pk .t{padding:8px 9px; font-size:12px; line-height:1.3}
+  .pk .t b{display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .pk .t span{font:500 10.5px/1.4 "JetBrains Mono",monospace; color:var(--ink-3)}
+  .pk.sel{border-color:var(--gold); box-shadow:0 0 0 2px var(--gold)}
+  .pk.sel::after{content:"✓"; position:absolute; top:8px; right:8px; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#14161b; display:flex; align-items:center; justify-content:center; font:700 12px/1 "JetBrains Mono",monospace}
+  .pk.no{opacity:.55; cursor:not-allowed}
+  .pk.no .why{position:absolute; left:8px; top:8px; right:8px; font:600 9.5px/1.3 "JetBrains Mono",monospace; background:rgba(0,0,0,.75); color:#fff; padding:5px 6px; border-radius:4px}
+  .calc{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:1px; background:var(--edge); border:1px solid var(--edge); border-radius:10px; overflow:hidden}
+  .calc>div{background:var(--panel); padding:14px 16px}
+  .calc .cv{font:700 20px/1 "JetBrains Mono",monospace; font-variant-numeric:tabular-nums}
+  .calc .cs{font-size:12px; color:var(--ink-3); margin-top:7px; line-height:1.45}
+  .form{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px}
+  .f{display:flex; flex-direction:column; gap:6px}
+  .f label{font:500 11px/1.3 "JetBrains Mono",monospace; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+  .f input,.f select{min-height:44px; padding:0 12px; border:1px solid var(--edge-2); border-radius:8px; background:var(--panel); color:var(--ink); font:inherit}
+  .f small{font-size:12.5px; color:var(--ink-3)}
+  .lock{background:var(--panel); border:1px solid var(--gold); border-radius:11px; padding:18px 20px; display:flex; gap:14px; align-items:flex-start}
+  .lock svg{flex:none; margin-top:2px}
+
+  /* ── integrate ── */
+  pre{margin:0; background:var(--tile); color:#e6e8ee; border-radius:10px; padding:16px 18px; overflow:auto; font:400 12.5px/1.55 "JetBrains Mono",monospace}
+  pre .c{color:#7f8796} pre .s{color:#d8a441} pre .k{color:#7ba3dd}
+  .three{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+  @media(max-width:760px){ .three{grid-template-columns:1fr} }
+  .three>div{background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:16px}
+  .three .num{font:700 28px/1 "JetBrains Mono",monospace; color:var(--gold); margin-bottom:8px}
+  .three b{font-family:"Bricolage Grotesque",sans-serif; font-size:16px; display:block; margin-bottom:5px}
+  .three p{font-size:13.5px; color:var(--ink-2)}
+
+  /* ── landing / flywheel ── */
+  #s-landing{gap:26px; padding-top:28px}
+  .land-head{text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px}
+  .land-head h1{font-size:clamp(34px,7vw,64px); max-width:14ch}
+  .land-head .lede{color:var(--ink-2); font-size:clamp(15px,2.2vw,18px); max-width:58ch}
+  .land-acts{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:6px}
+  .cta.big{min-height:52px; padding:0 26px; font-size:16px}
+  .fly{background:var(--panel); border:1px solid var(--edge); border-radius:16px; padding:14px 10px 6px; overflow:hidden}
+  .fly svg{width:100%; height:auto; display:block}
+  .fly text{font-family:"Public Sans",system-ui,sans-serif; fill:var(--ink)}
+  .fly .lbl{font:600 13px "Bricolage Grotesque",sans-serif; fill:var(--ink)}
+  .fly .sm{font:500 10px "JetBrains Mono",monospace; fill:var(--ink-3); letter-spacing:.06em}
+  .fly .val{font:700 15px "JetBrains Mono",monospace; fill:var(--ink)}
+  .fly .vg{fill:var(--gold)} .fly .vv{fill:var(--verify)}
+  .fly .node{fill:var(--panel-2); stroke:var(--edge-2); stroke-width:1.2}
+  .fly .node.vault{stroke:var(--gold); stroke-width:1.6}
+  .fly .path{fill:none; stroke:var(--edge-2); stroke-width:1.4; stroke-dasharray:4 5}
+  .fly .p-usdc{fill:#2775ca} .fly .p-tok{fill:var(--gold)} .fly .p-card{fill:#e8e4d8; stroke:#9a8f70; stroke-width:1}
+  .fly .ptxt{font:700 7.5px "JetBrains Mono",monospace; fill:#fff; text-anchor:middle; dominant-baseline:central}
+  .fly .ptxt.dark{fill:#4a4330}
+  .fly .spark{fill:none; stroke:var(--verify); stroke-width:2; stroke-linecap:round}
+  .fly .spark-fill{fill:var(--verify); opacity:.12}
+  .fly .burn{fill:var(--warn)}
+  .legend4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px}
+  @media(max-width:760px){ .legend4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+  .legend4 div{display:flex; gap:9px; align-items:flex-start; font-size:13px; color:var(--ink-2)}
+  .legend4 i{width:12px; height:12px; border-radius:50%; flex:none; margin-top:4px}
+  .legend4 b{color:var(--ink); display:block}
+  .pulse{animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.55}50%{opacity:1}}
+  @media(prefers-reduced-motion:reduce){ .pulse{animation:none} }
+
+
+  /* ── landing: a vault, running ── */
+  #s-landing{gap:18px; padding-top:26px}
+  .hero2{display:grid; grid-template-columns:1fr 1.05fr; gap:30px; align-items:start}
+  @media(max-width:900px){ .hero2{grid-template-columns:1fr} }
+  .hero2-copy{display:flex; flex-direction:column; gap:14px; padding-top:10px}
+  .hero2-copy h1{font-size:clamp(34px,5.4vw,58px); max-width:13ch}
+  .hero2-copy .lede{color:var(--ink-2); font-size:clamp(15px,1.9vw,17.5px); max-width:50ch}
+  .land-acts{display:flex; gap:10px; flex-wrap:wrap; margin-top:4px}
+  .cta.big{min-height:52px; padding:0 26px; font-size:16px}
+  .verbs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:14px}
+  @media(max-width:560px){ .verbs{grid-template-columns:1fr} }
+  .verbs a{text-decoration:none; color:inherit; background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:12px 13px; display:flex; flex-direction:column; gap:3px; min-height:44px}
+  .verbs a:hover{border-color:var(--gold)}
+  .verbs b{font-family:"Bricolage Grotesque",sans-serif; font-size:17px; color:var(--gold)}
+  .verbs span{font-size:12.5px; color:var(--ink-2); line-height:1.35}
+
+  .term{background:#0d0f14; color:#eceef2; border:1px solid #2a2f3a; border-radius:16px; padding:16px 18px 10px; display:flex; flex-direction:column; gap:14px; box-shadow:0 30px 60px rgba(0,0,0,.35)}
+  .term .lab{color:#7f8796}
+  .term-top{display:flex; align-items:center; gap:10px; font:500 11px/1 "JetBrains Mono",monospace; letter-spacing:.08em; text-transform:uppercase; color:#7f8796}
+  .term-name{color:#eceef2; font:700 13px/1 "Bricolage Grotesque",sans-serif; letter-spacing:0; text-transform:none}
+  .term-tag{margin-left:auto; color:#e08a5f; text-transform:none; letter-spacing:.02em}
+  .live{display:inline-flex; align-items:center; gap:6px; color:#48c98a}
+  .live i{width:7px; height:7px; border-radius:50%; background:#48c98a; box-shadow:0 0 0 0 rgba(72,201,138,.6); animation:beat 1.6s ease-out infinite}
+  @keyframes beat{0%{box-shadow:0 0 0 0 rgba(72,201,138,.6)}100%{box-shadow:0 0 0 9px rgba(72,201,138,0)}}
+  .term-value{display:flex; flex-direction:column; gap:4px}
+  .big-usd{font:800 clamp(38px,6vw,56px)/1 "JetBrains Mono",monospace; letter-spacing:-.03em; color:#d8a441; font-variant-numeric:tabular-nums}
+  .delta{font:600 13px/1 "JetBrains Mono",monospace; color:#48c98a; min-height:14px; opacity:0; transition:opacity .25s}
+  .delta.on{opacity:1}
+  .term-row3{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; border-top:1px solid #1f242e; border-bottom:1px solid #1f242e; padding:10px 0}
+  .term-row3 div{display:flex; flex-direction:column; gap:4px}
+  .term-row3 b{font:700 17px/1 "JetBrains Mono",monospace; font-variant-numeric:tabular-nums}
+  .shelf2{display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:6px; min-height:58px}
+  .shelf2 .it{background:#161a22; border:1px solid #262c38; border-radius:7px; padding:6px 5px 5px; display:flex; flex-direction:column; align-items:center; gap:4px; animation:pop .35s ease-out}
+  .shelf2 .it.out{animation:fade .5s ease-in forwards}
+  .shelf2 svg{width:20px; height:20px; stroke:#c9ccd3; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+  .shelf2 .pr{font:600 9.5px/1 "JetBrains Mono",monospace; color:#d8a441; white-space:nowrap}
+  @keyframes pop{from{transform:scale(.6); opacity:0}to{transform:scale(1); opacity:1}}
+  @keyframes fade{to{opacity:0; transform:translateY(6px)}}
+  .feed2{display:flex; flex-direction:column; gap:0; max-height:196px; overflow:hidden; position:relative}
+  .feed2::after{content:""; position:absolute; left:0; right:0; bottom:0; height:40px; background:linear-gradient(to bottom, rgba(13,15,20,0), #0d0f14)}
+  .ev{display:grid; grid-template-columns:22px 1fr auto; gap:10px; align-items:center; padding:8px 0; border-top:1px solid #1a1f29; font-size:13px; animation:slide .35s ease-out}
+  .ev:first-child{border-top:0}
+  @keyframes slide{from{transform:translateY(-8px); opacity:0}to{transform:none; opacity:1}}
+  .ev svg{width:18px; height:18px; stroke:#a2a9b8; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round}
+  .ev .who{color:#a2a9b8} .ev .what{color:#eceef2} .ev .item{color:#eceef2; font-weight:600}
+  .ev .amt{font:700 13px/1 "JetBrains Mono",monospace; color:#d8a441; white-space:nowrap; text-align:right}
+  .ev .amt small{display:block; font:500 10px/1.4 "JetBrains Mono",monospace; color:#7f8796}
+  .ev.red .amt{color:#e08a5f}
+  @media(prefers-reduced-motion:reduce){ .live i,.shelf2 .it,.ev{animation:none} }
+
+
+  .home-head{display:flex; flex-direction:column; gap:10px; padding-top:6px}
+  .home-head h1{font-size:clamp(30px,5.2vw,50px)}
+  .home-head .lede{color:var(--ink-2); font-size:16px}
+  .home-head .lede a{color:var(--gold)}
+  .board{grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr)}
+  @media(max-width:760px){ .board{grid-template-columns:1fr} }
+  .vcard .strip.big{grid-template-columns:repeat(10,1fr); height:150px}
+  @media(max-width:760px){ .vcard .strip.big{grid-template-columns:repeat(5,1fr); height:112px} .vcard .strip.big img:nth-child(n+6){display:none} }
+  .howgrid{display:grid; grid-template-columns:minmax(240px,.8fr) 1.2fr; gap:22px; align-items:start}
+  @media(max-width:900px){ .howgrid{grid-template-columns:1fr} }
+  .howgrid .verbs{grid-template-columns:1fr; margin-top:0}
+
+  /* ── review block for the PO ── */
+  .ask{border:1px solid var(--note); border-radius:11px; padding:20px; display:flex; flex-direction:column; gap:12px; background:color-mix(in srgb,var(--note) 6%,var(--panel))}
+  .ask ol{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:9px; color:var(--ink-2); font-size:14.5px}
+  .ask b{color:var(--ink)}
   footer{border-top:1px solid var(--edge); padding-top:16px; color:var(--ink-3); font-size:12.5px; display:flex; flex-direction:column; gap:6px}
   footer b{color:var(--ink-2)}
-  .err{border:1px solid var(--warn); border-radius:9px; padding:16px; color:var(--ink-2)}
-  .err b{color:var(--warn)}
+  .sec{display:flex; flex-direction:column; gap:14px}
+  .sec .hd{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .crumbs{font:500 12px/1 "JetBrains Mono",monospace; color:var(--ink-3); display:flex; gap:8px; align-items:center}
+  .crumbs a{color:var(--ink-3); text-decoration:none}
+  .crumbs a:hover{color:var(--ink)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="chrome">
-    <span class="path" id="path">onix.finance / vault</span>
-    <span class="chip" id="chip">READING CHAIN…</span>
+
+<header class="top">
+  <div class="in">
+    <a class="brand" href="#/"><i></i><span>Onix<b>.</b>Vault</span></a>
+    <nav>
+      <a href="#/" data-nav="home">Vaults</a>
+      <a href="#/create" data-nav="create">Create</a>
+      <a href="#/how" data-nav="how">How it works</a>
+      <a href="#/integrate" data-nav="integrate">Integrate</a>
+    </nav>
+    <a class="cta sm" href="#/create">Create a vault</a>
+  </div>
+</header>
+
+<main>
+
+<!-- ═══════════════ 0b · HOW IT WORKS · the detailed flywheel (judges, builders) ═══════════════ -->
+<section class="screen" id="s-how">
+  <div class="crumbs"><a href="#/">Home</a><span>›</span><span>How it works</span></div>
+  <div>
+    <p class="eyebrow">The mechanism, with the numbers</p>
+    <h2 style="margin-top:8px">Four doors. Every one raises backing per token.</h2>
+    <p class="muted" style="margin-top:8px;max-width:64ch">A bonding curve on Meteora prices the token in USDC. The vault is a wallet anyone can read. Nothing leaves it except through a burn or a payment, at a printed price — and the fee from every trade buys the next item.</p>
+  </div>
+  <div class="howgrid">
+    <div class="verbs">
+      <a href="#/vault/1"><b>Buy</b><span>the token — a share of everything inside</span></a>
+      <a href="#/create"><b>Put in</b><span>an item — get tokens, same deal for all</span></a>
+      <a href="#/vault/1"><b>Take out</b><span>the exact item you want, for tokens</span></a>
+    </div>
+    <div class="term" id="term" aria-live="off">
+      <div class="term-top">
+        <span class="live"><i></i>LIVE</span>
+        <span class="term-name">Example vault</span>
+        <span class="term-tag">simulated · one day in 60 s</span>
+      </div>
+      <div class="term-value">
+        <span class="lab">In the vault</span>
+        <span class="big-usd" id="t-usd">$0</span>
+        <span class="delta" id="t-delta"></span>
+      </div>
+      <div class="term-row3">
+        <div><span class="lab">Items</span><b id="t-items">0</b></div>
+        <div><span class="lab">Fees collected</span><b id="t-fees">$0</b></div>
+        <div><span class="lab">Sold to apps</span><b id="t-sold">$0</b></div>
+      </div>
+      <div class="shelf2" id="t-shelf"></div>
+      <div class="feed2" id="t-feed"></div>
+    </div>
+  </div>
+  <p class="faint" style="font-size:12.5px;text-align:center">The panel is a simulation of how a vault behaves over a day. Vault #1's real numbers are in the app and on chain.</p>
+  <div class="fly">
+    <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: traders buy on the curve, fees buy items into the vault, owners admit items for tokens, holders redeem items by burning tokens, gachas buy items at the published price; every door raises backing per token.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-2)"/></marker>
+      </defs>
+
+      <!-- paths (dashed, with arrows) -->
+      <path id="p-buy"  class="path" marker-end="url(#arr)" d="M170,62 L170,156"/>
+      <path id="p-sell" class="path" marker-end="url(#arr)" d="M200,156 L200,62"/>
+      <path id="p-fee"  class="path" marker-end="url(#arr)" d="M282,200 C360,120 450,120 522,176"/>
+      <path id="p-back" class="path" marker-end="url(#arr)" d="M522,262 C450,330 360,330 282,258"/>
+      <path id="p-adm"  class="path" marker-end="url(#arr)" d="M600,62 L600,140"/>
+      <path id="p-tok"  class="path" marker-end="url(#arr)" d="M660,140 L660,62"/>
+      <path id="p-burn" class="path" marker-end="url(#arr)" d="M544,420 L544,304"/>
+      <path id="p-out"  class="path" marker-end="url(#arr)" d="M582,304 L582,420"/>
+      <path id="p-pay"  class="path" marker-end="url(#arr)" d="M716,420 L716,304"/>
+      <path id="p-out2" class="path" marker-end="url(#arr)" d="M752,304 L752,420"/>
+
+      <!-- CURVE node -->
+      <rect class="node" x="60" y="158" width="222" height="108" rx="14"/>
+      <text class="lbl" x="78" y="184">Bonding curve</text>
+      <text class="sm" x="78" y="200">$VEONIX · METEORA DBC · USDC</text>
+      <!-- the band, not a price chart -->
+      <line x1="78" y1="236" x2="264" y2="236" stroke="var(--edge-2)" stroke-width="3" stroke-linecap="round"/>
+      <rect x="118" y="231" width="110" height="10" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1"/>
+      <text class="sm" x="118" y="256" text-anchor="middle">0.87×</text>
+      <text class="sm" x="228" y="256" text-anchor="middle">1.25×</text>
+      <text class="sm" x="171" y="222" text-anchor="middle">PRICE LIVES IN A BAND</text>
+      <circle cx="160" cy="236" r="7" fill="var(--gold)">
+        <animate attributeName="cx" values="150;196;138;184;150" dur="14s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1;.4 0 .6 1;.4 0 .6 1"/>
+      </circle>
+
+      <!-- VAULT node -->
+      <rect class="node vault" x="522" y="140" width="226" height="164" rx="14"/>
+      <text class="lbl" x="540" y="166">A vault</text>
+      <text class="sm" x="540" y="182">ITEMS A CUSTODIAN PUT ON CHAIN</text>
+      <!-- the kinds of things: watch · bottle · card · comic · ring (inline stroke icons) -->
+      <g fill="none" stroke="var(--ink-2)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <g transform="translate(546,200)"><circle cx="16" cy="18" r="10"/><path d="M11 8V3h10v5M11 28v5h10v-5M16 12v6l4 2"/></g>
+        <g transform="translate(588,200)"><path d="M13 2h6v8l4 6v16a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2V16l4-6z"/><path d="M9 22h14"/></g>
+        <g transform="translate(630,200)"><rect x="6" y="2" width="20" height="30" rx="2"/><rect x="10" y="7" width="12" height="11" rx="1"/><path d="M10 23h12M10 27h8"/></g>
+        <g transform="translate(672,200)"><path d="M6 4h18a2 2 0 0 1 2 2v24a2 2 0 0 1-2 2H6z"/><path d="M6 4v28M11 10h10M11 16h10M11 22h6"/></g>
+        <g transform="translate(714,200)"><circle cx="14" cy="21" r="9"/><path d="M9 11l5-7 5 7"/><path d="M9 11h10"/></g>
+      </g>
+      <text class="sm" x="546" y="248">WATCH</text><text class="sm" x="588" y="248">WINE</text><text class="sm" x="630" y="248">CARD</text><text class="sm" x="672" y="248">COMIC</text><text class="sm" x="714" y="248">RING</text>
+      <text class="sm" x="540" y="272">BACKING · COUNTED ON CHAIN, NOT ON OUR WORD</text>
+      <g id="up" class="pulse"><text class="val vv" x="540" y="292">backing per token ↑</text></g>
+
+      <!-- labels around -->
+      <text class="lbl" x="185" y="40" text-anchor="middle">Traders</text>
+      <text class="sm" x="185" y="54" text-anchor="middle">BUY · SELL ON THE CURVE</text>
+      <text class="sm" x="402" y="112" text-anchor="middle">10% FEE → BUYS THE NEXT ITEM</text>
+      <text class="sm" x="402" y="352" text-anchor="middle">30% BUYS THE TOKEN BACK</text>
+      <text class="lbl" x="630" y="40" text-anchor="middle">Owner</text>
+      <text class="sm" x="630" y="54" text-anchor="middle">ADMITS AN ITEM · GETS TOKENS, LOCKED 12 M</text>
+      <text class="lbl" x="560" y="446" text-anchor="middle">Redeem</text>
+      <text class="sm" x="560" y="458" text-anchor="middle">BURN × 1.15 → THE ITEM</text>
+      <text class="lbl" x="740" y="446" text-anchor="middle">Gacha</text>
+      <text class="sm" x="740" y="458" text-anchor="middle">PAYS USDC → THE ITEM</text>
+
+      <!-- particles -->
+      <g><circle r="9" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s"><mpath href="#p-buy"/></animateMotion></g>
+      <g><circle r="9" class="p-tok"/><text class="ptxt dark">V</text><animateMotion dur="3s" repeatCount="indefinite" begin="1.5s"><mpath href="#p-sell"/></animateMotion></g>
+      <g><circle r="8" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3.6s" repeatCount="indefinite" begin="0.8s"><mpath href="#p-fee"/></animateMotion></g>
+      <g><circle r="8" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3.6s" repeatCount="indefinite" begin="2.6s"><mpath href="#p-back"/></animateMotion></g>
+      <g><rect x="-6" y="-8" width="12" height="16" rx="2" class="p-card"/><animateMotion dur="4s" repeatCount="indefinite" begin="1s"><mpath href="#p-adm"/></animateMotion></g>
+      <g><circle r="9" class="p-tok"/><text class="ptxt dark">V</text><animateMotion dur="4s" repeatCount="indefinite" begin="3s"><mpath href="#p-tok"/></animateMotion></g>
+      <g><circle r="9" class="burn"/><text class="ptxt">V</text><animateMotion dur="4s" repeatCount="indefinite" begin="2s"><mpath href="#p-burn"/></animateMotion></g>
+      <g><rect x="-6" y="-8" width="12" height="16" rx="2" class="p-card"/><animateMotion dur="4s" repeatCount="indefinite" begin="4s"><mpath href="#p-out"/></animateMotion></g>
+      <g><circle r="9" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="4s" repeatCount="indefinite" begin="0.4s"><mpath href="#p-pay"/></animateMotion></g>
+      <g><rect x="-6" y="-8" width="12" height="16" rx="2" class="p-card"/><animateMotion dur="4s" repeatCount="indefinite" begin="2.4s"><mpath href="#p-out2"/></animateMotion></g>
+    </svg>
   </div>
 
-  <section style="display:flex;flex-direction:column;gap:10px">
-    <p class="eyebrow" id="eyebrow">Vault · operated by —</p>
-    <h1 id="h1">Reading the vault…</h1>
-    <p class="addr">vault <span id="vaultAddr">—</span></p>
-  </section>
+  <div class="legend4">
+    <div><i style="background:#2775ca"></i><span><b>USDC</b>comes in from traders and gachas; fees buy the next item</span></div>
+    <div><i style="background:var(--gold)"></i><span><b>$VEONIX</b>minted for admitted items, bought back with fees, burned to redeem</span></div>
+    <div><i style="background:#e8e4d8;border:1px solid #9a8f70"></i><span><b>Items</b>watches, wine, cards, comics — held by a named custodian, counted on chain</span></div>
+    <div><i style="background:var(--verify)"></i><span><b>Backing per token</b>goes up at every door. That is the whole design.</span></div>
+  </div>
+  <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · a redemption rule, printed · an exit for gachas at the same price for everyone. No door depends on anyone's word.</p>
 
-  <div id="error" class="err" hidden></div>
+  <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · a redemption rule, printed · an exit for gachas at the same price for everyone. No door depends on anyone's word.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><a class="cta" href="#/">Open the app</a><a class="cta ghost" href="#/integrate">Integrate a gacha</a></div>
+</section>
 
-  <section class="pair">
+<!-- ═══════════════ 1 · HOME / BOARD ═══════════════ -->
+<section class="screen" id="s-home">
+  <div class="home-head">
+    <p class="eyebrow">Auditable vaults for real-world assets · Solana · Meteora</p>
+    <h1>Tokens backed by things that exist.</h1>
+    <p class="lede">Real items, kept by a custodian you can check. One token per vault. <a href="#/how">How it works →</a></p>
+  </div>
+
+  <div class="sec">
+    <div class="hd">
+      <h2>Vaults</h2>
+      <div class="tags"><span class="tag live" id="b-live">read from chain</span><span class="tag" id="b-pool">curve: —</span></div>
+    </div>
+    <div class="board">
+      <a class="vcard" href="#/vault/1">
+        <div class="strip big" id="strip"></div>
+        <div class="body">
+          <div class="head"><b id="h-name">Vault #1</b><span class="tag gold" id="h-op">operated by Onix</span></div>
+          <div class="kv">
+            <div><span class="l">Backing</span><span class="x g" id="h-back"></span></div>
+            <div><span class="l">Market cap</span><span class="x" id="h-mcap"></span></div>
+            <div><span class="l">Ratio</span><span class="x" id="h-ratio"></span></div>
+          </div>
+          <div class="prog"><i id="h-prog"></i></div>
+          <p class="faint" style="font-size:12.5px"><span id="h-n"></span> items · <span id="h-desc"></span> · <span id="h-grad"></span></p>
+          <span class="cta sm" style="align-self:flex-start">Open</span>
+        </div>
+      </a>
+      <a class="vcard empty" href="#/create">
+        <b>Your vault</b>
+        <p>Watches, wine, comics, cards. If a custodian you trust has put it on chain, it can back a token.</p>
+        <span class="cta sm">Create a vault</span>
+      </a>
+    </div>
+  </div>
+
+  <div class="note blue"><b>How to read this board.</b> Backing is what the vault holds, read from the chain. Market cap is what the market pays for the token. They are never added together — the ratio is the only honest way to put them in one sentence.</div>
+</section>
+
+<!-- ═══════════════ 2 · VAULT PAGE ═══════════════ -->
+<section class="screen" id="s-vault">
+  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Vault #1</span></div>
+  <div class="sec">
+    <div class="hd">
+      <div>
+        <p class="eyebrow" id="v-eyebrow">Vault #1</p>
+        <h2 style="margin-top:8px"><span id="v-n"></span> items, backing one token</h2>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <a class="cta" id="v-buy" href="#/vault/1">Buy on the curve</a>
+        <a class="cta ghost" href="#/create">Admit a card</a>
+      </div>
+    </div>
+
+    <div class="pair">
+      <div><div class="lab">Market cap</div><div class="val" id="v-mcap">—</div><div class="sub" id="v-mcap-sub">Price × supply, from the curve.</div></div>
+      <div class="mid"><div class="lab" style="margin:0">Ratio</div><div class="ratio" id="v-ratio"></div><div class="sub" style="margin:0;text-align:center">market over backing</div></div>
+      <div><div class="lab">Backing</div><div class="val g" id="v-back">—</div><div class="sub"><span id="v-n2"></span> items at what the market pays (<span id="v-mult"></span>× of the custodian's index, $<span id="v-idx"></span>). <span id="v-age"></span></div></div>
+    </div>
+
+    <div class="band">
+      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Where the price can live</b><span class="faint" style="font-size:12.5px">two doors with two prices make a band, not a peg</span></div>
+      <div class="rail">
+        <div class="line"></div><div class="zone"></div>
+        <div class="m" style="left:28%">0.87× floor</div>
+        <div class="m" style="left:78%">1.25× ceiling</div>
+        <div class="pin" id="v-pin" style="display:none">—</div>
+      </div>
+      <div class="legend">
+        <div><b>Below the floor</b> buying tokens and redeeming a card is profitable — so someone does it, and the price comes back.</div>
+        <div><b>Above the ceiling</b> admitting a card and selling the tokens is profitable — same thing, the other way.</div>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="on" data-tab="items">Items</button>
+      <button data-tab="activity">Activity</button>
+      <button data-tab="proof">Proof</button>
+    </div>
+
+    <div id="tab-items" class="sec">
+      <div class="grid" id="grid"></div>
+      <p class="faint" style="font-size:12.5px">Each card: the custodian's insured value is the index; the exit price is <span class="mono">max(index, market)</span>; redeem = exit × 1.15, paid by burning $VEONIX. Photos and facts are the token's own metadata.</p>
+    </div>
+
+    <div id="tab-activity" class="sec" style="display:none">
+      <div class="feed">
+        <div id="act-empty">
+          <h3>Nothing has happened yet.</h3>
+          <p class="muted" style="margin-top:6px">Every door fires as a public transaction and lands here, paired with the one that caused it. The first ones will be ours, and each will say so.</p>
+        </div>
+        <div id="act-rows"></div>
+      </div>
+    </div>
+
+    <div id="tab-proof" class="sec" style="display:none">
+      <div class="prov">
+        <div class="r"><span class="k">The items</span><span>Read from the vault wallet on Solana with the DAS API, cached for seconds, age shown. <b>Not a list we keep.</b> Grade, certificate and physical vault come from the asset's own metadata. Vault wallet: <span class="mono" id="p-wallet"></span></span></div>
+        <div class="r"><span class="k">Index</span><span>The <b>Insured Value</b> attribute written on chain by the custodian (Collector Crypt). An index they assign — not a market price, not a number of ours.</span></div>
+        <div class="r"><span class="k">The 0.89×</span><span>Cards sell for less than the index. <b>0.89× is the measured median</b> across our own sales; backing is shown after that haircut, with its sample and date.</span></div>
+        <div class="r"><span class="k">Market cap</span><span>Price from the bonding curve × supply from the mint, both on chain, read on the server with the same decoder the open-source reader uses. <b id="p-pool"></b></span></div>
+        <div class="r"><span class="k">What we never do</span><span><b>Add liquidity to backing.</b> Money that went up the curve is the pool's at migration, not the vault's. Two pockets, two numbers, never one total.</span></div>
+        <div class="r"><span class="k">Who signs</span><span>Only the vault wallet, only to deliver through the two exit doors, only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
+      </div>
+      <div class="split">
+        <p class="eyebrow">Where every trade goes · 10% fee</p>
+        <div class="bar"><span class="s0">2% Meteora</span><span class="s1">4% buys a card</span><span class="s2">2.4% buyback</span><span class="s3">1.6% operator</span></div>
+        <p class="faint" style="font-size:12.5px">The protocol keeps 20% of every fee, fixed by the program. Of what reaches the vault, the split is 50 / 30 / 20. Both sets of numbers shown so nobody has to subtract.</p>
+      </div>
+      <div class="note blue"><b>Anyone can rebuild every number on this page without asking us for anything.</b> The reader is open source and only reads the chain — <a href="/verify.html">run it in your browser with your own RPC</a>, or <span class="mono">npm run backing</span> in the repo.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 3 · ITEM PAGE ═══════════════ -->
+<section class="screen" id="s-item">
+  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><a href="#/vault/1">Vault #1</a><span>›</span><span id="i-crumb"></span></div>
+  <div class="ipage">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="slab"><img id="i-img" alt=""></div>
+      <div class="facts">
+        <div><div class="l">Grade</div><div class="x" id="i-grade"></div></div>
+        <div><div class="l">Certificate</div><div class="x mono" id="i-cert"></div></div>
+        <div><div class="l">Custodian</div><div class="x" id="i-cust"></div></div>
+        <div><div class="l">Physical vault</div><div class="x" id="i-vault"></div></div>
+        <div><div class="l">Insured value · index</div><div class="x mono" id="i-usd"></div></div>
+        <div><div class="l">Status</div><div class="x v" id="i-status">Available</div></div>
+      </div>
+      <p class="faint" style="font-size:12px">mint <span class="mono" id="i-mint"></span></p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div>
+        <p class="eyebrow" id="i-set"></p>
+        <h2 style="margin-top:8px" id="i-name"></h2>
+        <p class="muted" style="margin-top:8px">One card, four doors. The vault never chooses what leaves — it leaves because someone burned for it or a gacha paid for it, at the price printed below.</p>
+      </div>
+      <div class="door4">
+        <div class="d"><div><div class="k">Buy</div><b>Buy $VEONIX on the curve</b><p>You own a share of every card in the vault, this one included.</p></div><a class="cta sm" href="#/vault/1">Buy on the curve</a></div>
+        <div class="d"><div><div class="k">Redeem</div><b>Make this card yours</b><p>Burn tokens worth the exit price × 1.15. The 15% stays in the vault for everyone else. v1: the operator verifies the burn and the vault wallet delivers.</p></div><div class="big"><span id="i-redeem-usd"></span><small id="i-redeem-tok">exit × 1.15 · in tokens once the curve is live</small></div></div>
+        <div class="d"><div><div class="k">Gacha</div><b>Sold to any gacha at the published price</b><p>Through the public API, same price for our own gacha and for a stranger. Reserve → pay in USDC → delivered to the winner.</p></div><div class="big"><span id="i-exit"></span><small>exit price · max(index, market)</small></div></div>
+        <div class="d"><div><div class="k">Admitted</div><b>How it got here</b><p>Transferred by the operator at launch — labelled "operator", like the first of every door.</p></div><span class="sig mono faint" style="font-size:11px" id="i-admit">—</span></div>
+      </div>
+      <div class="note"><b>Why the redeem price has a premium.</b> Without it, whoever can pick a card picks the one the index undervalues and everyone else is left with the rest. With it, every exit raises backing per token for those who stay.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 4 · CREATE A VAULT ═══════════════ -->
+<section class="screen" id="s-create">
+  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Create a vault</span></div>
+  <div class="sec">
+    <div class="hd">
+      <div>
+        <p class="eyebrow">Three steps · the same path Vault #1 took</p>
+        <h2 style="margin-top:8px">Create a vault</h2>
+      </div>
+      <div class="steps">
+        <span class="step on" id="st1"><i>1</i>Pick items</span>
+        <span class="step" id="st2"><i>2</i>Curve</span>
+        <span class="step" id="st3"><i>3</i>Launch</span>
+      </div>
+    </div>
+
+    <div id="c1" class="sec">
+      <div class="note green"><b>Only items from a registered custodian can back a token.</b> The rule is the custodian's, not ours — identity and value must be written into the token, and the physical item must be redeemable. Registered today: Collector Crypt (value on chain); Phygitals (identity on chain, no value — listed, not counted).</div>
+      <div class="walletrow">
+        <button class="cta" id="c-connect" type="button">Connect wallet</button>
+        <span class="faint" style="font-size:13px">or paste an address</span>
+        <input id="c-addr" class="addr" placeholder="wallet address" spellcheck="false">
+        <button class="cta ghost sm" id="c-scan" type="button">Scan</button>
+      </div>
+      <p class="muted" id="c-summary" style="font-size:13.5px"></p>
+      <div class="pick" id="pick"></div>
+      <div class="calc">
+        <div><div class="lab">Selected</div><div class="cv" id="c-sel">0</div><div class="cs">items going in</div></div>
+        <div><div class="lab">Index</div><div class="cv" id="c-idx">$0</div><div class="cs">the custodians' insured value</div></div>
+        <div><div class="lab">Realisable</div><div class="cv" id="c-real">$0</div><div class="cs">× 0.89, the measured median</div></div>
+        <div><div class="lab">You receive</div><div class="cv v" id="c-get">$0</div><div class="cs">80% of realisable, in your vault's token, locked 12 months</div></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to2">Continue to the curve</button><a class="cta ghost" href="#/app">Cancel</a></div>
+    </div>
+
+    <div id="c2" class="sec" style="display:none">
+      <div class="form">
+        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" placeholder="e.g. Vintage watches"><small>What people see on the board.</small></div>
+        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" placeholder="e.g. VWATCH"><small>Minted by the curve. Checked for collisions before launch.</small></div>
+        <div class="f"><label for="f-quote">Quoted in</label><select id="f-quote"><option>USDC</option></select><small>Irreversible after launch. USDC keeps the ratio honest.</small></div>
+        <div class="f"><label for="f-grad">Graduation market cap</label><select id="f-grad"><option>3× backing (recommended)</option><option>5× backing</option><option>10× backing</option></select><small>Where the curve ends and a pool begins. Lower keeps the ratio inside the band.</small></div>
+        <div class="f"><label for="f-fee">Trade fee</label><select id="f-fee"><option>10% · 50 card / 30 buyback / 20 operator</option></select><small>The protocol keeps 20% of it. Published on your vault page.</small></div>
+        <div class="f"><label for="f-prem">Redeem premium</label><select id="f-prem"><option>15% (floor ≈ 0.87×)</option></select><small>Admission at 80% sets the ceiling at 1.25×.</small></div>
+      </div>
+      <div class="note"><b>Your admission tokens are locked for 12 months, by the template.</b> It is what stops whoever seeds a vault from leaving through the people who buy after. The rule is the same one Onix accepted for Vault #1.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Review and launch</button><button class="cta ghost" id="back1">Back</button></div>
+    </div>
+
+    <div id="c3" class="sec" style="display:none">
+      <div class="lock">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <div>
+          <b style="font-family:'Bricolage Grotesque',sans-serif;font-size:17px">Operator-run until the program ships.</b>
+          <p class="muted" style="margin-top:6px">A vault's whole value is its custody. Until the four doors are enforced by an on-chain program (escrow, rule-bound minting and release), a stranger's vault would rest on that stranger's word — and we will not put our name on that. Today Onix operates every vault; yours launches with us holding the keys under the published rules, and moves to the program when it exists.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="cta" href="#/integrate">Talk to us</a><button class="cta ghost" id="back2">Back</button></div>
+        </div>
+      </div>
+      <div class="calc">
+        <div><div class="lab">Items</div><div class="cv" id="r-sel">0</div><div class="cs">from registered custodians</div></div>
+        <div><div class="lab">Backing at launch</div><div class="cv g" id="r-real">$0</div><div class="cs">realisable, day one</div></div>
+        <div><div class="lab">Graduation</div><div class="cv" id="r-grad">$0</div><div class="cs">market cap where the pool opens</div></div>
+        <div><div class="lab">You receive</div><div class="cv v" id="r-get">$0</div><div class="cs">in tokens, locked 12 m</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ 5 · INTEGRATE ═══════════════ -->
+<section class="screen" id="s-integrate">
+  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Integrate</span></div>
+  <div class="sec">
     <div>
-      <div class="lab">Market cap</div>
-      <div class="val" id="mcap">—</div>
-      <div class="sub" id="mcapSub">Price × supply. What the market says it is worth.</div>
+      <p class="eyebrow">For gachas, games and shops · public API</p>
+      <h2 style="margin-top:8px">Sell what a vault holds. Three calls.</h2>
+      <p class="muted" style="margin-top:8px;max-width:62ch">You never assemble a transaction by hand and the vault never touches your player's money. The price is the same for Onix's own gacha and for you, and it is printed on every item.</p>
     </div>
-    <div class="mid">
-      <div class="lab" style="margin:0">Ratio</div>
-      <div class="ratio" id="ratio">—</div>
-      <div class="sub" style="margin:0;text-align:center">market over backing</div>
+    <div class="three">
+      <div><div class="num">1</div><b>List</b><p><span class="mono">GET /v1/vaults/{vault}/items</span> — what is inside, with the exit price and whether it is reserved.</p></div>
+      <div><div class="num">2</div><b>Reserve</b><p><span class="mono">POST …/reservations</span> only after your player paid you. You get back a payment transaction the vault built: sign it, send it.</p></div>
+      <div><div class="num">3</div><b>Settle</b><p><span class="mono">POST …/reservations/{id}/settle</span> with the signature. The vault reads the payment from the chain and delivers to your winner.</p></div>
     </div>
-    <div>
-      <div class="lab">Backing</div>
-      <div class="val g" id="backing">—</div>
-      <div class="sub" id="backingSub">Cards in the vault at what the market actually pays.</div>
-    </div>
-  </section>
+<pre><span class="c">// examples/integrator/vaultClient.js — the client Onix.Cards' gacha runs in production</span>
+<span class="k">const</span> vault = createVaultClient({ baseUrl: <span class="s">'https://vault.onix.finance'</span>, vault: <span class="s">'4yTsiQXPPhbmXHgZSgp7NwUNVfjbjWLkdUN5YhQmyqRt'</span> });
 
-  <p class="note"><b>These two are different things and are never added together.</b> Market cap is what people are paying for the token. Backing is what the vault holds. The ratio is the only honest way to put them in one sentence.</p>
-
-  <section class="split">
-    <p class="eyebrow">Where every trade goes · <span id="feePct">—</span>% fee</p>
-    <div class="bar" id="bar"></div>
-    <div class="legend" id="legend"></div>
-    <p class="sub" style="margin:0">Of what reaches the vault after the protocol's cut, the split is 50 / 30 / 20. Both sets of numbers are shown so nobody has to do the subtraction.</p>
-  </section>
-
-  <p class="note green"><b>The cards are in this wallet. Burn <code>$VEONIX</code> and any of them is yours, at the published price.</b> Any gacha can buy them at the same price. Every trade on the curve buys more.</p>
-
-  <section style="display:flex;flex-direction:column;gap:11px">
-    <p class="eyebrow">What is in the vault · <span id="cnt">—</span> cards</p>
-    <div class="scroller">
-      <table>
-        <thead><tr><th>Card</th><th>Set</th><th>Grade</th><th>Certificate</th><th>Physical vault</th><th style="text-align:right">Insured</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="6" class="sm">reading…</td></tr></tbody>
-        <tfoot><tr><td colspan="5">Total insured value · the index, not a sale price</td><td class="n" id="tot">—</td></tr></tfoot>
-      </table>
-    </div>
-    <div id="excluded" class="sub" hidden></div>
-  </section>
-
-  <section style="display:flex;flex-direction:column;gap:11px">
-    <h2>Where each number comes from</h2>
+<span class="k">const</span> items = <span class="k">await</span> vault.items();                              <span class="c">// 1 · exitPriceUsd on every item</span>
+<span class="k">const</span> r = <span class="k">await</span> vault.reserve({ mint, integrator, winner, idempotencyKey: pullId });
+<span class="k">const</span> sig = <span class="k">await</span> signAndSend(r.paymentTransaction);           <span class="c">// 2 · built by the vault, signed by you</span>
+<span class="k">const</span> done = <span class="k">await</span> vault.settle(r.reservationId, sig);        <span class="c">// 3 · 409 = not finalized yet, retry</span>
+console.log(done.deliverySignature);                            <span class="c">// the card is in your winner's wallet</span></pre>
     <div class="prov">
-      <div class="prov-row"><div class="prov-k">The cards</div><div class="prov-v">Read from the vault wallet on Solana with the DAS API, <b>not from a list we keep</b>. Grade, certificate and physical vault come from each asset's own on-chain metadata. <span class="cert" id="ageCards">—</span></div></div>
-      <div class="prov-row"><div class="prov-k">Insured value</div><div class="prov-v">The <b>Insured Value</b> attribute written on chain by the custodian. An index they assign — <b>not a market price</b>, and not a number of ours.</div></div>
-      <div class="prov-row"><div class="prov-k">The <span id="multK">0.89</span>×</div><div class="prov-v">Cards sell for less than the index. <b><span id="multV">0.89</span>× is the measured median</b> of what the market actually paid (<span id="multS">—</span>). Backing is shown after that haircut, not before it.</div></div>
-      <div class="prov-row"><div class="prov-k">Market cap</div><div class="prov-v" id="provMcap">Price decoded from the pool account's <code>sqrt_price</code> × supply from the mint. Both on chain, both read on every load.</div></div>
-      <div class="prov-row"><div class="prov-k">Fees so far</div><div class="prov-v" id="provFees">—</div></div>
-      <div class="prov-row"><div class="prov-k">What we never do</div><div class="prov-v"><b>Add liquidity to backing.</b> Money that came up the curve is not the vault's; it becomes the pool at migration. Two pockets, two numbers, never one total.</div></div>
+      <div class="r"><span class="k">Sandbox</span><span>The same server against devnet with a test vault: <span class="mono">npm run rehearse:vault</span> in the public repo. Rehearsed 1 October: reserve → pay → settle → delivered, verified on the raw transactions.</span></div>
+      <div class="r"><span class="k">Limits</span><span>Reservations expire in minutes. Let three expire without settling and the vault stops taking yours. <span class="mono">x-api-key</span> is optional: it identifies you, it unlocks nothing.</span></div>
+      <div class="r"><span class="k">Contract</span><span><span class="mono">server/openapi.json</span> is the source; the docs follow it. Webhooks are roadmap — today you poll the reservation.</span></div>
     </div>
-    <p class="note blue"><b>Anyone can rebuild every number on this page without asking us for anything.</b> The reader that does it is open source, and it only reads the chain.</p>
-  </section>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="cta" href="#/integrate">Read the API docs</a><a class="cta ghost" href="#/vault/1">See Vault #1's items</a></div>
+  </div>
+</section>
 
-  <footer>
-    <p><b>Read at:</b> <span id="readAt">—</span>. Every figure is re-read on every load; nothing here is cached by us.</p>
-    <p><b>Exit rules:</b> redemption burns tokens worth <code>max(insured, market) × 1.15</code> for a specific card; a gacha buys at <code>max(insured, market)</code>. The premium stays in the vault. Redemption v1 is verified by the operator and delivered from the vault wallet — every delivery is a public transaction.</p>
-  </footer>
-</div>
 
-<script src="../src/reader/backing.js"></script>
-<script src="../src/reader/pool.js"></script>
-<script src="../src/curve/split.js"></script>
-<script src="config.js"></script>
-<script>
-(async function () {
-  const C = window.ONIX_VAULT_CONFIG || {};
-  const { parseCard, computeBacking } = window.OnixVaultBacking;
-  const { decodeVirtualPool, priceFromSqrtPrice } = window.OnixVaultPool;
-  const { splitOfTrade } = window.OnixVaultSplit;
-  const $ = (id) => document.getElementById(id);
-  const usd = (n, d = 0) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: d });
-  const fail = (msg) => { $('error').hidden = false; $('error').innerHTML = '<b>Could not read the chain.</b> ' + msg; $('chip').textContent = 'READ FAILED'; $('chip').className = 'chip err'; };
 
-  async function rpc(method, params) {
-    const r = await fetch(C.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
-    if (!r.ok) throw new Error(method + ': HTTP ' + r.status);
-    const j = await r.json(); if (j.error) throw new Error(method + ': ' + JSON.stringify(j.error)); return j.result;
-  }
-  async function assetsByOwner(owner) {
-    const all = []; for (let page = 1; ; page++) {
-      const r = await rpc('getAssetsByOwner', { ownerAddress: owner, page, limit: 1000, displayOptions: { showUnverifiedCollections: false } });
-      const items = (r && r.items) || []; all.push(...items); if (items.length < 1000) break;
-    } return all;
-  }
-  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+</main>
 
-  // static parts first
-  $('eyebrow').textContent = (C.vaultName || 'Vault') + ' · operated by ' + (C.operator || '—');
-  $('vaultAddr').textContent = C.vaultWallet || '—';
-  const sp = splitOfTrade(C.feeBps || 1000);
-  $('feePct').textContent = sp.feePct;
-  const segs = [['s0', sp.protocolPct, 'Meteora'], ['s1', sp.buyCardPct, 'buys a card'], ['s2', sp.buybackPct, 'buyback'], ['s3', sp.operatorPct, 'operator']];
-  $('bar').innerHTML = segs.map(([c, p, l]) => `<span class="${c}" style="flex:${p}">${p}% · ${l}</span>`).join('');
-  $('legend').innerHTML = [
-    ['var(--edge-2)', `Meteora, ${sp.protocolPct}% of the trade`, 'The protocol keeps 20% of every fee. Fixed by the program, not by us.'],
-    ['var(--gold)', `Buys a card, ${sp.buyCardPct}%`, 'Backing grows. Every holder\'s share of the vault goes up.'],
-    ['var(--verify)', `Buys back the token, ${sp.buybackPct}%`, 'Price support. Redemption is the other way value returns.'],
-    ['var(--ink-3)', `Operator, ${sp.operatorPct}%`, (C.operator || 'The operator') + '. Published here, not in a Discord.'],
-  ].map(([bg, t, d]) => `<div><i style="background:${bg}"></i><span><b>${t}</b>${d}</span></div>`).join('');
-
-  try {
-    if (!C.vaultWallet || C.vaultWallet.startsWith('<')) throw new Error('web/config.js has no vaultWallet.');
-    const t0 = Date.now();
-    const [assets, supply, poolInfo] = await Promise.all([
-      assetsByOwner(C.vaultWallet),
-      C.baseMint ? rpc('getTokenSupply', [C.baseMint]).then((r) => r.value.uiAmount) : Promise.resolve(null),
-      C.pool ? rpc('getAccountInfo', [C.pool, { encoding: 'base64' }]) : Promise.resolve(null),
-    ]);
-    const cards = assets.map(parseCard);
-    const bk = computeBacking(cards, { supply });
-    const readAt = new Date();
-
-    // backing
-    $('backing').textContent = usd(bk.realisableUsd);
-    $('backingSub').textContent = `${bk.cardsCounted} cards at ${bk.multiplier}× the index (${usd(bk.indexUsd)}). Count them yourself below.`;
-    $('cnt').textContent = bk.cardsCounted;
-    $('tot').textContent = usd(bk.indexUsd);
-    $('multK').textContent = bk.multiplier; $('multV').textContent = bk.multiplier; $('multS').textContent = bk.multiplierMeasured.sample + ', ' + bk.multiplierMeasured.when;
-    const counted = cards.filter((c) => c.counts).sort((a, b) => b.insuredUsd - a.insuredUsd);
-    $('rows').innerHTML = counted.map((c) => `<tr><td class="nm">${c.name}</td><td class="sm">${c.set || c.category || ''}</td><td><span class="badge">${(c.gradingCompany || '') + ' ' + (c.grade || '')}</span></td><td class="cert">${c.certNumber || '—'}</td><td class="sm">${c.vault || c.custodian || ''}</td><td class="n">${usd(c.insuredUsd)}</td></tr>`).join('') || '<tr><td colspan="6" class="sm">the vault is empty</td></tr>';
-    const ex = cards.filter((c) => !c.counts);
-    if (ex.length) { $('excluded').hidden = false; $('excluded').textContent = `${ex.length} asset(s) in the wallet are listed but not counted: ` + ex.map((c) => `${c.name} (${c.excludedBecause})`).join(' · '); }
-
-    // market cap — only if the pool exists
-    if (poolInfo && poolInfo.value && supply) {
-      const pool = decodeVirtualPool(b64(poolInfo.value.data[0]));
-      const price = priceFromSqrtPrice(pool.sqrtPrice, C.baseDecimals ?? 6, C.quoteDecimals ?? 6);
-      const mcap = price * supply;
-      $('mcap').textContent = usd(mcap);
-      $('mcapSub').textContent = `${usd(price, 6)} per token × ${supply.toLocaleString('en-US')} supply${pool.isMigrated ? ' · graduated to DAMM v2' : ' · on the curve'}`;
-      const ratio = bk.realisableUsd > 0 ? mcap / bk.realisableUsd : null;
-      $('ratio').textContent = ratio == null ? '—' : ratio.toFixed(2) + '×';
-      const q = 10 ** (C.quoteDecimals ?? 6);
-      $('provFees').innerHTML = `<b>${usd(Number(pool.totalTradingQuoteFee) / q, 2)}</b> of trading fees since launch, read from the pool account. ${usd(Number(pool.partnerQuoteFee) / q, 2)} currently claimable by the operator, ${usd(Number(pool.protocolQuoteFee) / q, 2)} by the protocol.`;
-    } else {
-      $('mcap').textContent = '—';
-      $('mcapSub').textContent = C.pool ? 'Pool not found on chain.' : 'No token yet. The curve has not launched — this page shows backing only, and says so.';
-      $('ratio').textContent = '—';
-      $('provMcap').innerHTML = '<b>Not launched.</b> When the pool exists, price is decoded from its <code>sqrt_price</code> and multiplied by the mint\'s supply — both on chain.';
-      $('provFees').textContent = 'No pool, no fees yet.';
-    }
-
-    $('readAt').textContent = readAt.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-    $('h1').textContent = `${bk.cardsCounted} graded cards in ${new Set(counted.map((c) => c.vault).filter(Boolean)).size || '—'} physical vaults, backing one token`;
-    $('chip').textContent = 'READ FROM CHAIN';
-    const tick = () => { $('ageCards').textContent = 'read ' + Math.round((Date.now() - readAt.getTime()) / 1000) + 's ago'; };
-    tick(); setInterval(tick, 1000);
-  } catch (e) { fail(e.message); $('h1').textContent = 'Could not read the vault'; }
-})();
-</script>
+<script src="/app.js"></script>
 </body>
 </html>

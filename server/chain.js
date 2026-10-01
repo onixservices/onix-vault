@@ -27,5 +27,6 @@ module.exports = {
   simulateTransaction: async (b64) => (await rpc('simulateTransaction', [b64, { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }])).value,
   getAsset: (id) => rpc('getAsset', { id }),
   getAccountInfoBase64: async (pubkey) => (await rpc('getAccountInfo', [pubkey, { encoding: 'base64' }])).value,
+  getTokenSupplyUi: async (mint) => (await rpc('getTokenSupply', [mint])).value.uiAmount,
   rpc,
 };

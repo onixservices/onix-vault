@@ -44,6 +44,22 @@ Served at `vault.onix.finance`. `{vault}` is the vault wallet; v1 serves one vau
 optional: it identifies an integrator for limits and never unlocks anything. `POST` honours
 `Idempotency-Key`. All responses carry `readAt` and the basis of every price.
 
+### What the page reads
+
+The vault page at `vault.onix.finance` is a static file served by the same server and it reads
+**only these endpoints** — the browser never holds an RPC key, and nothing on the page is a
+number the API did not serve with its source and age.
+
+| endpoint | what |
+|---|---|
+| `GET /v1/vaults` | the vaults (one today) with name, operator, custodians and `stats` |
+| `GET /v1/vaults/{vault}/stats` | backing (`indexUsd`, `realisableUsd`, `multiplier`) and, only when a pool exists, `pool` = price · supply · market cap · `ratio` (market cap ÷ realisable) · graduation progress · fees; until then `pool: null` and `poolStatus` says why. The two numbers are never summed. |
+| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — gacha sales and redemptions, each with its signatures |
+| `GET /v1/wallets/{wallet}/eligible-items` | "Create a vault", step 1: what in a wallet comes from a registered custodian with a value on chain; the rest listed with the reason |
+
+Anyone who prefers their own RPC can run `web/verify.html` with their own endpoint, or the CLI
+reader (`npm run backing`): same decoder, same numbers.
+
 ### `GET /v1/vaults/{vault}/items`
 
 Every item in the vault wallet, from the chain, with:

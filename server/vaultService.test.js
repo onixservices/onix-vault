@@ -204,6 +204,22 @@ describe('retryDelivery — the operator re-runs a paid reservation whose delive
   });
 });
 
+describe('activity — the doors that fired, newest first', () => {
+  test('settled gacha sales and recorded redemptions, each with its signatures; nothing else', async () => {
+    const { svc, chain } = make({ now: (() => { let t = T0; return () => (t += 1000); })(), items: [item(), item({ mint: 'M2' })] });
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
+    await svc.settle({ reservationId: r.reservationId, paymentSignature: 'PAY1' });
+    await svc.reserve({ mint: 'M2', integrator: GACHA, winner: WINNER });               // live, not an event
+    svc.recordRedemption({ mint: 'M3', burnSignature: 'BURN1', recipient: OTHER });
+    const a = svc.listActivity();
+    assert.deepEqual(a.map((e) => e.type), ['redeem', 'gacha']);
+    assert.equal(a[1].mint, MINT); assert.equal(a[1].paymentSignature, 'PAY1'); assert.match(a[1].deliverySignature, /^SIG-/); assert.equal(a[1].priceUsd, 20); assert.equal(a[1].to, WINNER);
+    assert.equal(a[0].burnSignature, 'BURN1'); assert.equal(a[0].status, 'verifying'); assert.equal(a[0].to, OTHER);
+    assert.ok(a.every((e) => typeof e.at === 'number'));
+  });
+});
+
 describe('redemption v1', () => {
   test('records the burn once; the same burn twice → 409; listed publicly as verifying', async () => {
     const { svc } = make();

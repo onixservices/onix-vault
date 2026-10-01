@@ -66,7 +66,7 @@ Both numbers are shown, always labelled, always with their age.
 |---|---|
 | `src/reader/` | reads a vault's contents straight from Solana and computes backing per token |
 | `src/curve/` | the bonding-curve configuration and the reasoning behind each parameter |
-| `web/` | the proof page — market cap vs backing, and every card with its certificate |
+| `web/` | the app: the board, a vault's page (backing vs market cap, the band, the items, the activity, the proof), an item's four doors, create a vault, integrate. Static; reads only `/v1`. `verify.html` is the standalone reader for your own RPC |
 | `server/` | the vault server: the API (`/v1/vaults/{vault}/…`), the delivery that signs with the vault wallet, redemption records. `server/openapi.json` is the contract |
 | `examples/integrator/` | a complete client of the API — the one Onix.Cards' gacha runs; start here to integrate |
 | `docs/` | architecture, the curve spec, the vault API, and the honesty notes for every number |
@@ -83,7 +83,8 @@ yourself with your own key and you have your own vault.
 ```bash
 npm install
 cp config.example.json config.json   # put your own RPC endpoint in it
-npm run backing -- <VAULT_WALLET>
+npm run backing -- <VAULT_WALLET>    # the reader, from the command line
+npm run server                        # the API + the page on :3004 (see server/env.example)
 ```
 
 ## Security

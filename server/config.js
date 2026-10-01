@@ -32,4 +32,11 @@ module.exports = Object.freeze({
   // optional: a market reference per mint (JSON url → { [mint]: usd }); without it,
   // exit price = custodian value. The page labels which it was.
   MARKET_REF_URL: env('ONIX_VAULT_MARKET_REF_URL'),
+  // The curve, once it exists (both empty until launch: the page then says "not launched").
+  POOL: env('ONIX_VAULT_POOL'),
+  BASE_MINT: env('ONIX_VAULT_BASE_MINT'),
+  GRADUATION_USD: parseFloat(env('ONIX_VAULT_GRADUATION_USD', '3500')),
+  BASE_DECIMALS: parseInt(env('ONIX_VAULT_BASE_DECIMALS', '6'), 10),
+  QUOTE_DECIMALS: parseInt(env('ONIX_VAULT_QUOTE_DECIMALS', '6'), 10),
+  HAIRCUT: parseFloat(env('ONIX_VAULT_HAIRCUT', '0.89')),
 });

@@ -14,10 +14,19 @@
  * `x-api-key` is optional: it identifies the integrator for limits; it never unlocks anything.
  */
 'use strict';
+const path = require('path');
 const express = require('express');
 const { VaultError } = require('./vaultService');
 
-function buildApp({ service, vaultWallet, signerConfigured = () => false, itemsAge = () => null }) {
+/**
+ * @param {object} deps
+ * @param {object} deps.service      vaultService
+ * @param {object} deps.stats        { read(), ageMs() } — backing + pool, read server-side
+ * @param {function} deps.readWallet (wallet) => { eligible, ineligible }
+ * @param {object} deps.vaultMeta    { name, operator, custodians } — what the board shows next to the numbers
+ * @param {string} [deps.webDir]     static page (web/); null = API only
+ */
+function buildApp({ service, stats, readWallet, vaultWallet, vaultMeta = {}, signerConfigured = () => false, itemsAge = () => null, webDir = path.join(__dirname, '..', 'web') }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '64kb' }));
@@ -26,6 +35,23 @@ function buildApp({ service, vaultWallet, signerConfigured = () => false, itemsA
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
   app.get('/v1/health', (req, res) => res.json({ ok: true, vaultWallet, signerConfigured: signerConfigured(), itemsAgeMs: itemsAge() }));
+
+  // ── what the page reads (no RPC key ever reaches the browser) ──
+  app.get('/v1/vaults', wrap(async (req, res) => {
+    const st = stats ? await stats.read() : null;
+    res.json({ readAt: new Date().toISOString(), vaults: [{ vault: vaultWallet, ...vaultMeta, stats: st }] });
+  }));
+  app.get('/v1/vaults/:vault/stats', onlyThisVault, wrap(async (req, res) => {
+    if (!stats) throw new VaultError(503, 'stats not configured');
+    res.json({ ...(await stats.read()), ageMs: stats.ageMs() });
+  }));
+  app.get('/v1/vaults/:vault/activity', onlyThisVault, wrap(async (req, res) => {
+    res.json({ readAt: new Date().toISOString(), activity: service.listActivity({ limit: 50 }) });
+  }));
+  app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {
+    if (!readWallet) throw new VaultError(503, 'wallet reader not configured');
+    res.json({ readAt: new Date().toISOString(), ...(await readWallet(req.params.wallet)) });
+  }));
 
   app.get('/v1/vaults/:vault/items', onlyThisVault, wrap(async (req, res) => {
     // read first, then measure: the age served is the age of the items served (an
@@ -57,6 +83,13 @@ function buildApp({ service, vaultWallet, signerConfigured = () => false, itemsA
   app.get('/v1/vaults/:vault/redemptions', onlyThisVault, wrap(async (req, res) => {
     res.json({ redemptions: service.listRedemptions() });
   }));
+
+  app.all('/v1/*', (req, res) => res.status(404).json({ error: 'no such endpoint', code: 404 }));
+  // the page: static, same origin, reads only /v1
+  if (webDir) {
+    app.use(express.static(webDir, { index: 'index.html', extensions: ['html'], maxAge: 0 }));
+    app.get(/^\/(?!v1\/).*/, (req, res) => res.sendFile(path.join(webDir, 'index.html')));
+  }
 
   // errors carry the service's status; never a bare 500 with no reason
   // eslint-disable-next-line no-unused-vars

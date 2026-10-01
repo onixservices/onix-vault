@@ -14,6 +14,8 @@ const defaultChain = require('./chain');
 const defaultSigner = require('./signer');
 const { getDb } = require('./db');
 const { createItemsReader } = require('./items');
+const { createStatsReader } = require('./stats');
+const { createWalletReader } = require('./wallet');
 const { createTransferBuilder, productionDeps } = require('./transfer');
 const { checkSingleSignerUnsigned } = require('./txAssertions');
 const { createVaultService, VaultError } = require('./vaultService');
@@ -60,7 +62,10 @@ function createServer({ readItems: readItemsOverride = null, db: dbOverride = nu
       reservationTtlMs: C.RESERVATION_TTL_MS, strikesToBlock: C.STRIKES_TO_BLOCK, redeemPremium: C.REDEEM_PREMIUM,
     },
   });
-  const app = buildApp({ service, vaultWallet, signerConfigured: signer.configured, itemsAge: readItems.ageMs || (() => null) });
+  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: C.GRADUATION_USD, pool: C.POOL, baseMint: C.BASE_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS }, cacheMs: C.ITEMS_CACHE_MS });
+  const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
+  const vaultMeta = { name: 'Vault #1', operator: 'Onix', custodians: ['Collector Crypt'], description: 'Graded trading cards in OmniVault, PWCC and PSA Vault' };
+  const app = buildApp({ service, stats, readWallet, vaultWallet, vaultMeta, signerConfigured: signer.configured, itemsAge: readItems.ageMs || (() => null) });
   return { app, service, db };
 }
 

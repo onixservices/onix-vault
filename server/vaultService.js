@@ -189,7 +189,20 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
   }
   function listRedemptions() { return redemptionsRepo.listPublic(db); }
 
-  return { listItems, reserve, settle, retryDelivery, status, sweepExpired, recordRedemption, listRedemptions, exitPriceUsd };
+  /** The doors that fired, newest first: gacha sales (settled) and redemptions, each with its signatures. */
+  function listActivity({ limit = 50 } = {}) {
+    const sales = reservationsRepo.listSettled(db, limit).map((r) => ({
+      type: 'gacha', at: r.updated_at, mint: r.mint, to: r.winner, integrator: r.integrator, priceUsd: r.exit_price_usd,
+      paymentSignature: r.payment_sig, deliverySignature: r.delivery_sig,
+    }));
+    const redemptions = redemptionsRepo.listPublic(db).map((x) => ({
+      type: 'redeem', at: x.created_at, mint: x.mint, to: x.recipient, status: x.status,
+      burnSignature: x.burn_sig, deliverySignature: x.delivery_sig || null, tokensBurned: x.tokens_burned ?? null, priceUsdAtBurn: x.price_usd_at_burn ?? null,
+    }));
+    return [...sales, ...redemptions].sort((a, b) => b.at - a.at).slice(0, limit);
+  }
+
+  return { listItems, reserve, settle, retryDelivery, status, sweepExpired, recordRedemption, listRedemptions, listActivity, exitPriceUsd };
 }
 
 module.exports = { createVaultService, exitPriceUsd, VaultError };

@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Onix.Vault</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#f4f4f2; --panel:#ffffff; --panel-2:#faf9f6; --edge:#e2e1dc; --edge-2:#c9c8c2;
+    --ink:#14161b; --ink-2:#4f5666; --ink-3:#7c8494;
+    --gold:#8a6210; --verify:#137a4e; --warn:#a8492a; --note:#2c4a7c;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0c0d10; --panel:#14161b; --panel-2:#1a1d23; --edge:#282c35; --edge-2:#373c47;
+      --ink:#eceef2; --ink-2:#a2a9b8; --ink-3:#6e7686;
+      --gold:#d8a441; --verify:#48c98a; --warn:#e08a5f; --note:#7ba3dd;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0c0d10; --panel:#14161b; --panel-2:#1a1d23; --edge:#282c35; --edge-2:#373c47;
+    --ink:#eceef2; --ink-2:#a2a9b8; --ink-3:#6e7686;
+    --gold:#d8a441; --verify:#48c98a; --warn:#e08a5f; --note:#7ba3dd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--ground); color:var(--ink); font:400 15.5px/1.6 "Public Sans",system-ui,-apple-system,Segoe UI,sans-serif; padding-block:0 70px; padding-left:18px; padding-right:18px}
+  .wrap{max-width:920px; margin:0 auto; display:flex; flex-direction:column; gap:30px}
+  h1,h2{font-family:"Bricolage Grotesque","Public Sans",system-ui,sans-serif; margin:0; text-wrap:balance}
+  h1{font-weight:700; font-size:clamp(24px,4.4vw,34px); letter-spacing:-.02em; line-height:1.14}
+  h2{font-weight:600; font-size:17px; letter-spacing:-.008em}
+  p{margin:0}
+  a{color:inherit}
+  .eyebrow{font:500 10.5px/1 "JetBrains Mono",ui-monospace,monospace; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-3)}
+  .chrome{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:13px 0; border-bottom:1px solid var(--edge)}
+  .chrome .path{font:500 12px/1 "JetBrains Mono",monospace; color:var(--ink-3)}
+  .chip{margin-left:auto; font:500 10.5px/1 "JetBrains Mono",monospace; color:var(--verify); border:1px solid var(--verify); border-radius:999px; padding:5px 10px}
+  .chip.err{color:var(--warn); border-color:var(--warn)}
+  .addr{font:500 11.5px/1.5 "JetBrains Mono",monospace; color:var(--ink-3); word-break:break-all}
+  .pair{display:grid; grid-template-columns:1fr auto 1fr; gap:1px; background:var(--edge); border:1px solid var(--edge); border-radius:9px; overflow:hidden}
+  .pair > div{background:var(--panel); padding:19px}
+  .pair .mid{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:19px 14px; min-width:104px}
+  .lab{font:500 10.5px/1.3 "JetBrains Mono",monospace; letter-spacing:.13em; text-transform:uppercase; color:var(--ink-3); margin-bottom:9px}
+  .val{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:clamp(23px,4.2vw,30px); letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1}
+  .sub{font-size:12.5px; color:var(--ink-3); margin-top:9px; line-height:1.45}
+  .g{color:var(--gold)} .v{color:var(--verify)}
+  .ratio{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:21px}
+  @media(max-width:620px){ .pair{grid-template-columns:1fr} .pair .mid{border-block:1px solid var(--edge)} }
+  .note{border-left:3px solid var(--warn); padding:4px 0 4px 15px; color:var(--ink-2); font-size:14.5px}
+  .note b{color:var(--ink)}
+  .note.green{border-left-color:var(--verify)} .note.blue{border-left-color:var(--note)}
+  .split{display:flex; flex-direction:column; gap:9px}
+  .bar{display:flex; height:34px; border-radius:6px; overflow:hidden; border:1px solid var(--edge-2)}
+  .bar span{display:flex; align-items:center; justify-content:center; font:700 11.5px/1 "JetBrains Mono",monospace; color:#fff; white-space:nowrap; overflow:hidden}
+  .bar .s0{background:var(--edge-2); color:var(--ink-2)} .bar .s1{background:var(--gold)} .bar .s2{background:var(--verify)} .bar .s3{background:var(--ink-3)}
+  .legend{display:grid; grid-template-columns:repeat(auto-fit,minmax(178px,1fr)); gap:11px}
+  .legend div{font-size:13px; color:var(--ink-2); display:flex; gap:8px; align-items:flex-start}
+  .legend i{width:10px; height:10px; border-radius:3px; flex:none; margin-top:5px}
+  .legend b{color:var(--ink); display:block}
+  .scroller{overflow-x:auto; border:1px solid var(--edge); border-radius:9px; background:var(--panel)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:660px}
+  th{font:500 10.5px/1.5 "JetBrains Mono",monospace; letter-spacing:.11em; text-transform:uppercase; color:var(--ink-3); text-align:left; padding:12px; border-bottom:1px solid var(--edge-2); background:var(--panel-2)}
+  td{padding:9px 12px; border-bottom:1px solid var(--edge)}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even){background:var(--panel-2)}
+  td.n{text-align:right; font-family:"JetBrains Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap}
+  td.nm{font-weight:600} td.sm{color:var(--ink-2); font-size:12.5px}
+  .cert{font-family:"JetBrains Mono",monospace; font-size:11.5px; color:var(--ink-3); white-space:nowrap}
+  .badge{display:inline-block; font:500 10.5px/1 "JetBrains Mono",monospace; padding:4px 7px; border-radius:4px; border:1px solid var(--edge-2); color:var(--ink-2); white-space:nowrap}
+  tfoot td{padding:12px; font-family:"JetBrains Mono",monospace; font-weight:700; border-top:1px solid var(--edge-2); font-variant-numeric:tabular-nums}
+  .prov{display:flex; flex-direction:column; border:1px solid var(--edge); border-radius:9px; padding:4px 18px; background:var(--panel)}
+  .prov-row{display:grid; grid-template-columns:150px 1fr; gap:16px; padding:13px 0; border-bottom:1px solid var(--edge)}
+  .prov-row:last-child{border-bottom:none}
+  .prov-k{font:500 11px/1.4 "JetBrains Mono",monospace; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3)}
+  .prov-v{color:var(--ink-2); font-size:14px} .prov-v b{color:var(--ink)}
+  @media(max-width:560px){ .prov-row{grid-template-columns:1fr; gap:5px} }
+  footer{border-top:1px solid var(--edge); padding-top:16px; color:var(--ink-3); font-size:12.5px; display:flex; flex-direction:column; gap:6px}
+  footer b{color:var(--ink-2)}
+  .err{border:1px solid var(--warn); border-radius:9px; padding:16px; color:var(--ink-2)}
+  .err b{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="chrome">
+    <span class="path" id="path">onix.finance / vault</span>
+    <span class="chip" id="chip">READING CHAIN…</span>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <p class="eyebrow" id="eyebrow">Vault · operated by —</p>
+    <h1 id="h1">Reading the vault…</h1>
+    <p class="addr">vault <span id="vaultAddr">—</span></p>
+  </section>
+
+  <div id="error" class="err" hidden></div>
+
+  <section class="pair">
+    <div>
+      <div class="lab">Market cap</div>
+      <div class="val" id="mcap">—</div>
+      <div class="sub" id="mcapSub">Price × supply. What the market says it is worth.</div>
+    </div>
+    <div class="mid">
+      <div class="lab" style="margin:0">Ratio</div>
+      <div class="ratio" id="ratio">—</div>
+      <div class="sub" style="margin:0;text-align:center">market over backing</div>
+    </div>
+    <div>
+      <div class="lab">Backing</div>
+      <div class="val g" id="backing">—</div>
+      <div class="sub" id="backingSub">Cards in the vault at what the market actually pays.</div>
+    </div>
+  </section>
+
+  <p class="note"><b>These two are different things and are never added together.</b> Market cap is what people are paying for the token. Backing is what the vault holds. The ratio is the only honest way to put them in one sentence.</p>
+
+  <section class="split">
+    <p class="eyebrow">Where every trade goes · <span id="feePct">—</span>% fee</p>
+    <div class="bar" id="bar"></div>
+    <div class="legend" id="legend"></div>
+    <p class="sub" style="margin:0">Of what reaches the vault after the protocol's cut, the split is 50 / 30 / 20. Both sets of numbers are shown so nobody has to do the subtraction.</p>
+  </section>
+
+  <p class="note green"><b>The cards are in this wallet. Burn <code>$VEONIX</code> and any of them is yours, at the published price.</b> Any gacha can buy them at the same price. Every trade on the curve buys more.</p>
+
+  <section style="display:flex;flex-direction:column;gap:11px">
+    <p class="eyebrow">What is in the vault · <span id="cnt">—</span> cards</p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Card</th><th>Set</th><th>Grade</th><th>Certificate</th><th>Physical vault</th><th style="text-align:right">Insured</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="sm">reading…</td></tr></tbody>
+        <tfoot><tr><td colspan="5">Total insured value · the index, not a sale price</td><td class="n" id="tot">—</td></tr></tfoot>
+      </table>
+    </div>
+    <div id="excluded" class="sub" hidden></div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:11px">
+    <h2>Where each number comes from</h2>
+    <div class="prov">
+      <div class="prov-row"><div class="prov-k">The cards</div><div class="prov-v">Read from the vault wallet on Solana with the DAS API, <b>not from a list we keep</b>. Grade, certificate and physical vault come from each asset's own on-chain metadata. <span class="cert" id="ageCards">—</span></div></div>
+      <div class="prov-row"><div class="prov-k">Insured value</div><div class="prov-v">The <b>Insured Value</b> attribute written on chain by the custodian. An index they assign — <b>not a market price</b>, and not a number of ours.</div></div>
+      <div class="prov-row"><div class="prov-k">The <span id="multK">0.89</span>×</div><div class="prov-v">Cards sell for less than the index. <b><span id="multV">0.89</span>× is the measured median</b> of what the market actually paid (<span id="multS">—</span>). Backing is shown after that haircut, not before it.</div></div>
+      <div class="prov-row"><div class="prov-k">Market cap</div><div class="prov-v" id="provMcap">Price decoded from the pool account's <code>sqrt_price</code> × supply from the mint. Both on chain, both read on every load.</div></div>
+      <div class="prov-row"><div class="prov-k">Fees so far</div><div class="prov-v" id="provFees">—</div></div>
+      <div class="prov-row"><div class="prov-k">What we never do</div><div class="prov-v"><b>Add liquidity to backing.</b> Money that came up the curve is not the vault's; it becomes the pool at migration. Two pockets, two numbers, never one total.</div></div>
+    </div>
+    <p class="note blue"><b>Anyone can rebuild every number on this page without asking us for anything.</b> The reader that does it is open source, and it only reads the chain.</p>
+  </section>
+
+  <footer>
+    <p><b>Read at:</b> <span id="readAt">—</span>. Every figure is re-read on every load; nothing here is cached by us.</p>
+    <p><b>Exit rules:</b> redemption burns tokens worth <code>max(insured, market) × 1.15</code> for a specific card; a gacha buys at <code>max(insured, market)</code>. The premium stays in the vault. Redemption v1 is verified by the operator and delivered from the vault wallet — every delivery is a public transaction.</p>
+  </footer>
+</div>
+
+<script src="../src/reader/backing.js"></script>
+<script src="../src/reader/pool.js"></script>
+<script src="../src/curve/split.js"></script>
+<script src="config.js"></script>
+<script>
+(async function () {
+  const C = window.ONIX_VAULT_CONFIG || {};
+  const { parseCard, computeBacking } = window.OnixVaultBacking;
+  const { decodeVirtualPool, priceFromSqrtPrice } = window.OnixVaultPool;
+  const { splitOfTrade } = window.OnixVaultSplit;
+  const $ = (id) => document.getElementById(id);
+  const usd = (n, d = 0) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: d });
+  const fail = (msg) => { $('error').hidden = false; $('error').innerHTML = '<b>Could not read the chain.</b> ' + msg; $('chip').textContent = 'READ FAILED'; $('chip').className = 'chip err'; };
+
+  async function rpc(method, params) {
+    const r = await fetch(C.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+    if (!r.ok) throw new Error(method + ': HTTP ' + r.status);
+    const j = await r.json(); if (j.error) throw new Error(method + ': ' + JSON.stringify(j.error)); return j.result;
+  }
+  async function assetsByOwner(owner) {
+    const all = []; for (let page = 1; ; page++) {
+      const r = await rpc('getAssetsByOwner', { ownerAddress: owner, page, limit: 1000, displayOptions: { showUnverifiedCollections: false } });
+      const items = (r && r.items) || []; all.push(...items); if (items.length < 1000) break;
+    } return all;
+  }
+  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+  // static parts first
+  $('eyebrow').textContent = (C.vaultName || 'Vault') + ' · operated by ' + (C.operator || '—');
+  $('vaultAddr').textContent = C.vaultWallet || '—';
+  const sp = splitOfTrade(C.feeBps || 1000);
+  $('feePct').textContent = sp.feePct;
+  const segs = [['s0', sp.protocolPct, 'Meteora'], ['s1', sp.buyCardPct, 'buys a card'], ['s2', sp.buybackPct, 'buyback'], ['s3', sp.operatorPct, 'operator']];
+  $('bar').innerHTML = segs.map(([c, p, l]) => `<span class="${c}" style="flex:${p}">${p}% · ${l}</span>`).join('');
+  $('legend').innerHTML = [
+    ['var(--edge-2)', `Meteora, ${sp.protocolPct}% of the trade`, 'The protocol keeps 20% of every fee. Fixed by the program, not by us.'],
+    ['var(--gold)', `Buys a card, ${sp.buyCardPct}%`, 'Backing grows. Every holder\'s share of the vault goes up.'],
+    ['var(--verify)', `Buys back the token, ${sp.buybackPct}%`, 'Price support. Redemption is the other way value returns.'],
+    ['var(--ink-3)', `Operator, ${sp.operatorPct}%`, (C.operator || 'The operator') + '. Published here, not in a Discord.'],
+  ].map(([bg, t, d]) => `<div><i style="background:${bg}"></i><span><b>${t}</b>${d}</span></div>`).join('');
+
+  try {
+    if (!C.vaultWallet || C.vaultWallet.startsWith('<')) throw new Error('web/config.js has no vaultWallet.');
+    const t0 = Date.now();
+    const [assets, supply, poolInfo] = await Promise.all([
+      assetsByOwner(C.vaultWallet),
+      C.baseMint ? rpc('getTokenSupply', [C.baseMint]).then((r) => r.value.uiAmount) : Promise.resolve(null),
+      C.pool ? rpc('getAccountInfo', [C.pool, { encoding: 'base64' }]) : Promise.resolve(null),
+    ]);
+    const cards = assets.map(parseCard);
+    const bk = computeBacking(cards, { supply });
+    const readAt = new Date();
+
+    // backing
+    $('backing').textContent = usd(bk.realisableUsd);
+    $('backingSub').textContent = `${bk.cardsCounted} cards at ${bk.multiplier}× the index (${usd(bk.indexUsd)}). Count them yourself below.`;
+    $('cnt').textContent = bk.cardsCounted;
+    $('tot').textContent = usd(bk.indexUsd);
+    $('multK').textContent = bk.multiplier; $('multV').textContent = bk.multiplier; $('multS').textContent = bk.multiplierMeasured.sample + ', ' + bk.multiplierMeasured.when;
+    const counted = cards.filter((c) => c.counts).sort((a, b) => b.insuredUsd - a.insuredUsd);
+    $('rows').innerHTML = counted.map((c) => `<tr><td class="nm">${c.name}</td><td class="sm">${c.set || c.category || ''}</td><td><span class="badge">${(c.gradingCompany || '') + ' ' + (c.grade || '')}</span></td><td class="cert">${c.certNumber || '—'}</td><td class="sm">${c.vault || c.custodian || ''}</td><td class="n">${usd(c.insuredUsd)}</td></tr>`).join('') || '<tr><td colspan="6" class="sm">the vault is empty</td></tr>';
+    const ex = cards.filter((c) => !c.counts);
+    if (ex.length) { $('excluded').hidden = false; $('excluded').textContent = `${ex.length} asset(s) in the wallet are listed but not counted: ` + ex.map((c) => `${c.name} (${c.excludedBecause})`).join(' · '); }
+
+    // market cap — only if the pool exists
+    if (poolInfo && poolInfo.value && supply) {
+      const pool = decodeVirtualPool(b64(poolInfo.value.data[0]));
+      const price = priceFromSqrtPrice(pool.sqrtPrice, C.baseDecimals ?? 6, C.quoteDecimals ?? 6);
+      const mcap = price * supply;
+      $('mcap').textContent = usd(mcap);
+      $('mcapSub').textContent = `${usd(price, 6)} per token × ${supply.toLocaleString('en-US')} supply${pool.isMigrated ? ' · graduated to DAMM v2' : ' · on the curve'}`;
+      const ratio = bk.realisableUsd > 0 ? mcap / bk.realisableUsd : null;
+      $('ratio').textContent = ratio == null ? '—' : ratio.toFixed(2) + '×';
+      const q = 10 ** (C.quoteDecimals ?? 6);
+      $('provFees').innerHTML = `<b>${usd(Number(pool.totalTradingQuoteFee) / q, 2)}</b> of trading fees since launch, read from the pool account. ${usd(Number(pool.partnerQuoteFee) / q, 2)} currently claimable by the operator, ${usd(Number(pool.protocolQuoteFee) / q, 2)} by the protocol.`;
+    } else {
+      $('mcap').textContent = '—';
+      $('mcapSub').textContent = C.pool ? 'Pool not found on chain.' : 'No token yet. The curve has not launched — this page shows backing only, and says so.';
+      $('ratio').textContent = '—';
+      $('provMcap').innerHTML = '<b>Not launched.</b> When the pool exists, price is decoded from its <code>sqrt_price</code> and multiplied by the mint\'s supply — both on chain.';
+      $('provFees').textContent = 'No pool, no fees yet.';
+    }
+
+    $('readAt').textContent = readAt.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    $('h1').textContent = `${bk.cardsCounted} graded cards in ${new Set(counted.map((c) => c.vault).filter(Boolean)).size || '—'} physical vaults, backing one token`;
+    $('chip').textContent = 'READ FROM CHAIN';
+    const tick = () => { $('ageCards').textContent = 'read ' + Math.round((Date.now() - readAt.getTime()) / 1000) + 's ago'; };
+    tick(); setInterval(tick, 1000);
+  } catch (e) { fail(e.message); $('h1').textContent = 'Could not read the vault'; }
+})();
+</script>
+</body>
+</html>
