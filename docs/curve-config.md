@@ -131,8 +131,26 @@ for specifically.
 3. **Do not take a seed allocation at the launch at all** — admit the operator's cards after the
    curve is running, at the same published rule as anyone else.
 
-Option 3 is the cleanest story and the weakest one for the operator's economics. This is a
-decision for the PO, and it should be made before the config is written, not after.
+Option 3 is the cleanest story and the weakest one for the operator's economics.
+
+### ✅ Decided 30 September 2026 — each lock where it belongs
+
+- **Admission tokens** (what the operator — or anyone — receives for a card that goes into
+  the vault) are **never** held by the DBC's `lockedVesting`. Their meaning does not depend on
+  graduation, so they must not depend on it either. They go into a **time-based lock**
+  (Jupiter Lock, 12 months proposed), unlocking on a date whether or not the pool migrates.
+  If the pool never graduates, the operator still holds its tokens, the cards stay in the vault,
+  and the redemption door is open to it on the same terms as anyone.
+- **`lockedVesting` is used for the allocation whose meaning *is* graduation**: the operator's
+  post-migration share (creator liquidity / leftover). If the pool graduates, it vests over time;
+  if it does not, it does not exist. That is what the field is for.
+- **`migrationMarketCap` is set for plausibility, not as a condition** (see above): around
+  3–4× the opening backing, so the market cap ÷ backing ratio stays legible during the curve
+  (at $10k it would read ~10× on a ~$1k vault).
+
+Using the DBC's vesting for admission would have been the wrong tool for the job, and anyone
+who wrote the program would see it. Depth of integration is each feature in the place it was
+designed for, not every field filled in.
 
 ---
 
