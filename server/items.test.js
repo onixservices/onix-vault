@@ -26,7 +26,7 @@ describe('items reader', () => {
     const items = await reader();
     assert.deepEqual(items.map((i) => i.mint), ['A']);
     assert.equal(items[0].custodianValueUsd, 20); assert.equal(items[0].marketRefUsd, 26);
-    assert.equal(items[0].imageUrl, 'https://img/A.jpg', 'the photo is the token's own image, served to the page');
+    assert.equal(items[0].imageUrl, 'https://img/A.jpg', "the photo is the token's own image, served to the page");
     t = 500; await reader(); assert.equal(rpcCalls.length, 1);   // cached
     t = 2000; await reader(); assert.equal(rpcCalls.length, 2);  // refreshed
   });
