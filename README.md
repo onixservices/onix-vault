@@ -1,20 +1,29 @@
 # Onix.Vault
 
-**Auditable, card-backed vaults on Solana.** Built by [Onix](https://onix.finance).
+**Auditable vaults for real-world assets on Solana.** Built by [Onix](https://onix.finance).
 
-An Onix.Vault vault holds real graded trading cards that are already tokenized and held by a
-named custodian. Its token launches on a [Meteora](https://meteora.ag) Dynamic Bonding
-Curve. The vault has **four doors**, each with a published rule:
+An Onix.Vault vault holds real things that a named custodian has already put on chain —
+tokenized, with their identity and value written into the token by the custodian, and with a
+way to get the physical item back. Its token launches on a [Meteora](https://meteora.ag)
+Dynamic Bonding Curve. The vault has **four doors**, each with a published rule:
 
 | door | what happens | backing per token |
 |---|---|---|
-| **Admission** | a card goes in → tokens for **80%** of its realisable value, vested | rises |
-| **Redemption** | burn tokens worth `max(insured, market) × 1.15` → that card is yours; the 15% stays in the vault | rises |
-| **Gacha** | any gacha buys a card from the vault at `max(insured, market)` — above what the market pays | rises |
-| **Fees** | 10% of every curve trade: 50% buys a card · 30% buys the token back · 20% operator | rises |
+| **Admission** | an item goes in → tokens for **80%** of its realisable value, vested | rises |
+| **Redemption** | burn tokens worth `max(custodian value, market) × 1.15` → that item is yours; the 15% stays in the vault | rises |
+| **Gacha** | any gacha buys an item from the vault at `max(custodian value, market)` — above what the market pays | rises |
+| **Fees** | 10% of every curve trade: 50% buys another item · 30% buys the token back · 20% operator | rises |
 
 The vault never runs a draw and never picks what leaves. Anyone can verify what is inside
 a vault without asking us for anything. That is the point.
+
+The mechanism does not care what the asset is. It cares about three things: possession is
+provable on chain, the custodian publishes identity and value in the token, and the custodian
+offers a way to redeem the physical item. **Vault #1 holds graded trading cards** because
+that is where custody is most mature today (Collector Crypt writes insured value, grader,
+certificate and the vault's street address into every token). Wine, watches or fossils enter
+the day their custodian meets the same three conditions. Liquid RWAs (tokenized stocks) do not
+need this: they redeem at NAV by design. This is for the illiquid kind.
 
 ---
 
