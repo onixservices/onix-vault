@@ -2,9 +2,9 @@
 
 > How a gacha (ours or anyone's) buys an item out of a vault, and how a holder redeems one.
 > Written for Vault #1 (graded cards); the contract is the same for any registered custodian.
-> Drafted 30 September 2026. **This is the boundary between the public, read-only side and
-> the private, signing side.** Everything below the line "settle" runs in Onix's private
-> infrastructure and only ever moves a card *after* a payment or a burn is confirmed on chain.
+> Drafted 30 September 2026; served by `server/` since 1 October. The server only ever
+> moves an item *after* a payment or a burn is confirmed on chain, and every delivery is a
+> public transaction paired with the one that caused it.
 
 ## Why an API and not a program
 
@@ -51,19 +51,22 @@ Every item in the vault wallet, from the chain, with:
 ```json
 {
   "mint": "…",
-  "issuer": "collector-crypt",
-  "title": "…", "grade": "PSA 10", "cert": "…", "physicalVault": "PWCC Vault, Tigard OR",
+  "custodian": "collector-crypt",
+  "name": "…", "category": "Pokemon", "imageUrl": "…",
   "custodianValueUsd": 135.00,   // the attribute the custodian wrote; "Insured Value" for cards
-  "marketRefUsd": 118.00, "marketRef": { "source": "…", "sample": 12, "ageSec": 340 },
-  "exitPriceUsd": 135.00,
+  "custodianValueBasis": "insured",
+  "marketRefUsd": null,          // v1 ships without a market reference; when one exists it is named
+  "exitPriceUsd": 135.00, "exitPriceBasis": "custodian",
   "redeemPriceUsd": 155.25,
-  "status": "available" | "reserved" | "leaving",
+  "status": "available" | "reserved",
   "reservedUntil": null
 }
 ```
 
 `status` is the only thing the API adds to what the chain says. A `reserved` card is still
-in the wallet and still counts in on-chain backing; the proof page labels it.
+in the wallet and still counts in on-chain backing; the proof page labels it. The response
+also carries `readAt` and `itemsAgeMs` — the chain read is cached for seconds, and the age is
+printed rather than hidden.
 
 ### `POST /v1/vaults/{vault}/reservations`
 
@@ -98,14 +101,19 @@ The API reads the transaction from the chain and checks, in this order:
 3. the memo equals the reservation id;
 4. the reservation has not expired.
 
-Only then the vault wallet builds the delivery, **simulates it** (the same deliverability
-check the gacha has used since August 2026), signs, **persists the signed transaction, then
-broadcasts** — so a crash between the two can never deliver twice, and a rebroadcast is the
-same signature.
+Only then the vault wallet builds the delivery, asserts it has a single unsigned signer,
+**simulates it** (the same deliverability check the gacha has used since August 2026 — a
+delivery that would fail on chain is never signed), signs, **persists the signed transaction,
+then broadcasts** — so a crash between the two can never deliver twice, and a rebroadcast is
+the same signature.
 
-→ `200 { "deliverySignature": "…", "mint", "winner" }` · `402` if the payment does not
-cover the price · `410` if the reservation expired (the payment, if any, is refunded by the
-operator by hand in v1, and the page says so).
+→ `200` the reservation, now `"status": "settled"` with `paymentSignature` and
+`deliverySignature` · `402` if the payment does not cover the price · `409` if the payment is
+not on chain or not finalized yet (retry) · `410` if the reservation expired (the payment, if
+any, is refunded by the operator by hand in v1, and the page says so) · `503` if the payment
+is good but the delivery failed: the reservation is `delivery_failed`, keeps the payment, and
+the operator re-runs the delivery by hand (`scripts/retry-delivery.js`, same path); poll
+`GET …/reservations/{id}` for the `deliverySignature`.
 
 ### `POST /v1/vaults/{vault}/redemptions` *(v1: recorded, verified by the operator)*
 

@@ -1,7 +1,7 @@
 /**
  * server/chain.js — the RPC calls the server makes. Thin, and all read-only except
  * `sendRawTransaction`, which only ever sends a transaction this server built,
- * asserted and signed.
+ * asserted, simulated and signed.
  */
 'use strict';
 const C = require('./config');
@@ -23,6 +23,8 @@ module.exports = {
   getSignatureStatuses: async (sigs) => (await rpc('getSignatureStatuses', [sigs, { searchTransactionHistory: true }])).value,
   getLatestBlockhash: async () => (await rpc('getLatestBlockhash', [{ commitment: 'confirmed' }])).value.blockhash,
   sendRawTransaction: (b64) => rpc('sendTransaction', [b64, { encoding: 'base64', preflightCommitment: 'confirmed' }]),
+  /** Deliverability check BEFORE signing: `sigVerify:false` so an unsigned tx simulates; the blockhash is replaced. */
+  simulateTransaction: async (b64) => (await rpc('simulateTransaction', [b64, { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }])).value,
   getAsset: (id) => rpc('getAsset', { id }),
   getAccountInfoBase64: async (pubkey) => (await rpc('getAccountInfo', [pubkey, { encoding: 'base64' }])).value,
   rpc,

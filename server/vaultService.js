@@ -14,8 +14,10 @@
  *             signs and sends it); honours Idempotency-Key.
  *   settle  — reads the payment from the transaction itself (finalized; credits the
  *             vault's USDC account with ≥ price; memo = reservation id); only then
- *             the vault wallet delivers (sign → persist → broadcast). A payment
- *             signature settles one reservation, ever.
+ *             the vault wallet delivers (simulate → sign → persist → broadcast). A
+ *             payment signature settles one reservation, ever.
+ *   retryDelivery — OPERATOR only (no route): a paid reservation whose delivery
+ *             failed runs the delivery again; the payment is not re-read.
  *
  * Nothing here holds anyone's money.
  */
@@ -142,6 +144,11 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     if (!reservationsRepo.transition(db, r.id, 'reserved', 'settling', { at: t, set: { payment_sig: paymentSignature } })) {
       throw new VaultError(409, 'reservation changed under us — retry');
     }
+    return _deliverSettling(r);
+  }
+
+  /** From `settling`: deliver; success → settled, failure → delivery_failed with the reason (never back to reserved). */
+  async function _deliverSettling(r) {
     let out;
     try {
       out = await deliver({ mint: r.mint, toAddress: r.winner, reservationId: r.id });
@@ -149,8 +156,21 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
       reservationsRepo.transition(db, r.id, 'settling', 'delivery_failed', { at: now(), set: { fail_reason: String(e.message || e) } });
       throw new VaultError(503, `paid, but delivery failed and is pending: ${e.message}`);
     }
-    reservationsRepo.transition(db, r.id, 'settling', 'settled', { at: now(), set: { delivery_sig: out.sig } });
+    reservationsRepo.transition(db, r.id, 'settling', 'settled', { at: now(), set: { delivery_sig: out.sig, fail_reason: null } });
     return _reservationView(reservationsRepo.get(db, r.id));
+  }
+
+  /**
+   * The operator's path for a paid reservation whose delivery failed (`delivery_failed`):
+   * the same delivery, again. Not exposed as a route — it is run on the server by hand
+   * (`scripts/retry-delivery.js`). The payment was already read and is kept.
+   */
+  async function retryDelivery({ reservationId }) {
+    const r = reservationsRepo.get(db, reservationId);
+    if (!r) throw new VaultError(404, 'unknown reservation');
+    if (r.status !== 'delivery_failed') throw new VaultError(409, `reservation is ${r.status}; only delivery_failed can be retried`);
+    if (!reservationsRepo.transition(db, r.id, 'delivery_failed', 'settling', { at: now() })) throw new VaultError(409, 'reservation changed under us — retry');
+    return _deliverSettling(r);
   }
 
   function status({ reservationId }) {
@@ -169,7 +189,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
   }
   function listRedemptions() { return redemptionsRepo.listPublic(db); }
 
-  return { listItems, reserve, settle, status, sweepExpired, recordRedemption, listRedemptions, exitPriceUsd };
+  return { listItems, reserve, settle, retryDelivery, status, sweepExpired, recordRedemption, listRedemptions, exitPriceUsd };
 }
 
 module.exports = { createVaultService, exitPriceUsd, VaultError };

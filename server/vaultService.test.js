@@ -164,6 +164,46 @@ describe('settle', () => {
   });
 });
 
+describe('retryDelivery — the operator re-runs a paid reservation whose delivery failed', () => {
+  const cfg = { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 };
+  async function paidButFailed() {
+    const { svc, chain, db } = make();
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
+    const bad = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => { throw new Error('rpc down'); }, now: () => T0, config: cfg });
+    await rejectsWith(bad.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' }), 503);
+    return { r, db, chain };
+  }
+
+  test('delivery_failed → settled when the delivery now succeeds; the payment is not re-read; the winner is the original one', async () => {
+    const { r, db, chain } = await paidButFailed();
+    const delivered = [];
+    const good = createVaultService({ db, readItems: async () => [item()], chain, deliver: async (d) => { delivered.push(d); return { sig: 'DELIV' }; }, now: () => T0, config: cfg });
+    const out = await good.retryDelivery({ reservationId: r.reservationId });
+    assert.equal(out.status, 'settled'); assert.equal(out.deliverySignature, 'DELIV'); assert.equal(out.paymentSignature, 'PAY');
+    assert.deepEqual(delivered, [{ mint: MINT, toAddress: WINNER, reservationId: r.reservationId }]);
+    assert.equal(reservationsRepo.get(db, r.reservationId).fail_reason, null);
+  });
+
+  test('fails again → stays delivery_failed with the new reason, 503', async () => {
+    const { r, db, chain } = await paidButFailed();
+    const bad = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => { throw new Error('still down'); }, now: () => T0, config: cfg });
+    await rejectsWith(bad.retryDelivery({ reservationId: r.reservationId }), 503);
+    const row = reservationsRepo.get(db, r.reservationId);
+    assert.equal(row.status, 'delivery_failed'); assert.equal(row.fail_reason, 'still down');
+  });
+
+  test('only a delivery_failed reservation can be retried: reserved → 409, settled → 409, unknown → 404', async () => {
+    const { svc, chain } = make();
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    await rejectsWith(svc.retryDelivery({ reservationId: r.reservationId }), 409);
+    chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
+    await svc.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' });
+    await rejectsWith(svc.retryDelivery({ reservationId: r.reservationId }), 409);
+    await rejectsWith(svc.retryDelivery({ reservationId: 'nope' }), 404);
+  });
+});
+
 describe('redemption v1', () => {
   test('records the burn once; the same burn twice → 409; listed publicly as verifying', async () => {
     const { svc } = make();

@@ -86,8 +86,9 @@ Of every trade, a published share is split three ways:
          └─ 20% operator
 ```
 
-Fees are one of **four doors**. The other three are rules, not code paths in this
-repository, and they all move backing per token the same way — up:
+Fees are one of **four doors**. The other three are rules with a published price, and
+they all move backing per token the same way — up. Two of them (redemption, gacha) are
+code paths in `server/`; admission is a transfer into the vault wallet:
 
 | door | rule | who signs |
 |---|---|---|
@@ -96,9 +97,11 @@ repository, and they all move backing per token the same way — up:
 | gacha | a gacha buys a card at `max(insured, market)` through the vault API | the gacha pays; the vault wallet delivers |
 
 The vault **never chooses** what leaves: a card leaves because someone burned for it or a
-gacha paid for it, at the published price. Delivery reuses the prize-delivery path Onix.Cards
-has run in production since August 2026 (sign → persist → broadcast; deliverability proved by
-simulation before anything moves). The API contract is in `docs/vault-api.md`.
+gacha paid for it, at the published price. Delivery is the prize-delivery path Onix.Cards
+has run in production since August 2026, ported into `server/` (build → assert a single
+unsigned signer → **simulate** → sign → persist → broadcast; a delivery that would fail on
+chain is never signed). The API contract is in `server/openapi.json`; `docs/vault-api.md`
+explains it.
 
 ### `web/` — the proof page
 
@@ -113,12 +116,14 @@ shown with its age, never silently refreshed and never hidden.
 
 The interesting part is that **step 3 is not new code**. Onix already runs an agent that
 buys graded cards on its own, across several venues, under published rules. Onix.Vault does
-not reimplement it.
+not reimplement it. What is new, and small, is the split of a claimed fee into its three
+legs (`src/curve/split.js`, pure) and the operation that claims it and hands the card leg to
+that agent — today an operator-run step on the private side, not a service in this repository.
 
 ```
 1.  someone trades on the curve                        │ Meteora DBC
 2.  fee accrues to the fee claimer, in quote token     │ Meteora DBC
-3.  the existing buying agent buys a card at the rule  │ private · signs
+3.  the existing buying agent buys a card at the rule  │ Onix.Cards' agent · signs
 4.  the card lands in the vault wallet                 │ Solana
 5.  the reader sees one more card                      │ this repo · reads only
 ```
@@ -161,4 +166,5 @@ vhost alongside the existing Onix apps; nothing in the current production path c
   step is anchored to a public transaction; the program is the destination.
 - **Third parties creating their own vaults.** Roadmap. Vault #1 is the seed of that, not
   the alternative to it — and it was created through the same path a third party will use.
-- **Anything that signs.** By design, permanently.
+- **The vault wallet's key.** The code that signs is here; the key never is. Run the
+  server with your own key and it is your vault.

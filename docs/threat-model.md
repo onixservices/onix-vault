@@ -29,8 +29,9 @@ Every card leaves in one transaction and the backing is gone.
 **Today:** the vault is a wallet operated by Onix, and we say so on the page. That is the
 honest description of a single point of failure, not a mitigation.
 **Mitigations in place:** the vault wallet is separate from every operational wallet, holds
-no other role, and signs nothing except admissions. Its address is published, so the theft
-would be visible to anyone within one block.
+no other role, and signs nothing except deliveries through the two exit doors — each one
+built only after a payment or a burn was read from the chain. Its address is published, so
+a theft would be visible to anyone within one block.
 **Roadmap, in order:** multisig, then a program that can only release under published rules.
 **What we will not do:** describe the current setup as trustless. It isn't.
 
@@ -168,6 +169,12 @@ input; it accepts a signature and reads the chain.
 ### A delivery is broadcast twice
 **Mitigation:** sign → **persist the signed transaction** → broadcast. A rebroadcast is the
 same signature; a crash between persist and broadcast delivers once or not at all, never twice.
+
+### A delivery is signed that cannot land
+**Mitigation:** the delivery is **simulated before it is signed**; a transaction that would
+fail on chain (frozen token, wrong account set, missing rent) is never signed and never
+broadcast. The reservation becomes `delivery_failed`, keeps the payment, and only the operator
+can re-run it — by hand, on the server, through the same path. There is no route for it.
 
 ---
 

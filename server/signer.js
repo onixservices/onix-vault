@@ -21,3 +21,14 @@ module.exports = {
   publicKey: () => load().publicKey.toBase58(),
   signTransaction: (tx) => { tx.partialSign(load()); return tx; },
 };
+
+/**
+ * A signer over a Keypair you already hold — for rehearsals and tests, where the
+ * key is throwaway and generated at runtime. Production never calls this: its
+ * key comes from the environment through the default export above.
+ */
+module.exports.fromKeypair = (keypair) => ({
+  configured: () => true,
+  publicKey: () => keypair.publicKey.toBase58(),
+  signTransaction: (tx) => { tx.partialSign(keypair); return tx; },
+});

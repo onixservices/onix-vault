@@ -12,6 +12,7 @@
     "backing": "node src/reader/cli.js",
     "curve:dry-run": "node src/curve/dry-run.js",
     "rehearse:devnet": "node scripts/rehearse-devnet.js",
+    "rehearse:vault": "node scripts/rehearse-vault-devnet.js",
     "server": "node server/index.js",
     "server:dev": "node --watch server/index.js"
   },

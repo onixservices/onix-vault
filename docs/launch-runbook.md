@@ -47,6 +47,24 @@
 > `{ poolState }` and `swapQuote` wants that wrapper; the quote's fields are `outputAmount`,
 > `tradingFee`, `protocolFee`. Still to rehearse: test items + reader, redemption burn, vault API.
 
+> ✅ **Vault API run on devnet, 1 October 2026** with `npm run rehearse:vault` (`scripts/rehearse-vault-devnet.js`;
+> `server/index.js` → `createServer` in-process — the production code — with a throwaway vault
+> wallet and a fixture items reader naming a test NFT minted into that wallet; the integrator is
+> the devnet wallet above, paying in `tUSDC`, through `examples/integrator/vaultClient.js`).
+> Items → reserve (`paymentTransaction` 608 b64 chars, single unsigned signer = integrator) →
+> paid `4AfMWaQn…` → settle → delivered `5WP7yqqM…`. **Verified on the raw transactions, not on
+> the app:** payment signers `[integrator]`, memo = reservation id, vault's tUSDC +20; delivery
+> signers `[vault]`, test NFT vault 1→0, winner 0→1.
+> Surprises worth a line: a Token Metadata NFT **without a Master Edition** is `FungibleAsset` to
+> DAS and the delivery refuses it by design (first run: paid, `delivery_failed`, 503 — the state
+> was kept, nothing lost; real cards always carry a master edition, which also needs a freeze
+> authority on the mint). That run also showed the port had dropped the **simulate-before-sign**
+> check the gacha relies on; it is back (`server/index.js`), the rehearsal passed again with it
+> (`4bSu3vB4…` → `5QQqjAK3…`), and the operator's path for a `delivery_failed` reservation exists:
+> `node scripts/retry-delivery.js` lists them, `… <id>` re-runs the delivery through the same
+> path (rehearsed on the stuck one: refused again, honestly, reason and time updated).
+> Still to rehearse: the items reader on a real vault wallet, the redemption burn.
+
 Same code, same params, a throwaway quote mint. The goal is not to test the SDK — it is to
 find the step where *we* fumble.
 
