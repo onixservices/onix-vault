@@ -216,6 +216,7 @@
     var r = i * h, g = r * adm;
     $('c-sel').textContent = n; $('c-idx').textContent = usd(i); $('c-real').textContent = usd(r); $('c-get').textContent = usd(g);
     $('r-sel').textContent = n; $('r-real').textContent = usd(r); $('r-get').textContent = usd(g); $('r-grad').textContent = usd(r * 3);
+    $('r-calc').style.display = n ? '' : 'none';
   }
   function scan(addr) {
     $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…';
