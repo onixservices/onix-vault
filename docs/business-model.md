@@ -71,6 +71,24 @@ and its v1, and the vault API with the gacha as its first integrator.
 - **No decentralisation claim for Vault #1.** It is operated by Onix, with one signature,
   and the page says so. Multisig and a program-held vault are on the roadmap, in that order.
 
+## Where ONIX fits — and where it does not
+
+Onix already has a token (ONIX, minted April 2026, never launched, no pool). It is **not** the
+vault token and never will be. A vault token is the quota of *one* vault: it is burned to
+redeem that vault's items and diluted when items are admitted. ONIX is meant to be worth
+something across *every* vault, so it has to sit one level up:
+
+| role | what it does | status |
+|---|---|---|
+| **Admission ticket** | paying an admission in ONIX improves the admission rate (e.g. 85% instead of 80% of realisable value) in any vault | roadmap — rule text only in the window |
+| **Vote** | the parameters of each vault (redemption premium, buy rule) are set by ONIX holders | roadmap |
+| **Treasury policy** | the operator's own revenue (the 1.6% above, and nothing taken from holders) may seed and feed an ONIX/USDC pool. That is *our* money being used for *our* token, declared as such — never a leg of the trade fee | roadmap; after mint authority is revoked |
+
+Two things are prerequisites and are said plainly: ONIX's mint authority is still active and
+its supply sits in one wallet; both change before ONIX is shown to anyone. Nothing about ONIX
+is built in the hackathon window, and the Vault #1 token (`$VEONIX`) is minted by the curve
+with an immutable authority precisely so that it carries none of this history.
+
 ## The platform, in one line
 
 Vault #1 is the seed. **Anyone who holds already-tokenized, custodied assets can run a
