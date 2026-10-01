@@ -20,9 +20,10 @@ function createItemsReader({ rpcUrl, vaultWallet, marketRefUrl = null, cacheMs =
     if (cache.items && now() - cache.at < cacheMs) return cache.items;
     if (!rpcUrl || !vaultWallet) throw new Error('items: RPC_URL / VAULT_WALLET not configured');
     const [assets, refs] = await Promise.all([fetchAssets(rpcUrl, vaultWallet), marketRefs()]);
-    const items = assets.map(parseCard).filter((c) => c.counts).map((c) => ({
+    const items = assets.map((a) => ({ c: parseCard(a), img: a.content?.links?.image || a.content?.files?.[0]?.uri || null }))
+      .filter(({ c }) => c.counts).map(({ c, img }) => ({
       mint: c.mint, custodian: c.custodian, name: c.name, category: c.category,
-      imageUrl: null,
+      imageUrl: img,
       custodianValueUsd: c.insuredUsd, custodianValueBasis: 'insured',
       marketRefUsd: Number.isFinite(refs[c.mint]) ? refs[c.mint] : null,
       grade: c.grade, gradingCompany: c.gradingCompany, certNumber: c.certNumber, physicalVault: c.vault,

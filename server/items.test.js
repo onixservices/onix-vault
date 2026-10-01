@@ -8,7 +8,7 @@ const { KNOWN_CUSTODIANS } = require('../src/reader/backing');
 const CC = Object.values(KNOWN_CUSTODIANS)[0][0];
 const asset = (id, insured, collection = CC) => ({
   id, grouping: [{ group_key: 'collection', group_value: collection }],
-  content: { metadata: { name: `Card ${id}`, attributes: [
+  content: { links: { image: `https://img/${id}.jpg` }, metadata: { name: `Card ${id}`, attributes: [
     ...(insured == null ? [] : [{ trait_type: 'Insured Value', value: `$${insured}` }]),
     { trait_type: 'Category', value: 'Pokemon' }, { trait_type: 'The Grade', value: '10' },
   ] } },
@@ -26,6 +26,7 @@ describe('items reader', () => {
     const items = await reader();
     assert.deepEqual(items.map((i) => i.mint), ['A']);
     assert.equal(items[0].custodianValueUsd, 20); assert.equal(items[0].marketRefUsd, 26);
+    assert.equal(items[0].imageUrl, 'https://img/A.jpg', 'the photo is the token's own image, served to the page');
     t = 500; await reader(); assert.equal(rpcCalls.length, 1);   // cached
     t = 2000; await reader(); assert.equal(rpcCalls.length, 2);  // refreshed
   });
