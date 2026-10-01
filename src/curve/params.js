@@ -16,16 +16,20 @@ const FEE_BPS = 1000; // 10%, flat. See docs/curve-config.md → Fees.
 
 /** Inputs that are still a PO decision. Change here, and only here. */
 const PENDING = {
-  // ≈ realisable backing at launch, so the ratio opens near 1.0×. Depends on the
-  // stock-rule N (rec. N=5 → ~$916). Placeholder: $950.
-  initialMarketCapUsd: 950,
-  // Graduation. Low = plausible in the window and unlocks vesting; high = means real
-  // trading happened. Meteora's StockLaunch graduates at $750. Placeholder: $10,000.
-  migrationMarketCapUsd: 10_000,
+  // ≈ realisable backing of the OPENING lot (staged launch, 30 Sep: canary + ~5-10
+  // cheap cards, the rest admitted during the week), so the ratio opens near 1.0×.
+  // Read from the vault wallet on launch day, never typed. Placeholder: $250.
+  initialMarketCapUsd: 250,
+  // DECIDED 30 Sep: ~3-4× the FULL backing (37 cards ≈ $1,420 realisable) so the
+  // market-cap ÷ backing ratio stays legible during the curve (at $10k it would read
+  // ~10×). Plausible in the window; graduation is not a condition for anything —
+  // admission tokens sit in a time lock, not in the DBC's lockedVesting.
+  migrationMarketCapUsd: 3_500,
   // Whole tokens. Placeholder: 10M (6 decimals).
   totalTokenSupply: 10_000_000,
-  // Locked vesting (anchored to MIGRATION — see the finding in docs/curve-config.md).
-  // Placeholder: none, i.e. option 3 "no seed allocation at launch".
+  // Locked vesting (anchored to MIGRATION — see docs/curve-config.md). DECIDED 30 Sep:
+  // used ONLY for the operator's post-migration allocation; admission tokens never go
+  // here (Jupiter Lock, 12 months). Amount still PENDING. Placeholder: none.
   lockedVesting: {
     totalLockedVestingAmount: 0,
     numberOfVestingPeriod: 0,
