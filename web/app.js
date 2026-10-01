@@ -78,12 +78,10 @@
         $('v-mcap-sub').textContent = 'Token price ' + price(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' tokens in circulation.';
         var r = st.pool.ratio; $('v-ratio').textContent = r != null ? r.toFixed(2) + '×' : '—';
         var pin = $('v-pin'); if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; }
-        $('v-buy').textContent = 'Buy the token'; $('v-buy').href = '#trade';
         $('p-pool').textContent = 'Pool ' + st.pool.address + ' · mint ' + st.pool.baseMint + ' · fees so far ' + usd2(st.pool.feesLifetimeUsd) + '.';
       } else {
         $('v-mcap').textContent = '—'; $('v-mcap-sub').textContent = 'The token has ' + st.poolStatus + '. No price yet, so no number here: we do not make one up.';
         $('v-ratio').textContent = '—'; $('v-pin').style.display = 'none';
-        $('v-buy').textContent = 'Token not launched yet'; $('v-buy').href = '#trade';
         $('p-pool').textContent = 'No pool yet: ' + st.poolStatus + '.';
       }
     });
