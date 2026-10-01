@@ -28,6 +28,7 @@
 !web/**/*.js
 !web/**/*.svg
 !docs/**/*.md
+!scripts/**/*.js
 
 # exemplos de configuração — NUNCA o ficheiro real
 !*.example

@@ -10,7 +10,8 @@
   "scripts": {
     "test": "node --test \"src/**/*.test.js\"",
     "backing": "node src/reader/cli.js",
-    "curve:dry-run": "node src/curve/dry-run.js"
+    "curve:dry-run": "node src/curve/dry-run.js",
+    "rehearse:devnet": "node scripts/rehearse-devnet.js"
   },
   "dependencies": {
     "@meteora-ag/dynamic-bonding-curve-sdk": "^1.5.12"

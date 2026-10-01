@@ -34,6 +34,19 @@
 
 ## 1. Rehearsal (off mainnet)
 
+> ✅ **Run on devnet, 1 October 2026** with `npm run rehearse:devnet` (`scripts/rehearse-devnet.js`;
+> ephemeral signer, throwaway `tUSDC` quote mint, same `params.js` as the launch).
+> config `6FjCPjTYDCdyXnHKbA3XracUdVVXTeeRkLadhdMCCjdq` · base mint
+> `6BivYrBcqssdyJqghAUQprr1fUvAyRShvP2zt8UNDsPF` · pool `D8rnDYCQJgjJNfaxrR7mUsffE9wXNcVyVr9eatDWLf38`.
+> Read back: start $0.000025 · graduation $0.00035 · 738.14 quote to graduate. Buy 25 → fee 2.0
+> partner + 0.5 protocol (the 20% cut, confirmed on chain). Sell 25% of the tokens → partner fee
+> 2.4776. `claimPartnerTradingFee` → **+2.477629 at the fee claimer**, pool's partner fee back to 0.
+> **Our decoder (`src/reader/pool.js`) matched the SDK's price at all four reads.**
+> Surprises worth a line: the public devnet faucet was dry (Helius devnet RPC airdropped 1 SOL);
+> `createPool` lives on `client.creator`, not `client.pool`; `state.getPool` returns
+> `{ poolState }` and `swapQuote` wants that wrapper; the quote's fields are `outputAmount`,
+> `tradingFee`, `protocolFee`. Still to rehearse: test items + reader, redemption burn, vault API.
+
 Same code, same params, a throwaway quote mint. The goal is not to test the SDK — it is to
 find the step where *we* fumble.
 
