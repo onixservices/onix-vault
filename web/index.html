@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vaulty</title>
+<title>Onix.Vault</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=JetBrains+Mono:wght@400;500;700&family=Public+Sans:wght@400;500;600&display=swap">
 <style>
   :root{
@@ -83,7 +83,7 @@
 <body>
 <div class="wrap">
   <div class="chrome">
-    <span class="path" id="path">onix.finance / vaulty</span>
+    <span class="path" id="path">onix.finance / vault</span>
     <span class="chip" id="chip">READING CHAIN…</span>
   </div>
 
@@ -161,10 +161,10 @@
 <script src="config.js"></script>
 <script>
 (async function () {
-  const C = window.VAULTY_CONFIG || {};
-  const { parseCard, computeBacking } = window.VaultyBacking;
-  const { decodeVirtualPool, priceFromSqrtPrice } = window.VaultyPool;
-  const { splitOfTrade } = window.VaultySplit;
+  const C = window.ONIX_VAULT_CONFIG || {};
+  const { parseCard, computeBacking } = window.OnixVaultBacking;
+  const { decodeVirtualPool, priceFromSqrtPrice } = window.OnixVaultPool;
+  const { splitOfTrade } = window.OnixVaultSplit;
   const $ = (id) => document.getElementById(id);
   const usd = (n, d = 0) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: d });
   const fail = (msg) => { $('error').hidden = false; $('error').innerHTML = '<b>Could not read the chain.</b> ' + msg; $('chip').textContent = 'READ FAILED'; $('chip').className = 'chip err'; };

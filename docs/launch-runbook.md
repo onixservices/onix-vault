@@ -1,4 +1,4 @@
-# Launch runbook — Vaulty #1
+# Launch runbook — Vault #1
 
 > Step by step, with the **point of no return marked**. Written 22 September 2026 from the
 > SDK's real client surface (`DynamicBondingCurveClient` → `partner` / `pool` / `state`),

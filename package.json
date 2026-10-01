@@ -1,5 +1,5 @@
 {
-  "name": "vaulty",
+  "name": "onix-vault",
   "version": "0.1.0",
   "description": "Auditable, card-backed vaults on Solana. Reads the chain, signs nothing.",
   "license": "MIT",

@@ -9,7 +9,7 @@
 Graded trading cards are one of the few real-world assets where **a custodian already puts
 the proof on chain**: grade, grading company, certificate number, insured value and the
 physical vault's street address, as attributes of the token itself. That is the precondition
-Vaulty needs, and it exists today for two custodians (Collector Crypt, Phygitals).
+Onix.Vault needs, and it exists today for two custodians (Collector Crypt, Phygitals).
 
 | measured | value | source |
 |---|---|---|
@@ -25,7 +25,7 @@ without picking cards, without custody, without trusting a spreadsheet.
 
 ## The launch rail is real and where the fees are
 
-Vaulty's token launches on Meteora's Dynamic Bonding Curve, then graduates to DAMM v2.
+Onix.Vault's token launches on Meteora's Dynamic Bonding Curve, then graduates to DAMM v2.
 
 | measured on chain / DefiLlama | value |
 |---|---|
@@ -45,7 +45,7 @@ the trading actually lands.
 - **The holder of an idle card.** Someone with a slab nobody is bidding on, who would take a
   liquid position for it under a published rule.
 
-**What we do not claim:** that either group is queuing up. Vaulty #1 launches with the
+**What we do not claim:** that either group is queuing up. Vault #1 launches with the
 operator's own inventory and no waiting list. Demand is the thing this launch measures.
 
 ## Why the timing
@@ -63,7 +63,7 @@ fee engine works), market cap ~$277k, **mNAV 0.95×**, and 0.80× at its low. Th
 discounts backing it cannot reach, even while that backing grows.
 
 That is the precedent and the gap in one object: the mechanism is proven, the exit is
-missing. Vaulty adds the exit — redemption with a published rule, and a gacha door — on
+missing. Onix.Vault adds the exit — redemption with a published rule, and a gacha door — on
 backing a third-party custodian already put on chain, where the reserve's contents are
 verifiable from the wallet rather than from the team's reporting.
 

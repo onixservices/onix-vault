@@ -3,7 +3,7 @@
 // rpcUrl: an endpoint with DAS support. On the public site this is a same-origin proxy
 // path (the key stays on the server); locally it can be your own endpoint.
 // Everything else here is public by design — these are the addresses the page proves.
-window.VAULTY_CONFIG = {
+window.ONIX_VAULT_CONFIG = {
   rpcUrl: '/rpc',
   vaultWallet: '<VAULT_WALLET_ADDRESS>',
   // Leave null until the pool exists. The page then shows backing only, and says so.

@@ -1,8 +1,8 @@
-# Vaulty
+# Onix.Vault
 
 **Auditable, card-backed vaults on Solana.** Built by [Onix](https://onix.finance).
 
-A Vaulty vault holds real graded trading cards that are already tokenized and held by a
+An Onix.Vault vault holds real graded trading cards that are already tokenized and held by a
 named custodian. Its token launches on a [Meteora](https://meteora.ag) Dynamic Bonding
 Curve. The vault has **four doors**, each with a published rule:
 
@@ -33,7 +33,7 @@ redeeming is profitable; above the ceiling, depositing a card and selling tokens
 redemption leaves 15% behind for the holders who stay.
 
 > **Precedent.** Meteora + Sunrise's `$SV151` (Jun 2026) proved that fees-buy-backing
-> works — and, with no redemption, trades at 0.80–0.95× of its reserve. Vaulty is the
+> works — and, with no redemption, trades at 0.80–0.95× of its reserve. Onix.Vault is the
 > next step: backing a third party already put on chain, a redemption rule, and an exit
 > for gachas. See `docs/business-model.md`.
 

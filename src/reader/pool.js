@@ -58,4 +58,4 @@ function priceFromSqrtPrice(sqrtPrice, baseDecimals, quoteDecimals) {
 
 const api = { POOL_LAYOUT, decodeVirtualPool, priceFromSqrtPrice };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
-else if (typeof window !== 'undefined') window.VaultyPool = api;
+else if (typeof window !== 'undefined') window.OnixVaultPool = api;

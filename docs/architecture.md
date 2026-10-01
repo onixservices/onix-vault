@@ -1,6 +1,6 @@
 # Architecture
 
-> How Vaulty is put together, and — more importantly — **where the line is drawn**.
+> How Onix.Vault is put together, and — more importantly — **where the line is drawn**.
 > Written 21 September 2026, before the code, so the boundary is a design decision
 > rather than something that happened.
 
@@ -89,7 +89,7 @@ shown with its age, never silently refreshed and never hidden.
 ## How a fee becomes a card
 
 The interesting part is that **step 3 is not new code**. Onix already runs an agent that
-buys graded cards on its own, across several venues, under published rules. Vaulty does
+buys graded cards on its own, across several venues, under published rules. Onix.Vault does
 not reimplement it.
 
 ```

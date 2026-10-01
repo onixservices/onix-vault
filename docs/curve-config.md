@@ -1,6 +1,6 @@
 # The bonding curve configuration
 
-> Every parameter of Vaulty #1's Meteora DBC config, and **why that value and not another**.
+> Every parameter of Vault #1's Meteora DBC config, and **why that value and not another**.
 > Written 21 September 2026, before the config exists, because **a DBC config is effectively
 > irreversible once a pool is open** — changing it means launching a different token.
 >

@@ -3,7 +3,7 @@
 > For the "Business Plan" criterion, which the 2026 rules define as *"the team's ability to
 > execute"*. Drafted 22 September 2026. Revenue lines are mechanisms, not forecasts.
 
-## How Vaulty makes money
+## How Onix.Vault makes money
 
 One published number: **1.6% of every trade** on the curve is the operator's.
 
@@ -49,7 +49,7 @@ production, verifiable on chain:
 
 - **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized
   graded cards. It buys inventory **on its own**, across several venues, under published
-  rules, with deliverability proven by simulation before every purchase. The Vaulty fee →
+  rules, with deliverability proven by simulation before every purchase. The Onix.Vault fee →
   card pipeline **is that agent**, not a rewrite of it.
 - **Onix.Finance**, in production: an LP position inspector that reconstructs PnL from
   on-chain events for Meteora, Orca and Raydium — and, since 20 September, opens and closes
@@ -61,7 +61,7 @@ the window is the curve, the vault, the reader and the proof page.
 
 ## What we are not claiming
 
-- **No traction is claimed for Vaulty.** It launches with the operator's own inventory.
+- **No traction is claimed for Onix.Vault.** It launches with the operator's own inventory.
 - **No revenue forecast.** 1.6% of a volume we cannot predict is not a number we will print.
 - **No decentralisation claim for Vault #1.** It is operated by Onix, with one signature,
   and the page says so. Multisig and a program-held vault are on the roadmap, in that order.

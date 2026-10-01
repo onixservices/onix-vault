@@ -1,5 +1,5 @@
 /**
- * params.js — Vaulty #1's bonding-curve configuration, as data.
+ * params.js — Vault #1's bonding-curve configuration, as data.
  *
  * DECIDED values carry their reasoning in docs/curve-config.md. PENDING values are the
  * ones still waiting on a decision — they have a placeholder so the dry run can execute,

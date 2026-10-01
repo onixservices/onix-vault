@@ -123,4 +123,4 @@ function computeBacking(cards, opts = {}) {
 
 const api = { KNOWN_CUSTODIANS, REALISABLE_MULTIPLIER, parseCard, computeBacking };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
-else if (typeof window !== 'undefined') window.VaultyBacking = api;
+else if (typeof window !== 'undefined') window.OnixVaultBacking = api;

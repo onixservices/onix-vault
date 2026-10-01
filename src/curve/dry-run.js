@@ -46,7 +46,7 @@ function main() {
   const whole = (bn) => Number(bn.toString()) / 10 ** dec.base;
   const split = splitOfTrade(FEE_BPS);
 
-  console.log('VAULTY #1 — curve dry run (nothing created)\n');
+  console.log('ONIX.VAULT — VAULT #1 — curve dry run (nothing created)\n');
   console.log(`program validation      ${validation}`);
   console.log(`curve points            ${cfg.curve.length} (max ${sdk.MAX_CURVE_POINT})`);
   console.log('');

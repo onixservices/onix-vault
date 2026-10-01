@@ -5,7 +5,7 @@
  * Prints what a vault holds and what it is worth. Anyone can run this against any
  * wallet. It needs an RPC endpoint with DAS support (Helius, Triton, ...) and nothing else.
  *
- * RPC comes from VAULTY_RPC_URL or from ./config.json ({ "rpcUrl": "..." }).
+ * RPC comes from ONIX_VAULT_RPC_URL or from ./config.json ({ "rpcUrl": "..." }).
  * config.json is gitignored: this repository never contains a real endpoint.
  */
 const fs = require('node:fs');
@@ -14,13 +14,13 @@ const { fetchAssetsByOwner, fetchTokenSupply } = require('./das');
 const { parseCard, computeBacking } = require('./backing');
 
 function loadRpcUrl() {
-  if (process.env.VAULTY_RPC_URL) return process.env.VAULTY_RPC_URL;
+  if (process.env.ONIX_VAULT_RPC_URL) return process.env.ONIX_VAULT_RPC_URL;
   const p = path.join(__dirname, '..', '..', 'config.json');
   if (fs.existsSync(p)) {
     const c = JSON.parse(fs.readFileSync(p, 'utf8'));
     if (c.rpcUrl) return c.rpcUrl;
   }
-  throw new Error('No RPC endpoint. Set VAULTY_RPC_URL or copy config.example.json to config.json.');
+  throw new Error('No RPC endpoint. Set ONIX_VAULT_RPC_URL or copy config.example.json to config.json.');
 }
 
 function parseArgs(argv) {
