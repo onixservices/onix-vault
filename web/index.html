@@ -158,7 +158,7 @@
   <div class="sec">
     <div class="hd">
       <h2>Vaults</h2>
-      <div class="tags"><span class="tag live" id="b-live">read from chain</span><span class="tag" id="b-pool">curve: —</span></div>
+      <div class="tags"><span class="tag live" id="b-live">read from chain</span><span class="tag" id="b-pool">token: —</span></div>
     </div>
     <div class="board">
       <a class="vcard" href="#/vault/1">
@@ -196,19 +196,19 @@
         <h2 style="margin-top:8px"><span id="v-n"></span> items, backing one token</h2>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <a class="cta" id="v-buy" href="#/vault/1">Buy on the curve</a>
+        <a class="cta" id="v-buy" href="#/vault/1">Buy the token</a>
         <a class="cta ghost" href="#/create">Admit a card</a>
       </div>
     </div>
 
     <div class="pair">
-      <div><div class="lab">Market cap</div><div class="val" id="v-mcap">—</div><div class="sub" id="v-mcap-sub">Price × supply, from the curve.</div></div>
-      <div class="mid"><div class="lab" style="margin:0">Ratio</div><div class="ratio" id="v-ratio"></div><div class="sub" style="margin:0;text-align:center">market over backing</div></div>
-      <div><div class="lab">Backing</div><div class="val g" id="v-back">—</div><div class="sub"><span id="v-n2"></span> items at what the market pays (<span id="v-mult"></span>× of the custodian's index, $<span id="v-idx"></span>). <span id="v-age"></span></div></div>
+      <div><div class="lab">What the market pays</div><div class="val" id="v-mcap">—</div><div class="sub" id="v-mcap-sub">Token price × tokens in circulation.</div></div>
+      <div class="mid"><div class="lab" style="margin:0">Market ÷ inside</div><div class="ratio" id="v-ratio"></div><div class="sub" style="margin:0;text-align:center">market over backing</div></div>
+      <div><div class="lab">What is inside</div><div class="val g" id="v-back">—</div><div class="sub"><span id="v-n2"></span> items at what the market pays (<span id="v-mult"></span>× of the custodian's index, $<span id="v-idx"></span>). <span id="v-age"></span></div></div>
     </div>
 
     <div class="band">
-      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Where the price can live</b><span class="faint" style="font-size:12.5px">two doors with two prices make a band, not a peg</span></div>
+      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Where the price can go</b><span class="faint" style="font-size:12.5px">it stays near what is inside — two rules keep it there</span></div>
       <div class="rail">
         <div class="line"></div><div class="zone"></div>
         <div class="m" style="left:28%">0.87× floor</div>
@@ -216,8 +216,8 @@
         <div class="pin" id="v-pin" style="display:none">—</div>
       </div>
       <div class="legend">
-        <div><b>Below the floor</b> buying tokens and redeeming a card is profitable — so someone does it, and the price comes back.</div>
-        <div><b>Above the ceiling</b> admitting a card and selling the tokens is profitable — same thing, the other way.</div>
+        <div><b>If it drops below the floor</b> it is cheaper to buy tokens and take an item out than to buy the item — so people do, and the price comes back up.</div>
+        <div><b>If it rises above the ceiling</b> it pays to put an item in and sell the tokens — same thing, the other way.</div>
       </div>
     </div>
 
@@ -247,8 +247,8 @@
         <div class="r"><span class="k">The items</span><span>Read from the vault wallet on Solana with the DAS API, cached for seconds, age shown. <b>Not a list we keep.</b> Grade, certificate and physical vault come from the asset's own metadata. Vault wallet: <span class="mono" id="p-wallet"></span></span></div>
         <div class="r"><span class="k">Index</span><span>The <b>Insured Value</b> attribute written on chain by the custodian (Collector Crypt). An index they assign — not a market price, not a number of ours.</span></div>
         <div class="r"><span class="k">The 0.89×</span><span>Cards sell for less than the index. <b>0.89× is the measured median</b> across our own sales; backing is shown after that haircut, with its sample and date.</span></div>
-        <div class="r"><span class="k">Market cap</span><span>Price from the bonding curve × supply from the mint, both on chain, read on the server with the same decoder the open-source reader uses. <b id="p-pool"></b></span></div>
-        <div class="r"><span class="k">What we never do</span><span><b>Add liquidity to backing.</b> Money that went up the curve is the pool's at migration, not the vault's. Two pockets, two numbers, never one total.</span></div>
+        <div class="r"><span class="k">What the market pays</span><span>Token price (from the Meteora pool) × tokens in circulation, both on chain, read with the same open-source decoder anyone can run. <b id="p-pool"></b></span></div>
+        <div class="r"><span class="k">What we never do</span><span><b>Count the money people paid for the token as if it were in the vault.</b> That money sits in the trading pool, not in the vault. Two pockets, two numbers, never one total.</span></div>
         <div class="r"><span class="k">Who signs</span><span>Only the vault wallet, only to deliver through the two exit doors, only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
       </div>
       <div class="split">
@@ -284,12 +284,12 @@
         <p class="muted" style="margin-top:8px">One card, four doors. The vault never chooses what leaves — it leaves because someone burned for it or a gacha paid for it, at the price printed below.</p>
       </div>
       <div class="door4">
-        <div class="d"><div><div class="k">Buy</div><b>Buy $VEONIX on the curve</b><p>You own a share of every card in the vault, this one included.</p></div><a class="cta sm" href="#/vault/1">Buy on the curve</a></div>
-        <div class="d"><div><div class="k">Redeem</div><b>Make this card yours</b><p>Burn tokens worth the exit price × 1.15. The 15% stays in the vault for everyone else. v1: the operator verifies the burn and the vault wallet delivers.</p></div><div class="big"><span id="i-redeem-usd"></span><small id="i-redeem-tok">exit × 1.15 · in tokens once the curve is live</small></div></div>
-        <div class="d"><div><div class="k">Gacha</div><b>Sold to any gacha at the published price</b><p>Through the public API, same price for our own gacha and for a stranger. Reserve → pay in USDC → delivered to the winner.</p></div><div class="big"><span id="i-exit"></span><small>exit price · max(index, market)</small></div></div>
+        <div class="d"><div><div class="k">Buy</div><b>Buy the token</b><p>The token is backed by everything in the vault, this item included.</p></div><a class="cta sm" href="#/vault/1">Buy the token</a></div>
+        <div class="d"><div><div class="k">Take it out</div><b>Make this item yours</b><p>Trade tokens worth the listed value + 15%. The 15% stays in the vault for everyone else. Today the operator checks the burn and the vault delivers.</p></div><div class="big"><span id="i-redeem-usd"></span><small id="i-redeem-tok">listed value + 15% · in tokens once trading opens</small></div></div>
+        <div class="d"><div><div class="k">Games &amp; shops</div><b>Any app can buy it at the listed price</b><p>Same price for our own game and for a stranger. The app pays in USDC, the vault delivers to the winner, the money buys the next item.</p></div><div class="big"><span id="i-exit"></span><small>listed price</small></div></div>
         <div class="d"><div><div class="k">Admitted</div><b>How it got here</b><p>Transferred by the operator at launch — labelled "operator", like the first of every door.</p></div><span class="sig mono faint" style="font-size:11px" id="i-admit">—</span></div>
       </div>
-      <div class="note"><b>Why the redeem price has a premium.</b> Without it, whoever can pick a card picks the one the index undervalues and everyone else is left with the rest. With it, every exit raises backing per token for those who stay.</div>
+      <div class="note"><b>Why taking an item out costs 15% more than its listed value.</b> Without it, whoever picks first picks the bargains and leaves the rest to everyone else. With it, every item that leaves makes the vault worth more per token for those who stay.</div>
     </div>
   </div>
 </section>
@@ -305,7 +305,7 @@
       </div>
       <div class="steps">
         <span class="step on" id="st1"><i>1</i>Pick items</span>
-        <span class="step" id="st2"><i>2</i>Curve</span>
+        <span class="step" id="st2"><i>2</i>Your token</span>
         <span class="step" id="st3"><i>3</i>Launch</span>
       </div>
     </div>
@@ -322,24 +322,24 @@
       <div class="pick" id="pick"></div>
       <div class="calc">
         <div><div class="lab">Selected</div><div class="cv" id="c-sel">0</div><div class="cs">items going in</div></div>
-        <div><div class="lab">Index</div><div class="cv" id="c-idx">$0</div><div class="cs">the custodians' insured value</div></div>
-        <div><div class="lab">Realisable</div><div class="cv" id="c-real">$0</div><div class="cs">× 0.89, the measured median</div></div>
-        <div><div class="lab">You receive</div><div class="cv v" id="c-get">$0</div><div class="cs">80% of realisable, in your vault's token, locked 12 months</div></div>
+        <div><div class="lab">Listed value</div><div class="cv" id="c-idx">$0</div><div class="cs">the custodian's insured value</div></div>
+        <div><div class="lab">What it sells for</div><div class="cv" id="c-real">$0</div><div class="cs">× 0.89 — the measured median of real sales</div></div>
+        <div><div class="lab">You receive</div><div class="cv v" id="c-get">$0</div><div class="cs">80% of that, in your vault's token, locked 12 months</div></div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to2">Continue to the curve</button><a class="cta ghost" href="#/app">Cancel</a></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to2">Next: name your token</button><a class="cta ghost" href="#/app">Cancel</a></div>
     </div>
 
     <div id="c2" class="sec" style="display:none">
       <div class="form">
         <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" placeholder="e.g. Vintage watches"><small>What people see on the board.</small></div>
-        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" placeholder="e.g. VWATCH"><small>Minted by the curve. Checked for collisions before launch.</small></div>
-        <div class="f"><label for="f-quote">Quoted in</label><select id="f-quote"><option>USDC</option></select><small>Irreversible after launch. USDC keeps the ratio honest.</small></div>
-        <div class="f"><label for="f-grad">Graduation market cap</label><select id="f-grad"><option>3× backing (recommended)</option><option>5× backing</option><option>10× backing</option></select><small>Where the curve ends and a pool begins. Lower keeps the ratio inside the band.</small></div>
-        <div class="f"><label for="f-fee">Trade fee</label><select id="f-fee"><option>10% · 50 card / 30 buyback / 20 operator</option></select><small>The protocol keeps 20% of it. Published on your vault page.</small></div>
-        <div class="f"><label for="f-prem">Redeem premium</label><select id="f-prem"><option>15% (floor ≈ 0.87×)</option></select><small>Admission at 80% sets the ceiling at 1.25×.</small></div>
+        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" placeholder="e.g. VWATCH"><small>Created at launch. We check nobody else uses it.</small></div>
+        <div class="f"><label for="f-quote">Priced in</label><select id="f-quote"><option>USDC (dollars)</option></select><small>Cannot change after launch. Dollars keep the numbers easy to read.</small></div>
+        <div class="f"><label for="f-grad">When trading opens to the whole market</label><select id="f-grad"><option>at 3× what is inside (recommended)</option><option>at 5× what is inside</option><option>at 10× what is inside</option></select><small>Until then the token trades on a launch price-ladder. Lower keeps the price close to what is inside.</small></div>
+        <div class="f"><label for="f-fee">Fee on every trade</label><select id="f-fee"><option>10% · half buys the next item · 30% buys tokens back · 20% operator</option></select><small>Meteora keeps a fifth of it. Printed on your vault page.</small></div>
+        <div class="f"><label for="f-prem">Take-out price</label><select id="f-prem"><option>listed value + 15%</option></select><small>Keeps the token price from falling far below what is inside.</small></div>
       </div>
-      <div class="note"><b>Your admission tokens are locked for 12 months, by the template.</b> It is what stops whoever seeds a vault from leaving through the people who buy after. The rule is the same one Onix accepted for Vault #1.</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Review and launch</button><button class="cta ghost" id="back1">Back</button></div>
+      <div class="note"><b>The tokens you get for your items are locked for 12 months.</b> It is what stops whoever starts a vault from cashing out on the people who buy after. Onix accepted the same rule for Vault #1.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Next: review</button><button class="cta ghost" id="back1">Back</button></div>
     </div>
 
     <div id="c3" class="sec" style="display:none">
@@ -353,8 +353,8 @@
       </div>
       <div class="calc">
         <div><div class="lab">Items</div><div class="cv" id="r-sel">0</div><div class="cs">from registered custodians</div></div>
-        <div><div class="lab">Backing at launch</div><div class="cv g" id="r-real">$0</div><div class="cs">realisable, day one</div></div>
-        <div><div class="lab">Graduation</div><div class="cv" id="r-grad">$0</div><div class="cs">market cap where the pool opens</div></div>
+        <div><div class="lab">Inside at launch</div><div class="cv g" id="r-real">$0</div><div class="cs">what the items sell for, day one</div></div>
+        <div><div class="lab">Open market at</div><div class="cv" id="r-grad">$0</div><div class="cs">when trading opens to everyone</div></div>
         <div><div class="lab">You receive</div><div class="cv v" id="r-get">$0</div><div class="cs">in tokens, locked 12 m</div></div>
       </div>
     </div>

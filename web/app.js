@@ -36,12 +36,12 @@
       $('h-mcap').textContent = usd(st.pool.mcapUsd);
       $('h-ratio').textContent = st.pool.ratio != null ? st.pool.ratio.toFixed(2) + '×' : '—';
       $('h-prog').style.width = Math.round((st.pool.graduationProgress || 0) * 100) + '%';
-      $('h-grad').textContent = Math.round((st.pool.graduationProgress || 0) * 100) + '% to graduation';
-      $('b-pool').textContent = 'curve: ' + st.poolStatus;
+      $('h-grad').textContent = Math.round((st.pool.graduationProgress || 0) * 100) + '% of the way to the open market';
+      $('b-pool').textContent = 'token: ' + (st.poolStatus === 'live' ? 'trading' : st.poolStatus);
     } else {
       $('h-mcap').textContent = '—'; $('h-ratio').textContent = '—'; $('h-prog').style.width = '0%';
-      $('h-grad').textContent = 'curve ' + (st ? st.poolStatus : '—');
-      $('b-pool').textContent = 'curve: ' + (st ? st.poolStatus : '—');
+      $('h-grad').textContent = 'token ' + (st ? st.poolStatus : '—');
+      $('b-pool').textContent = 'token: ' + (st ? st.poolStatus : '—');
     }
     loadItems().then(function (items) {
       $('strip').innerHTML = items.slice(0, 10).map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span></span>'; }).join('');
@@ -60,15 +60,15 @@
       $('p-wallet').textContent = VAULT;
       if (st.pool) {
         $('v-mcap').textContent = usd(st.pool.mcapUsd);
-        $('v-mcap-sub').textContent = 'Price ' + usd2(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' supply, from the curve (' + st.poolStatus + ').';
+        $('v-mcap-sub').textContent = 'Token price ' + usd2(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' tokens in circulation.';
         var r = st.pool.ratio; $('v-ratio').textContent = r != null ? r.toFixed(2) + '×' : '—';
         var pin = $('v-pin'); if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; }
-        $('v-buy').textContent = 'Buy on the curve'; $('v-buy').href = 'https://launch.meteora.ag/?pool=' + st.pool.address;
+        $('v-buy').textContent = 'Buy the token'; $('v-buy').href = 'https://launch.meteora.ag/?pool=' + st.pool.address;
         $('p-pool').textContent = 'Pool ' + st.pool.address + ' · mint ' + st.pool.baseMint + ' · fees so far ' + usd2(st.pool.feesLifetimeUsd) + '.';
       } else {
-        $('v-mcap').textContent = '—'; $('v-mcap-sub').textContent = 'The curve has ' + st.poolStatus + '. There is no price yet, so there is no market cap: we do not make one up.';
+        $('v-mcap').textContent = '—'; $('v-mcap-sub').textContent = 'The token has ' + st.poolStatus + '. No price yet, so no number here: we do not make one up.';
         $('v-ratio').textContent = '—'; $('v-pin').style.display = 'none';
-        $('v-buy').textContent = 'Curve not launched yet'; $('v-buy').removeAttribute('href');
+        $('v-buy').textContent = 'Token not launched yet'; $('v-buy').removeAttribute('href');
         $('p-pool').textContent = 'No pool yet: ' + st.poolStatus + '.';
       }
     });
@@ -116,7 +116,7 @@
       $('i-cert').textContent = c.certNumber || '—'; $('i-vault').textContent = c.physicalVault || '—'; $('i-cust').textContent = c.custodian || '—';
       $('i-usd').textContent = usd2(c.custodianValueUsd); $('i-mint').textContent = c.mint;
       $('i-redeem-usd').textContent = usd2(c.redeemPriceUsd);
-      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' tokens at the current price · exit × 1.15' : 'exit × 1.15 · in tokens once the curve is live';
+      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' tokens at today\'s price · listed value + 15%' : 'listed value + 15% · in tokens once trading opens';
       $('i-exit').textContent = usd2(c.exitPriceUsd);
       var res = c.status === 'reserved';
       $('i-status').textContent = res ? 'Reserved' + (c.reservedUntil ? ' · ' + Math.max(0, Math.round((c.reservedUntil - Date.now()) / 60000)) + ' min' : '') : 'Available';
