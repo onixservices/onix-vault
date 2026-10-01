@@ -167,6 +167,12 @@ The private side never accepts instructions from it.
 
 Listed because a threat model that ends in "all clear" is not a threat model.
 
+- **Custodian concentration.** Vault #1's backing is 37 cards, **all held by one custodian**
+  (Collector Crypt). If that custodian fails, pauses redemptions or delists the collection, the
+  backing is neither sellable nor redeemable, whatever the chain says. The platform spreads
+  this across custodians and asset classes over time; Vault #1 does not, and the page names
+  the custodian next to every item so nobody mistakes "on chain" for "custodian-proof".
+
 - **Single-signature custody of vault #1.** Named on the page. Multisig is roadmap, not done.
 - **A vault with no trading earns no fees, so backing never grows.** Not a security failure,
   but it is the most likely way this ends up meaning nothing.

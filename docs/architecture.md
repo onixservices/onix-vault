@@ -21,24 +21,32 @@ design error, and it is visible immediately.
 │  reader/     what is in a vault       │   │  fee claim      signs with the       │
 │              backing per token        │   │                 pool authority       │
 │  curve/      the DBC configuration    │   │                                      │
-│  web/        the proof page           │   │  card purchase  the existing agent,  │
+│  web/        the proof page           │   │  item purchase  the existing agent,  │
 │                                       │   │                 signs with operator  │
 │  reads: Solana RPC + DAS              │   │                                      │
 │  writes: nothing                      │   │  holds: every key                    │
 └───────────────────────────────────────┘   └──────────────────────────────────────┘
 ```
 
+Also on the private side, not drawn above: **delivery** (redemption and gacha exits, signed
+with the vault wallet) and the **vault API**, which checks a burn or a payment on chain before
+any delivery is built. See `docs/vault-api.md`.
+
 ## Components
 
 ### `src/reader/` — what a vault holds
 
 Takes a vault wallet address and returns its contents and what they are worth. It asks
-Solana's DAS API for the assets owned by that wallet, reads each card's own on-chain
-attributes — `Insured Value`, grading company, grade, certificate number, physical vault
-— and computes backing.
+Solana's DAS API for the assets owned by that wallet and keeps only those from a
+**registered custodian**: a collection address, the attribute that carries the custodian's
+value, and the custodian's redemption path. For Vault #1 the registry has two entries
+(Collector Crypt, Phygitals) and the value attribute is `Insured Value`; grade, grading
+company, certificate and the physical vault's address come along for display. A new asset
+class is a new registry entry, not a new reader.
 
 It is deliberately dumb: no database, no cache that can go stale silently, no list of
-cards we maintain. **If a card is not on chain, it does not count.**
+items we maintain. **If an item is not on chain, from a registered custodian, it does not
+count.** Everything else in the wallet is listed with the reason it was not counted.
 
 Backing is reported twice, and the two are never conflated:
 
@@ -86,7 +94,7 @@ the market is paying, the other is what is in the box.
 Every figure on the page carries where it came from and how old it is. A stale number is
 shown with its age, never silently refreshed and never hidden.
 
-## How a fee becomes a card
+## How a fee becomes an item
 
 The interesting part is that **step 3 is not new code**. Onix already runs an agent that
 buys graded cards on its own, across several venues, under published rules. Onix.Vault does
@@ -106,8 +114,9 @@ an event fired.**
 
 ## Admission
 
-A card enters a vault and its owner receives tokens for a published fraction of what
-that card is **realisably** worth, vesting over time.
+An item enters a vault and its owner receives tokens for a published fraction of what
+that item is **realisably** worth, vesting over time (a time lock, never the DBC's
+migration-anchored vesting — see `curve-config.md`).
 
 ```
 insured value  →  × 0.89 realisable  →  × 0.80 admission  →  tokens, vesting
@@ -130,8 +139,11 @@ vhost alongside the existing Onix apps; nothing in the current production path c
 
 ## What is deliberately not here
 
-- **The gacha running on top of a vault.** Roadmap. It is the second engine — it earns
-  from players rather than traders — but it is not built in the hackathon window.
+- **A vault that runs its own draw.** The vault *sells* to gachas through the API (in the
+  window, with Onix's gacha as the first integrator); it never operates one. The version
+  where the vault is the house is roadmap and a legal question before it is a build.
+- **A program with escrow enforcing redemption and settlement.** v1 is an API whose every
+  step is anchored to a public transaction; the program is the destination.
 - **Third parties creating their own vaults.** Roadmap. Vault #1 is the seed of that, not
-  the alternative to it.
+  the alternative to it — and it was created through the same path a third party will use.
 - **Anything that signs.** By design, permanently.

@@ -3,6 +3,10 @@
 > For the "Business Plan" criterion, which the 2026 rules define as *"the team's ability to
 > execute"*. Drafted 22 September 2026. Revenue lines are mechanisms, not forecasts.
 
+> Onix.Vault is a platform for vaults of real-world assets a custodian has already put on
+> chain. Vault #1 holds graded cards, so the lines below say "card"; read "item" for any other
+> registered custodian.
+
 ## How Onix.Vault makes money
 
 One published number: **1.6% of every trade** on the curve is the operator's.
@@ -57,7 +61,8 @@ production, verifiable on chain:
 - **`solana-lp-utils`**, public, delivered under a Superteam Brazil grant.
 
 Everything above predates the hackathon window and is declared as such. What is built in
-the window is the curve, the vault, the reader and the proof page.
+the window is the curve, the vault wallet, the reader, the proof page, the redemption rule
+and its v1, and the vault API with the gacha as its first integrator.
 
 ## What we are not claiming
 

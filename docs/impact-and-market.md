@@ -4,12 +4,19 @@
 > source; none is a projection.** Where we have no number, it says so. Drafted 22 September
 > 2026; to be tightened before submission.
 
-## The asset class is real and already on chain
+## The precondition, and the first asset class that meets it
 
-Graded trading cards are one of the few real-world assets where **a custodian already puts
-the proof on chain**: grade, grading company, certificate number, insured value and the
-physical vault's street address, as attributes of the token itself. That is the precondition
-Onix.Vault needs, and it exists today for two custodians (Collector Crypt, Phygitals).
+Onix.Vault works on any real-world asset that meets three conditions: possession is provable
+on chain, **the custodian writes identity and value into the token**, and the custodian offers
+a way to redeem the physical item. Liquid RWAs (tokenized stocks) do not need this — they
+redeem at NAV by design; this is for the illiquid kind.
+
+Graded trading cards are the first class that meets all three today: grade, grading company,
+certificate number, insured value and the physical vault's street address are attributes of
+the token itself, for two custodians (Collector Crypt, Phygitals). That is why Vault #1 holds
+cards. Wine and spirits (BAXUS, dVIN), watches (Watch.fun) and fossils (JurassicFi) are
+tokenized on Solana today; **whether their custodians publish value and redemption in the
+token is not yet measured** — one probe per custodian, and that number is not in this memo.
 
 | measured | value | source |
 |---|---|---|

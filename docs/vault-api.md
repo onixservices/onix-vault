@@ -1,6 +1,7 @@
 # The vault API — v1
 
-> How a gacha (ours or anyone's) buys a card out of a vault, and how a holder redeems one.
+> How a gacha (ours or anyone's) buys an item out of a vault, and how a holder redeems one.
+> Written for Vault #1 (graded cards); the contract is the same for any registered custodian.
 > Drafted 30 September 2026. **This is the boundary between the public, read-only side and
 > the private, signing side.** Everything below the line "settle" runs in Onix's private
 > infrastructure and only ever moves a card *after* a payment or a burn is confirmed on chain.
@@ -16,10 +17,10 @@ before doing the other. Anyone can audit the pairs.
 ## The rule that both doors share
 
 ```
-exit price of a card = max(insured value, live market reference)
+exit price of an item = max(custodian value, live market reference)
 ```
 
-- `insured value` — the custodian's own on-chain attribute, as the backing page reads it.
+- `custodian value` — the custodian's own on-chain attribute, as the backing page reads it (`Insured Value` for graded cards).
 - `live market reference` — the same reference the backing page publishes, with its sample
   size and its age. If it cannot be read, the price is **unavailable**, never the index alone.
 
@@ -34,16 +35,16 @@ The premium on redemption stays in the vault. The vault never picks which card l
 
 All responses carry `readAt` (ISO time) and the source of every price.
 
-### `GET /v1/vaults/:vault/cards`
+### `GET /v1/vaults/:vault/items`
 
-Every card in the vault wallet, from the chain, with:
+Every item in the vault wallet, from the chain, with:
 
 ```json
 {
   "mint": "…",
   "issuer": "collector-crypt",
   "title": "…", "grade": "PSA 10", "cert": "…", "physicalVault": "PWCC Vault, Tigard OR",
-  "insuredUsd": 135.00,
+  "custodianValueUsd": 135.00,   // the attribute the custodian wrote; "Insured Value" for cards
   "marketRefUsd": 118.00, "marketRef": { "source": "…", "sample": 12, "ageSec": 340 },
   "exitPriceUsd": 135.00,
   "redeemPriceUsd": 155.25,

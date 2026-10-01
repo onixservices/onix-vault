@@ -15,13 +15,22 @@
 - [ ] Read back and sanity-check: start price, price at graduation, **USDC needed to
       graduate**. Say the last number out loud. It is how much real buying has to happen.
 - [ ] `docs/curve-config.md` matches `params.js` exactly (a reviewer diffed them).
-- [ ] The **vault wallet** exists, is empty of everything except its purpose, and its address
+- [ ] The **vault wallet** exists, was generated **on the server** (its secret never passes
+      through a chat or a laptop), is empty of everything except its purpose, and its address
       is written down where the page will read it.
 - [ ] Decided which wallet is **`fee_claimer`** (receives the trading fees — the whole
       mechanism), which is **`leftover_receiver`** (only matters if `leftover > 0`; ours is 0,
       but the program rejects a zero key), and which is **`payer`**.
-- [ ] The stock split is done by the rule: **what the machines' targets need stays in the
-      gacha; the rest is admitted.** Nobody picked by hand. The list is saved.
+- [ ] **All 37 cards are going in** (decided 30 Sep) — in stages: the canary (the cheapest,
+      ~$12) and a small first lot at launch, the rest during the week, each admission a public
+      transaction. Nobody picks what goes first beyond "cheapest first". The list is saved.
+- [ ] **The gacha already knows the vault.** Its reconcile and its draw treat the vault wallet
+      as "buyable at the published price" (a third state: neither `gone` nor own stock), and the
+      four machines' edge has been re-measured with prize cost ≈ the exit price. If a machine
+      would pause, that is fixed **before** any card moves. Moving cards first empties the shop.
+- [ ] Admission tokens for the operator are **not** in the DBC's `lockedVesting` (see
+      `curve-config.md`). The time lock (Jupiter Lock, 12 months) is set up and its address
+      is published.
 
 ## 1. Rehearsal (off mainnet)
 
@@ -34,8 +43,15 @@ find the step where *we* fumble.
 - [ ] one buy, one sell, and `client.partner.claimPartnerTradingFee(...)` → fees arrive in the
       quote token at `fee_claimer`
 - [ ] `client.state` reads the pool back: price, reserves, fees accrued
+- [ ] **test items**: a throwaway collection minted with the same attributes a custodian writes
+      (value, grade, certificate), registered in the reader as a *test custodian*, in a
+      throwaway vault wallet
 - [ ] the **reader** (`npm run backing -- <VAULT_WALLET> --mint <BASE_MINT>`) shows per-token
-      figures against the rehearsal mint
+      figures against the rehearsal mint and the test items
+- [ ] **redemption**: burn rehearsal tokens worth `price × 1.15`, submit the signature, the
+      vault wallet delivers the test item; both signatures listed
+- [ ] **vault API**: `GET /items` → `POST /reservations` → pay the rehearsal quote → `settle`
+      → the test item is delivered to the winner wallet; an expired reservation is refused
 - [ ] write down every command that was actually run, in order. That list replaces §2 below
       if it differs.
 
@@ -49,8 +65,10 @@ Reversible until the line. Irreversible after it.
    `quote_mint = USDC`, `fee_claimer` = the decided wallet. A config with no pool can be
    ignored forever; creating it commits nothing.
 2. **Read the config back** (`state`) and diff it against `params.js`. Every field.
-3. **Admit the cards into the vault wallet.** Transfers we control, to a wallet we control.
-   Reversible while nobody else holds anything.
+3. **Admit the first lot into the vault wallet** — the canary first, alone, then verify the
+   gacha still shows its machines open and the reader counts it; then the rest of the first
+   lot. Transfers we control, to a wallet we control. Reversible while nobody else holds
+   anything.
 4. **Run the reader against the real vault wallet.** The number it prints is the number the
    page will show on day one. If it is not the number you expected, stop here.
 
@@ -67,16 +85,19 @@ Reversible until the line. Irreversible after it.
    demand). The transaction that does this is the one recorded for the video.
 6. **Publish the addresses**: config, pool, base mint, vault wallet, fee claimer. On the page
    and in the README. The reader is now pointed at the real mint (`--mint`).
-7. **Claim the first fee** as soon as there is one, and **buy the first card with it** through
-   the existing agent. Record that transaction. It is the proof the whole submission rests on.
+7. **Fire every door once, declared as ours:** claim the first fee and **buy a card with it**
+   through the existing agent · the gacha **buys the canary** from the vault through the API ·
+   **redeem** one card by burning tokens · **admit** the next card. Four public transactions.
+   They are the proof the whole submission rests on, and each one is labelled "operator".
 
 ## 3. After launch — the loop
 
 - fees are claimed on a schedule and split **50 / 30 / 20 of what reaches us** (after the
   protocol's 20% — see `src/curve/split.js`); each leg's transactions are public
 - the page reads the vault and the pool every load; there is no cache to go stale silently
-- **nothing leaves the vault wallet.** Ever. Its only outgoing path, if one is ever built, is
-  a card sold to fund a buyback, and that is announced before it happens
+- **items leave the vault only through the two exit doors**, at the published price, and the
+  USDC that arrives buys the next item at the buy rule. Every delivery is a public transaction
+  paired with the burn or the payment that caused it. There is no third way out.
 
 ## 4. If something goes wrong
 
