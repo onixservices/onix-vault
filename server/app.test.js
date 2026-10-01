@@ -9,7 +9,6 @@ const { VaultError } = require('./vaultService');
 const VAULT = Keypair.generate().publicKey.toBase58();
 const calls = [];
 const service = {
-  listItems: async () => [{ mint: 'M', exitPriceUsd: 20, status: 'available' }],
   reserve: async (args) => { calls.push(['reserve', args]); return { reservationId: 'R1', ...args }; },
   settle: async (args) => { calls.push(['settle', args]); return { reservationId: args.reservationId, status: 'settled' }; },
   status: ({ reservationId }) => { if (reservationId === 'nope') throw new VaultError(404, 'unknown reservation'); return { reservationId, status: 'reserved' }; },
@@ -17,9 +16,14 @@ const service = {
   listRedemptions: () => [],
 };
 
+// the reader's age moves when listItems re-reads the chain: the age served must be the
+// age of the items served, not of the snapshot that was there before the read
+let age = 5;
+service.listItems = async () => { age = 0; return [{ mint: 'M', exitPriceUsd: 20, status: 'available' }]; };
+
 let server, base;
 before(async () => {
-  const app = buildApp({ service, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => 5 });
+  const app = buildApp({ service, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => age });
   await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -36,6 +40,7 @@ describe('routes', () => {
   test('items for THIS vault; another :vault is 404', async () => {
     const ok = await j(`/v1/vaults/${VAULT}/items`);
     assert.equal(ok.status, 200); assert.equal(ok.body.items[0].mint, 'M'); assert.equal(typeof ok.body.readAt, 'string');
+    assert.equal(ok.body.itemsAgeMs, 0, 'the age must be measured AFTER the read, for the items actually served');
     const other = await j(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/items`);
     assert.equal(other.status, 404); assert.equal(other.body.code, 404);
   });

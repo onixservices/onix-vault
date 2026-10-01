@@ -28,7 +28,11 @@ function buildApp({ service, vaultWallet, signerConfigured = () => false, itemsA
   app.get('/v1/health', (req, res) => res.json({ ok: true, vaultWallet, signerConfigured: signerConfigured(), itemsAgeMs: itemsAge() }));
 
   app.get('/v1/vaults/:vault/items', onlyThisVault, wrap(async (req, res) => {
-    res.json({ readAt: new Date().toISOString(), itemsAgeMs: itemsAge(), items: await service.listItems() });
+    // read first, then measure: the age served is the age of the items served (an
+    // object literal evaluates left to right — `itemsAge()` before the await reported
+    // the previous snapshot's age for freshly read items; caught on the first public call)
+    const items = await service.listItems();
+    res.json({ readAt: new Date().toISOString(), itemsAgeMs: itemsAge(), items });
   }));
 
   app.post('/v1/vaults/:vault/reservations', onlyThisVault, wrap(async (req, res) => {
