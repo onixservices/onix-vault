@@ -52,7 +52,7 @@ describe('routes — what the page reads', () => {
   });
   test('the Create door routes carry the whole body (owner, name, symbol, mints) and mount the confirmed vault', async () => {
     const got = [];
-    const creator = { quote: async (a) => ({ wallet: a.owner, canCreate: true }), build: async (a) => { got.push(a); return { creationId: 'C1', transaction: 'TX' }; }, confirm: async (a) => { got.push(a); return { id: 'myc', name: 'My', wallet: 'W9', secretEnv: null, pool: 'P', baseMint: 'M', rules: 'vault1', token: { symbol: 'MYC' } }; } };
+    const creator = { quote: async (a) => ({ wallet: a.owner, canCreate: true }), build: async (a) => { got.push(a); return { creationId: 'C1', transaction: 'TX' }; }, submit: async (a) => { got.push(a); return { signature: 'S' }; }, confirm: async (a) => { got.push(a); return { id: 'myc', name: 'My', wallet: 'W9', secretEnv: null, pool: 'P', baseMint: 'M', rules: 'vault1', token: { symbol: 'MYC' } }; } };
     const mounted = [];
     const app3 = buildApp({ vaults: [], readWallet, creator, addVault: (def) => { mounted.push(def); const b = { wallet: def.wallet, meta: { id: def.id, name: def.name, token: def.token }, service: { listItems: async () => [], listActivity: () => [], listRedemptions: () => [] }, stats: { read: async () => ({ pool: null }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false }; app3.locals.v = b; return b; }, webDir: null });
     const s3 = await new Promise((r) => { const x = app3.listen(0, '127.0.0.1', () => r(x)); });
@@ -61,6 +61,8 @@ describe('routes — what the page reads', () => {
     const q = await fetch(b3 + '/v1/vaults/create/quote?wallet=W9'); assert.equal((await q.json()).wallet, 'W9');
     const b = await post('/v1/vaults/create/build', { owner: 'W9', name: 'My', symbol: 'MYC', mints: ['a', 'b'] });
     assert.equal(b.status, 200); assert.deepEqual(got[0], { owner: 'W9', name: 'My', symbol: 'MYC', mints: ['a', 'b'] });
+    const sub = await post('/v1/vaults/create/submit', { creationId: 'C1', signedTransaction: 'TX2' });
+    assert.equal(sub.status, 200); assert.deepEqual(got[1], { creationId: 'C1', signedTransaction: 'TX2' });
     const c = await post('/v1/vaults/create/confirm', { creationId: 'C1', signature: 'S' });
     assert.equal(c.status, 201); assert.equal(c.body.vault.vault, 'W9'); assert.equal(mounted.length, 1);
     s3.close();

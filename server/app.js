@@ -12,7 +12,7 @@
  *   POST /v1/vaults/:vault/redemptions
  *   GET  /v1/wallets/:wallet/eligible-items              any registered custodian, any vault
  *   GET  /v1/vaults/create/quote?wallet=                  what a wallet could open a vault on
- *   POST /v1/vaults/create/build | create/confirm          the Create door (creator signs ONE tx)
+ *   POST /v1/vaults/create/build | create/submit | create/confirm   the Create door (creator signs ONE tx)
  *   GET  /token/:mint.json                                 token metadata for created vaults
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
@@ -62,6 +62,10 @@ function buildApp(deps) {
   app.post('/v1/vaults/create/build', wrap(async (req, res) => {
     const { owner, name, symbol, mints } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().build({ owner, name, symbol, mints })) });
+  }));
+  app.post('/v1/vaults/create/submit', wrap(async (req, res) => {
+    const { creationId, signedTransaction } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().submit({ creationId, signedTransaction })) });
   }));
   app.post('/v1/vaults/create/confirm', wrap(async (req, res) => {
     const { creationId, signature } = req.body || {};

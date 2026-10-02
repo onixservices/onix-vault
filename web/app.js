@@ -326,7 +326,15 @@
         if (b.error) throw new Error(b.error);
         creationId = b.creationId;
         $('c-msg').textContent = 'Sign the launch in your wallet…';
-        return signAndSend(w, b.transaction);
+        var raw = Uint8Array.from(atob(b.transaction), function (ch) { return ch.charCodeAt(0); });
+        return w.signTransaction(window.solanaWeb3.Transaction.from(raw));
+      })
+      .then(function (signed) {
+        $('c-msg').textContent = 'Sending…';
+        var bytes = signed.serialize({ requireAllSignatures: false, verifySignatures: false });
+        var b64 = btoa(Array.prototype.map.call(bytes, function (x) { return String.fromCharCode(x); }).join(''));
+        return fetch('/v1/vaults/create/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ creationId: creationId, signedTransaction: b64 }) })
+          .then(function (r) { return r.json(); }).then(function (s) { if (s.error) throw new Error(s.error); return s.signature; });
       })
       .then(function (sig) {
         $('c-msg').textContent = 'Launched: ' + short(sig) + ' · confirming on chain…';

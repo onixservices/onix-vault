@@ -29,15 +29,16 @@ describe('curve params for a backing', () => {
 });
 
 describe('creator + mint assertion', () => {
-  test('exactly two signers: creator unsigned and fee payer, mint signed', () => {
+  test('exactly two signers: creator and mint; nothing signed when it leaves for the wallet', () => {
     const mint = Keypair.generate();
     const tx = new Transaction({ feePayer: ownerKp.publicKey, recentBlockhash: Keypair.generate().publicKey.toBase58() });
     tx.add(SystemProgram.createAccount({ fromPubkey: ownerKp.publicKey, newAccountPubkey: mint.publicKey, lamports: 1, space: 0, programId: SystemProgram.programId }));
     tx.partialSign(mint);
-    assert.equal(checkCreatorPlusMint(tx, OWNER, mint.publicKey.toBase58()), null);
     assert.equal(checkCreatorPlusMint(tx, Keypair.generate().publicKey.toBase58(), mint.publicKey.toBase58()).assertion, 'signer-mismatch');
+    assert.equal(checkCreatorPlusMint(tx, OWNER, mint.publicKey.toBase58(), { mintSigned: true }), null);
+    assert.equal(checkCreatorPlusMint(tx, OWNER, mint.publicKey.toBase58()).assertion, 'mint-pre-signed');
     const unsigned = Transaction.from(tx.serialize({ requireAllSignatures: false, verifySignatures: false })); unsigned.signatures.forEach((s) => { s.signature = null; });
-    assert.equal(checkCreatorPlusMint(unsigned, OWNER, mint.publicKey.toBase58()).assertion, 'mint-unsigned');
+    assert.equal(checkCreatorPlusMint(unsigned, OWNER, mint.publicKey.toBase58()), null, 'what leaves for the wallet: nobody signed');
   });
 });
 
@@ -85,7 +86,8 @@ describe('Create door — build', () => {
     assert.ok(Transaction.from(Buffer.from(sent[0], 'base64')).verifySignatures(), 'config tx fully signed (partner + config key)');
     assert.equal(calls[1][0], 'pool'); assert.equal(calls[1][1].poolCreator.toBase58(), OWNER); assert.equal(calls[1][1].symbol, 'MYC'); assert.match(calls[1][1].uri, /^https:\/\/v\.test\/token\/.+\.json$/);
     const tx = Transaction.from(Buffer.from(out.transaction, 'base64'));
-    assert.equal(checkCreatorPlusMint(tx, OWNER, out.baseMint), null);
+    assert.equal(checkCreatorPlusMint(tx, OWNER, out.baseMint), null, 'leaves with NO signature');
+    assert.ok(tx.signatures.every((s) => s.signature === null));
     assert.ok(out.creationId && out.pool && out.config && out.message);
     assert.equal(out.curve.graduationUsd, 445); assert.equal(out.backing.realisableUsd, 89);
     await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'veonix', mints: ['a'] }), 400);   // lower-case
@@ -103,6 +105,28 @@ describe('Create door — build', () => {
     const { creator, chain } = make();
     chain.sim = { err: { InstructionError: [0, 'Custom'] }, logs: ['Program log: nope'] };
     await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC', mints: ['a'] }), 409);
+  });
+});
+
+describe('Create door — submit (the creator signed; the mint key completes; broadcast)', () => {
+  test('the signed tx must be the message we built; mint signs after the creator; broadcast once', async () => {
+    const { creator, sent } = make();
+    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    const tx = Transaction.from(Buffer.from(out.transaction, 'base64'));
+    tx.partialSign(ownerKp);
+    const r = await creator.submit({ creationId: out.creationId, signedTransaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') });
+    assert.equal(r.signature, 'SIG2'); assert.equal(sent.length, 2);
+    assert.ok(Transaction.from(Buffer.from(sent[1], 'base64')).verifySignatures(), 'broadcast fully signed: creator + mint');
+  });
+  test('a different message, or one the creator did not sign, is refused and nothing is sent', async () => {
+    const { creator, sent } = make();
+    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await rejects(creator.submit({ creationId: out.creationId, signedTransaction: out.transaction }), 409);   // unsigned
+    const other = new Transaction({ feePayer: ownerKp.publicKey, recentBlockhash: Keypair.generate().publicKey.toBase58() });
+    other.add(SystemProgram.transfer({ fromPubkey: ownerKp.publicKey, toPubkey: Keypair.generate().publicKey, lamports: 1 })); other.sign(ownerKp);
+    await rejects(creator.submit({ creationId: out.creationId, signedTransaction: other.serialize().toString('base64') }), 409);
+    await rejects(creator.submit({ creationId: 'nope', signedTransaction: out.transaction }), 404);
+    assert.equal(sent.length, 1, 'only the config was ever sent');
   });
 });
 

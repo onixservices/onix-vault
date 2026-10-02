@@ -5,8 +5,10 @@
  *   quote({ owner })                 what the wallet holds that counts, and the curve it implies
  *   build({ owner, name, symbol, mints })  create the curve config (Onix is the partner: it pays for
  *                                    and signs the config, and claims the trading fee), then the
- *                                    ONE transaction the creator signs: createPool, pre-signed by
- *                                    the throwaway mint key, simulated before it leaves
+ *                                    ONE transaction the creator signs: createPool, UNSIGNED (a
+ *                                    pre-signature makes Phantom refuse it), simulated before it leaves
+ *   submit({ creationId, signedTransaction })  the creator's signed tx: same message we built →
+ *                                    the mint key adds its signature → broadcast
  *   confirm({ creationId })          the chain says the pool exists → the vault is registered
  *
  * Supply split (see docs/curve-config.md): the creator's allocation and the admission reserve
@@ -41,16 +43,18 @@ function curveParamsFor(backingUsd, split = SPLIT) {
 }
 
 /**
- * A pool-creation transaction has two signers: the creator (unsigned, signs in the wallet)
- * and the new mint (signed here, throwaway). Nothing else, and the creator pays.
+ * A pool-creation transaction has two signers: the creator (signs in the wallet) and the new
+ * mint (throwaway key, signs here AFTER the creator). What leaves for the wallet carries no
+ * signature at all — Phantom refuses a transaction with a foreign pre-signature. The options
+ * say what each slot must look like at each stage.
  */
-function checkCreatorPlusMint(tx, creator, mint) {
+function checkCreatorPlusMint(tx, creator, mint, { creatorSigned = false, mintSigned = false } = {}) {
   const sigs = tx.signatures.map((s) => ({ key: s.publicKey.toBase58(), signed: s.signature !== null }));
   if (sigs.length !== 2) return { assertion: 'two-signers', message: `${sigs.length} signers (expected creator + mint)` };
   const c = sigs.find((s) => s.key === creator), m = sigs.find((s) => s.key === mint);
   if (!c || !m) return { assertion: 'signer-mismatch', message: `signers=${sigs.map((s) => s.key).join(',')}` };
-  if (c.signed) return { assertion: 'pre-signed', message: 'the creator slot already carries a signature' };
-  if (!m.signed) return { assertion: 'mint-unsigned', message: 'the mint key did not sign' };
+  if (c.signed !== creatorSigned) return { assertion: creatorSigned ? 'creator-unsigned' : 'pre-signed', message: creatorSigned ? 'the creator did not sign' : 'the creator slot already carries a signature' };
+  if (m.signed !== mintSigned) return { assertion: mintSigned ? 'mint-unsigned' : 'mint-pre-signed', message: 'mint slot' };
   if (tx.feePayer?.toBase58() !== creator) return { assertion: 'fee-payer', message: `feePayer=${tx.feePayer} expected=${creator}` };
   return null;
 }
@@ -111,7 +115,6 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     const uri = `${metadataBase}/token/${baseMintKp.publicKey.toBase58()}.json`;
     const ptx = await client.creator.createPool({ name, symbol, uri, payer: ownerPk, poolCreator: ownerPk, config: configKp.publicKey, baseMint: baseMintKp.publicKey });
     ptx.feePayer = ownerPk; ptx.recentBlockhash = await chain.getLatestBlockhash();
-    ptx.partialSign(baseMintKp);
     const bytes = ptx.serialize({ requireAllSignatures: false, verifySignatures: false });
     const compiled = Transaction.from(bytes);
     const fail = checkCreatorPlusMint(compiled, owner, baseMintKp.publicKey.toBase58());
@@ -119,8 +122,26 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     const sim = await chain.simulateTransaction(bytes.toString('base64'));
     if (sim && sim.err) throw err(409, `the launch would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
     const pool = sdk.deriveDbcPoolAddress(quotePk, baseMintKp.publicKey, configKp.publicKey).toBase58();
-    pending.set(id, { owner, name, symbol, mints, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
+    pending.set(id, { owner, name, symbol, mints, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), baseMintKp, message: compiled.serializeMessage().toString('base64'), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
     return { creationId: id, pool, baseMint: baseMintKp.publicKey.toBase58(), config: configKp.publicKey.toBase58(), configSignature: configSig, curve: view, backing: { items: b.items.length, indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
+  }
+
+  /**
+   * The creator signed in the wallet; the server completes with the mint key and broadcasts.
+   * Only the exact message built in `build` is completed — anything else is refused.
+   */
+  async function submit({ creationId, signedTransaction }) {
+    const p = pending.get(creationId);
+    if (!p) throw err(404, 'unknown or expired creation — build again');
+    let tx; try { tx = Transaction.from(Buffer.from(String(signedTransaction || ''), 'base64')); } catch { throw err(400, 'signedTransaction must be a base64 transaction'); }
+    if (tx.serializeMessage().toString('base64') !== p.message) throw err(409, 'the signed transaction is not the one that was built');
+    const fail = checkCreatorPlusMint(tx, p.owner, p.baseMint, { creatorSigned: true, mintSigned: false });
+    if (fail) throw err(409, `signed transaction does not pass assertions: ${fail.assertion} (${fail.message})`);
+    tx.partialSign(p.baseMintKp);
+    if (!tx.verifySignatures()) throw err(409, 'the creator signature does not verify');
+    const sig = await chain.sendRawTransaction(tx.serialize().toString('base64'));
+    p.launchSig = sig;
+    return { creationId, signature: sig, pool: p.pool, baseMint: p.baseMint };
   }
 
   /** The chain is the witness: the pool account exists → the vault is registered. */
@@ -133,14 +154,14 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     const vaultId = p.symbol.toLowerCase();
     db.prepare(`INSERT INTO vaults (id, name, operator, wallet, pool, base_mint, config, graduation_usd, token_name, token_symbol, rules, created_by, created_at, launch_sig)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'vault1', ?, ?, ?)`)
-      .run(vaultId, p.name, p.owner.slice(0, 4) + '…' + p.owner.slice(-4), p.owner, p.pool, p.baseMint, p.config, p.graduationUsd, p.name, p.symbol, p.owner, t, signature);
+      .run(vaultId, p.name, p.owner.slice(0, 4) + '…' + p.owner.slice(-4), p.owner, p.pool, p.baseMint, p.config, p.graduationUsd, p.name, p.symbol, p.owner, t, signature || p.launchSig || null);
     const ins = db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)');
     for (const m of p.mints) ins.run(p.owner, m, 'creation', t);
     pending.delete(creationId);
     return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(vaultId), db);
   }
 
-  return { quote, build, confirm, SPLIT, LIMITS, _pending: pending };
+  return { quote, build, submit, confirm, SPLIT, LIMITS, _pending: pending };
 }
 
 /** A DB row → a registry entry (the same shape vaults.json uses). `manifest` reads the declared items live. */
