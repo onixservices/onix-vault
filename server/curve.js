@@ -23,7 +23,7 @@ const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default
  * @param {function} deps.getCurrentPoint    async () => BN (slot or timestamp, per the config's activationType)
  * @param {function} deps.getLatestBlockhash async () => string
  */
-function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClient, getCurrentPoint, getLatestBlockhash }) {
+function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClient, getCurrentPoint, getLatestBlockhash, simulate = null, getBalanceUi = null, quoteMint = null, baseMint = null }) {
   const toUnits = (n, d) => new BN(Math.round(n * 10 ** d).toString());
   const fromUnits = (bn, d) => Number(bn.toString()) / 10 ** d;
 
@@ -70,6 +70,22 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
     const compiled = Transaction.from(bytes);
     const fail = checkSingleSignerUnsigned(compiled, owner);
     if (fail) throw new Error(`swap tx does not pass assertions: ${fail.assertion} (${fail.message})`);
+    // PRE-FLIGHT, before the wallet ever sees it: a swap that fails simulation makes Phantom
+    // block the dApp as "possibly malicious" (1 Oct 2026: the buyer had 0 USDC → 0x1). The
+    // honest answer is the two numbers, here, as a 402 — never a red screen in the wallet.
+    if (simulate) {
+      const sim = await simulate(bytes.toString('base64'));
+      if (sim && sim.err) {
+        const logs = (sim.logs || []).join(' | ');
+        if (/insufficient funds/i.test(logs) || /"Custom":1/.test(JSON.stringify(sim.err))) {
+          const unit = side === 'sell' ? 'tokens' : 'USDC';
+          const has = getBalanceUi ? await getBalanceUi(owner, side === 'sell' ? baseMint : quoteMint).catch(() => null) : null;
+          const fmt = (n) => (n == null ? 'an unknown amount' : (side === 'sell' ? n.toLocaleString('en-US') : '$' + n.toFixed(2)));
+          throw err(402, `this wallet needs ${side === 'sell' ? amount.toLocaleString('en-US') : '$' + amount.toFixed(2)} ${unit} for this trade and has ${fmt(has)}. Nothing was sent.`);
+        }
+        throw err(409, `the trade would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
+      }
+    }
     return { quote: view, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
   }
 
@@ -84,6 +100,12 @@ function productionCurveDeps({ rpcUrl, chain }) {
     getClient: async () => { load(); return client; },
     getCurrentPoint: async (cfg) => { load(); return sdk.getCurrentPoint(conn, cfg.activationType); },
     getLatestBlockhash: () => chain.getLatestBlockhash(),
+    simulate: (b64) => chain.simulateTransaction(b64),
+    getBalanceUi: async (owner, mint) => {
+      if (!mint) return null;
+      const r = await chain.rpc('getTokenAccountsByOwner', [owner, { mint }, { encoding: 'jsonParsed' }]);
+      return (r.value || []).reduce((s, a) => s + (a.account.data.parsed.info.tokenAmount.uiAmount || 0), 0);
+    },
   };
 }
 

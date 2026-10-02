@@ -65,6 +65,11 @@ function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTra
     const tx = Transaction.from(Buffer.from(b64, 'base64'));
     const fail = checkSingleSignerUnsigned(tx, owner);
     if (fail) throw new Error(`admission tx does not pass assertions: ${fail.assertion}`);
+    // pre-flight: a transfer that fails simulation makes the wallet block the dApp; say why here instead
+    if (chain.simulateTransaction) {
+      const sim = await chain.simulateTransaction(b64);
+      if (sim && sim.err) throw err(409, `this card cannot be sent right now: ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ') || JSON.stringify(sim.err)}`);
+    }
     return { mint, valueUsd: c.insuredUsd, realisableUsd: r2(c.insuredUsd * haircut), owedUsd: owed(c.insuredUsd), lockMonths: rules.lockMonths, transaction: b64, message: bs58.encode(tx.serializeMessage()) };
   }
 

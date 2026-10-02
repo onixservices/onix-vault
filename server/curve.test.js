@@ -25,7 +25,8 @@ function fakeClient({ outBase = 1_000_000n, outQuote = 4_000_000n } = {}) {
   };
   return { client, calls };
 }
-const deps = (fc) => ({ pool: POOL, baseDecimals: 6, quoteDecimals: 6, getClient: async () => fc.client, getCurrentPoint: async () => new BN(1), getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58() });
+const deps = (fc, extra = {}) => ({ pool: POOL, baseDecimals: 6, quoteDecimals: 6, getClient: async () => fc.client, getCurrentPoint: async () => new BN(1), getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
+  simulate: async () => ({ err: null, logs: [] }), getBalanceUi: async () => 100, ...extra });
 
 describe('curve — quote', () => {
   test('buy: USDC in → tokens out, fees in USDC, both legs in human units', async () => {
@@ -65,6 +66,14 @@ describe('curve — build', () => {
     assert.equal(typeof out.message, 'string'); assert.ok(out.message.length > 40);
     assert.equal(out.quote.amountOut, 1);
     assert.equal(fc.calls.find((c) => c[0] === 'swap')[1].minimumAmountOut.toString(), '990000');
+  });
+  test('pre-flight: a swap that would fail (no USDC) is refused with 402 and BOTH numbers — the wallet never sees it', async () => {
+    const t = createCurveTrader(deps(fakeClient(), { simulate: async () => ({ err: { InstructionError: [1, { Custom: 1 }] }, logs: ['Program log: Error: insufficient funds'] }), getBalanceUi: async () => 0 }));
+    await assert.rejects(t.build({ owner: OWNER, side: 'buy', amount: 10 }), (e) => e.statusCode === 402 && /needs \$10\.00 USDC/.test(e.message) && /has \$0\.00/.test(e.message));
+  });
+  test('pre-flight: any other simulation failure is refused with 409 and the program log, never handed to the wallet', async () => {
+    const t = createCurveTrader(deps(fakeClient(), { simulate: async () => ({ err: { InstructionError: [1, { Custom: 6001 }] }, logs: ['Program log: slippage'] }) }));
+    await assert.rejects(t.build({ owner: OWNER, side: 'buy', amount: 10 }), (e) => e.statusCode === 409 && /slippage/.test(e.message));
   });
   test('owner must be a public key', async () => {
     const t = createCurveTrader(deps(fakeClient()));

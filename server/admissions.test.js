@@ -41,6 +41,8 @@ function make({ assets = [asset(MINT)], ownerOnChain = null } = {}) {
     getAsset: async (id) => { const a = assets.find((x) => x.id === id); if (!a) return null; return ownerOnChain ? { ...a, ownership: { ...a.ownership, owner: ownerOnChain } } : a; },
     getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
     getSignatureStatuses: async () => [{ confirmationStatus: 'finalized', err: null }],
+    simulateTransaction: async () => chain.sim || { err: null, logs: [] },
+    sim: null,
   };
   const adm = createAdmissions({
     db, chain, vaultWallet: VAULT, rules: VAULT_RULES.vault1,
@@ -69,6 +71,11 @@ describe('admissions — build the transfer for the owner to sign', () => {
     const tx = Transaction.from(Buffer.from(out.transaction, 'base64'));
     assert.equal(tx.feePayer.toBase58(), OWNER); assert.equal(tx.signatures.length, 1); assert.equal(tx.signatures[0].signature, null);
     assert.ok(out.message.length > 40); assert.equal(out.owedUsd, 28.48);
+  });
+  test('pre-flight: a transfer that would fail on chain (frozen, delegated…) is refused with 409 and the log — the wallet never sees it', async () => {
+    const { adm, chain } = make();
+    chain.sim = { err: { InstructionError: [0, { Custom: 17 }] }, logs: ['Program log: Account is frozen'] };
+    await rejectsWith(adm.build({ owner: OWNER, mint: MINT }), 409);
   });
   test('refuses what the owner does not hold (404), what fails the rules (422), and a bad owner (400)', async () => {
     const { adm } = make({ assets: [asset(MINT), asset('p', { collection: PHYG })] });
