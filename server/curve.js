@@ -89,7 +89,15 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
     return { quote: view, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
   }
 
-  return { quote, build };
+  /** What a wallet holds of the pair — so the panel can show a balance and a Max, and say "you hold X" instead of the curve's raw error. */
+  async function balances(owner) {
+    try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
+    if (!getBalanceUi) return { usdc: null, token: null };
+    const [usdc, token] = await Promise.all([getBalanceUi(owner, quoteMint).catch(() => null), getBalanceUi(owner, baseMint).catch(() => null)]);
+    return { usdc, token };
+  }
+
+  return { quote, build, balances };
 }
 
 /** Production deps: the SDK over our RPC. */

@@ -37,7 +37,7 @@
       tries++;
       loadStats(true).then(function (st) {
         var moved = !st.pool || before == null || Math.abs(st.pool.mcapUsd - before) > 1e-9;
-        if (moved || tries >= 8) { tradePanel(st); renderVault(); } else setTimeout(tick, 2500);
+        if (moved || tries >= 8) { tradePanel(st); renderVault(); loadBalances(); } else setTimeout(tick, 2500);
       }).catch(function () { if (tries < 8) setTimeout(tick, 2500); });
     })();
   }
@@ -135,6 +135,7 @@
     $('w-connect').classList.toggle('on', !!a);
     if (a) { $('sd-addr').value = a; $('c-addr').value = a; }
     if (STATS) tradePanel(STATS);
+    loadBalances();
     if (a && $('s-send').classList.contains('on')) sdScan(a); else sdRender();
   }
   function connectWallet(opts) {
@@ -157,8 +158,22 @@
     var tx = window.solanaWeb3.Transaction.from(raw);
     return w.signAndSendTransaction(tx).then(function (r) { return r && r.signature ? r.signature : String(r); });
   }
+  var BAL = { usdc: null, token: null, wallet: null };
+  function loadBalances() {
+    if (!T.wallet || !(STATS && STATS.pool)) { BAL = { usdc: null, token: null, wallet: null }; paintBalance(); return Promise.resolve(); }
+    var w = T.wallet;
+    return get('/v1/vaults/' + VAULT + '/trades/balances?wallet=' + encodeURIComponent(w)).then(function (b) { if (w === T.wallet) { BAL = { usdc: b.usdc, token: b.token, wallet: w }; paintBalance(); } }).catch(function () {});
+  }
+  function heldNow() { return T.side === 'buy' ? BAL.usdc : BAL.token; }
+  function paintBalance() {
+    var h = heldNow();
+    $('t-bal').textContent = !T.wallet ? 'Connect a wallet to see your balance' : h == null ? 'Reading your balance…' : 'You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' : Math.floor(h).toLocaleString('en-US') + ' ' + SYM());
+    $('t-max').hidden = !(h > 0);
+  }
+  $('t-max').addEventListener('click', function () { var h = heldNow(); if (h > 0) { $('t-amount').value = T.side === 'buy' ? Math.floor(h * 100) / 100 : Math.floor(h); quoteNow(); } });
   function tradePanel(st) {
     var p = st && st.pool, el = $('trade');
+    paintBalance();
     el.classList.toggle('off', !p);
     $('t-state').textContent = p ? (st.poolStatus === 'live' ? 'trading' : st.poolStatus) : 'not launched';
     $('t-state').className = 'tag' + (p ? ' live' : '');
@@ -175,14 +190,19 @@
     fetch('/v1/vaults/' + VAULT + '/trades/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ side: T.side, amount: v }) })
       .then(function (r) { return r.json(); })
       .then(function (q) {
-        if (q.error) { $('t-quote').textContent = q.error; return; }
+        if (q.error) {
+          var h = heldNow();
+          if (/insufficient liquidity/i.test(q.error)) $('t-quote').textContent = 'That is more than the curve holds.' + (h != null ? ' You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' : Math.floor(h).toLocaleString('en-US') + ' ' + SYM()) + ' — use Max.' : '');
+          else $('t-quote').textContent = q.error;
+          return;
+        }
         $('t-quote').textContent = 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
       }).catch(function (e) { $('t-quote').textContent = 'Could not quote: ' + e.message; });
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (b) {
     b.addEventListener('click', function () {
       Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (x) { x.classList.remove('on'); });
-      b.classList.add('on'); T.side = b.dataset.side; tradePanel(STATS); quoteNow();
+      b.classList.add('on'); T.side = b.dataset.side; tradePanel(STATS); quoteNow(); if (BAL.wallet !== T.wallet) loadBalances();
     });
   });
   $('t-amount').addEventListener('input', function () { clearTimeout(T.timer); T.timer = setTimeout(quoteNow, 350); });

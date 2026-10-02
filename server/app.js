@@ -7,6 +7,7 @@
  *   GET  /v1/vaults/:vault/eligible-items?wallet=
  *   POST /v1/vaults/:vault/admissions/build | admissions
  *   POST /v1/vaults/:vault/trades/quote | trades/build
+ *   GET  /v1/vaults/:vault/trades/balances?wallet=        USDC and token held by a wallet
  *   POST /v1/vaults/:vault/reservations (+ /:id/settle, GET /:id)
  *   POST /v1/vaults/:vault/redemptions
  *   GET  /v1/wallets/:wallet/eligible-items              any registered custodian, any vault
@@ -86,6 +87,9 @@ function buildApp(deps) {
   app.post('/v1/vaults/:vault/trades/quote', pick, wrap(async (req, res) => {
     const { side, amount, slippageBps } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await trader(req).quote({ side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
+  }));
+  app.get('/v1/vaults/:vault/trades/balances', pick, wrap(async (req, res) => {
+    res.json({ readAt: new Date().toISOString(), wallet: String(req.query.wallet || ''), ...(await trader(req).balances(String(req.query.wallet || ''))) });
   }));
   app.post('/v1/vaults/:vault/trades/build', pick, wrap(async (req, res) => {
     const { owner, side, amount, slippageBps } = req.body || {};

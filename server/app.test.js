@@ -17,7 +17,7 @@ const service = {
   listActivity: () => [{ type: 'gacha', at: 1, mint: 'M', to: 'W' }],
 };
 const stats = { read: async () => ({ readAt: 1, items: { count: 1 }, backing: { indexUsd: 20, realisableUsd: 17.8, multiplier: 0.89 }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 };
-const trader = { quote: async (a) => ({ side: a.side, amountIn: a.amount, amountOut: a.amount * 100, tradingFeeUsd: a.amount * 0.08 }), build: async (a) => ({ quote: { amountOut: a.amount * 100 }, transaction: 'AAAA', message: 'BBBB', owner: a.owner }) };
+const trader = { balances: async (w) => ({ usdc: 116.64, token: 3314184.21 }), quote: async (a) => ({ side: a.side, amountIn: a.amount, amountOut: a.amount * 100, tradingFeeUsd: a.amount * 0.08 }), build: async (a) => ({ quote: { amountOut: a.amount * 100 }, transaction: 'AAAA', message: 'BBBB', owner: a.owner }) };
 const admissions = { rules: { custodians: ['Collector Crypt'], category: 'graded-cards' }, eligible: async (w) => ({ wallet: w, total: 1, eligible: [{ mint: 'E', owedUsd: 10 }], ineligible: [] }), build: async (a) => ({ mint: a.mint, owedUsd: 10, transaction: 'TX', message: 'MSG' }), record: (a) => ({ id: 'A1', status: 'pending', ...a }), list: () => [{ id: 'A1', mint: 'M', owner: 'O', status: 'admitted', tokens: 'pending', owedUsd: 10, valueUsd: 14, signature: 'S', at: 5 }] };
 const readWallet = async (w) => { if (w === 'bad') { const e = new Error('not a wallet address'); e.statusCode = 400; throw e; } return { wallet: w, total: 1, eligible: [{ mint: 'E' }], ineligible: [] }; };
 
@@ -49,6 +49,10 @@ describe('routes — what the page reads', () => {
     const ac = await j(`/v1/vaults/${VAULT}/activity`);
     assert.equal(ac.status, 200); assert.ok(ac.body.activity.some((e) => e.type === 'gacha'));
     assert.equal((await j(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/stats`)).status, 404);
+  });
+  test('GET /v1/vaults/:vault/trades/balances?wallet= — the two balances the panel shows', async () => {
+    const b = await j('/v1/vaults/' + VAULT + '/trades/balances?wallet=W1');
+    assert.equal(b.status, 200); assert.equal(b.body.usdc, 116.64); assert.equal(b.body.token, 3314184.21); assert.equal(b.body.wallet, 'W1');
   });
   test('GET /v1/wallets/:wallet/eligible-items; a bad wallet is 400 with the reason', async () => {
     const ok = await j('/v1/wallets/SomeWallet/eligible-items');

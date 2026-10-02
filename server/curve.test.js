@@ -28,6 +28,14 @@ function fakeClient({ outBase = 1_000_000n, outQuote = 4_000_000n } = {}) {
 const deps = (fc, extra = {}) => ({ pool: POOL, baseDecimals: 6, quoteDecimals: 6, getClient: async () => fc.client, getCurrentPoint: async () => new BN(1), getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
   simulate: async () => ({ err: null, logs: [] }), getBalanceUi: async () => 100, ...extra });
 
+describe('curve — balances', () => {
+  test('reads USDC and the token for a wallet; without a balance reader both are null', async () => {
+    const t = createCurveTrader({ pool: 'P', getClient: async () => ({}), getCurrentPoint: async () => 0, getLatestBlockhash: async () => 'b', quoteMint: 'Q', baseMint: 'B', getBalanceUi: async (o, m) => (m === 'Q' ? 12.5 : 1000) });
+    assert.deepEqual(await t.balances(require('@solana/web3.js').Keypair.generate().publicKey.toBase58()), { usdc: 12.5, token: 1000 });
+    await assert.rejects(t.balances('nope'), (e) => e.statusCode === 400);
+  });
+});
+
 describe('curve — quote', () => {
   test('buy: USDC in → tokens out, fees in USDC, both legs in human units', async () => {
     const fc = fakeClient();
