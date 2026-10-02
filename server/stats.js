@@ -45,8 +45,8 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
     }
   }
 
-  async function read() {
-    if (cache.value && now() - cache.at < cacheMs) return cache.value;
+  async function read({ fresh = false } = {}) {
+    if (!fresh && cache.value && now() - cache.at < cacheMs) return cache.value;
     const items = (await readItems()).filter((it) => it.custodianValueUsd != null);
     const indexUsd = items.reduce((s, it) => s + it.custodianValueUsd, 0);
     const realisableUsd = Math.round(indexUsd * haircut * 100) / 100;

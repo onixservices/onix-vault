@@ -52,7 +52,7 @@ function buildApp(deps) {
   }));
   app.get('/v1/vaults/:vault/stats', pick, wrap(async (req, res) => {
     const st = need(req.vb.stats, 'stats');
-    res.json({ ...(await st.read()), ageMs: st.ageMs() });
+    res.json({ ...(await st.read({ fresh: req.query.fresh === '1' })), ageMs: st.ageMs() });
   }));
   app.get('/v1/vaults/:vault/activity', pick, wrap(async (req, res) => {
     const doors = req.vb.service.listActivity({ limit: 50 });

@@ -29,7 +29,18 @@
     if (ITEMS && !force && Date.now() - ITEMS_AT < 30000) return Promise.resolve(ITEMS);
     return get('/v1/vaults/' + VAULT + '/items').then(function (b) { ITEMS = b.items; ITEMS_AT = Date.now(); ITEMS.ageMs = b.itemsAgeMs; return ITEMS; });
   }
-  function loadStats() { return get('/v1/vaults/' + VAULT + '/stats').then(function (s) { STATS = s; return s; }); }
+  function loadStats(fresh) { return get('/v1/vaults/' + VAULT + '/stats' + (fresh ? '?fresh=1' : '')).then(function (s) { STATS = s; return s; }); }
+  // after a trade: re-read the chain (cache bypassed) until the market cap moves, then redraw
+  function refreshAfterTrade() {
+    var before = STATS && STATS.pool ? STATS.pool.mcapUsd : null, tries = 0;
+    (function tick() {
+      tries++;
+      loadStats(true).then(function (st) {
+        var moved = !st.pool || before == null || Math.abs(st.pool.mcapUsd - before) > 1e-9;
+        if (moved || tries >= 8) { tradePanel(st); renderVault(); } else setTimeout(tick, 2500);
+      }).catch(function () { if (tries < 8) setTimeout(tick, 2500); });
+    })();
+  }
 
   // ── board ──
   function tile(v) {
@@ -175,7 +186,7 @@
       .then(function (sig) {
         $('t-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + sig.slice(0, 8) + '…</a>';
         $('t-amount').value = ''; $('t-quote').textContent = 'You receive —';
-        setTimeout(function () { loadStats().then(function (st) { tradePanel(st); renderVault(); }); }, 4000);
+        setTimeout(refreshAfterTrade, 2500);
       })
       .catch(function (e) { $('t-msg').textContent = e && e.message ? e.message : 'Cancelled.'; })
       .then(function () { T.busy = false; tradePanel(STATS); });

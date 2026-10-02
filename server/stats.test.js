@@ -72,6 +72,7 @@ describe('stats — with a pool', () => {
     const stats = createStatsReader({ readItems: async () => { reads++; return items; }, chain: {}, config: { haircut: 0.89 }, now: (() => { let t = 0; return () => (t += 1000); })(), cacheMs: 5000 });
     await stats.read(); await stats.read();
     assert.equal(reads, 1);
+    await stats.read({ fresh: true }); assert.equal(reads, 2, 'fresh:true re-reads');
     assert.ok(stats.ageMs() >= 0);
   });
 });
