@@ -119,6 +119,35 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_creations_owner ON vault_creations (owner, status);
 
+  -- the Play door: one row per play, from commit to delivery (the proof lives here)
+  CREATE TABLE IF NOT EXISTS vault_plays (
+    id TEXT PRIMARY KEY,
+    vault TEXT NOT NULL,
+    player TEXT NOT NULL,
+    band TEXT NOT NULL,
+    currency TEXT NOT NULL,            -- usdc | token
+    client_seed TEXT NOT NULL,
+    server_seed TEXT NOT NULL,         -- revealed in the API only once the play is done
+    server_seed_hash TEXT NOT NULL,    -- published at start
+    snapshot_json TEXT NOT NULL,       -- the band's mints at start, sorted
+    price_usdc REAL,
+    price_tokens REAL,
+    avg_index_usd REAL,
+    status TEXT NOT NULL,              -- created | submitted | drawn | delivering | delivered | delivery_failed | payment_rejected | payment_missing | expired
+    payment_sig TEXT UNIQUE,
+    mint TEXT,
+    digest TEXT,
+    draw_index INTEGER,
+    nonce INTEGER,
+    delivery_tx_b64 TEXT,
+    delivery_sig TEXT,
+    fail_reason TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_plays_vault_status ON vault_plays (vault, status);
+
   -- what a created vault declares as backing (at creation, then each verified admission)
   CREATE TABLE IF NOT EXISTS vault_items (
     vault TEXT NOT NULL,

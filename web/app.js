@@ -128,6 +128,7 @@
       $('act-empty').style.display = rows.length ? 'none' : '';
       $('act-rows').innerHTML = rows.map(function (e) {
         if (e.type === 'admit') { return '<div class="row"><span class="k">Added</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · by the creator · ' + usd2(e.valueUsd) + ' listed' + (e.status === 'pending' ? ' · verifying on chain' : ' · in the vault') + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a></span></div>'; }
+        if (e.type === 'play') { return '<div class="row"><span class="k">Play</span><span class="muted">' + short(e.to) + ' paid ' + (e.unit === 'token' ? Math.round(e.price).toLocaleString('en-US') + ' ' + SYM() + ' (burned)' : usd2(e.price) + ' USDC') + ' · ' + (e.mint ? '<a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> ' : '') + (e.status === 'delivered' ? 'delivered' : e.status.replace(/_/g, ' ')) + '</span><span class="sig">' + (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (e.deliverySignature ? ' · <a href="https://solscan.io/tx/' + e.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span></div>'; }
         var k = e.type === 'gacha' ? 'Gacha' : 'Redeemed';
         var what = e.type === 'gacha' ? 'a gacha paid ' + usd2(e.priceUsd) + ' → delivered to ' + short(e.to) : 'tokens burned → ' + (e.status === 'delivered' ? 'delivered to ' : e.status + ' · ') + short(e.to);
         var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '')
@@ -261,8 +262,67 @@
     b.addEventListener('click', function () {
       Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('on'); });
       b.classList.add('on');
-      ['items', 'activity', 'proof'].forEach(function (t) { $('tab-' + t).style.display = t === b.dataset.tab ? '' : 'none'; });
+      ['items', 'play', 'activity', 'proof'].forEach(function (t) { $('tab-' + t).style.display = t === b.dataset.tab ? '' : 'none'; });
+      if (b.dataset.tab === 'play') renderPlay();
     });
+  });
+
+  // ── play ──
+  var PL = { busy: false, bands: null };
+  function renderPlay() {
+    $('bands').innerHTML = '<p class="faint">Reading the vault…</p>';
+    get('/v1/vaults/' + VAULT + '/play').then(function (b) {
+      PL.bands = b;
+      $('bands').innerHTML = b.bands.map(function (x) {
+        var thumbs = x.preview.map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : ''; }).join('');
+        var note = x.kind === 'empty' ? 'nothing in this band' : x.kind === 'pick' ? x.items + ' item' + (x.items === 1 ? '' : 's') + ' · below 3 it is a pick, not a draw' : x.items + ' items · 1 in ' + x.items + ' each';
+        var acts = x.kind === 'empty' ? '' : '<button type="button" class="cta" data-band="' + x.id + '" data-cur="usdc">Play ' + usd2(x.priceUsdc) + ' USDC</button>'
+          + (x.priceTokens ? '<button type="button" class="cta ghost" data-band="' + x.id + '" data-cur="token">Play ' + x.priceTokens.toLocaleString('en-US') + ' ' + SYM() + '</button>' : '');
+        return '<div class="band' + (x.kind === 'empty' ? ' empty' : '') + '"><div class="bh"><b>' + esc(x.label) + '</b><span>' + note + '</span></div><div class="thumbs">' + thumbs + '</div><div class="acts">' + acts + '</div></div>';
+      }).join('');
+    }).catch(function (e) { $('bands').innerHTML = '<p class="faint">Play is not open on this vault: ' + esc(e.message) + '</p>'; });
+  }
+  function playMsg(html) { $('play-res').style.display = ''; $('play-res').innerHTML = html; }
+  $('bands').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-band]'); if (!b || PL.busy) return;
+    var w = provider(); if (!w) { playMsg('<div></div><div class="muted">No Solana wallet found in this browser.</div>'); return; }
+    if (!W.addr) { connectWallet().catch(function () {}); return; }
+    var band = b.dataset.band, cur = b.dataset.cur, clientSeed = Math.random().toString(36).slice(2, 10);
+    PL.busy = true; playMsg('<div></div><div class="muted">Opening a play · your seed <span class="mono">' + clientSeed + '</span>…</div>');
+    var playId = null;
+    post('/v1/vaults/' + VAULT + '/plays', { band: band, player: W.addr, currency: cur, clientSeed: clientSeed })
+      .then(function (x) {
+        if (x.status !== 201) throw new Error(x.body.error || 'could not open the play');
+        playId = x.body.playId;
+        playMsg('<div></div><div class="muted">Commit published: <span class="mono">' + x.body.serverSeedHash.slice(0, 16) + '…</span> · ' + x.body.items + ' item' + (x.body.items === 1 ? '' : 's') + ' in the band. Sign the payment in your wallet…</div>');
+        return signAndSend(w, x.body.paymentTransaction);
+      })
+      .then(function (sig) {
+        playMsg('<div></div><div class="muted">Paid: <a href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + short(sig) + '</a> · waiting for finality, then the draw…</div>');
+        return post('/v1/vaults/' + VAULT + '/plays/' + playId + '/submit', { signature: sig });
+      })
+      .then(function () {
+        var tries = 0;
+        return (function poll() {
+          tries++;
+          return get('/v1/vaults/' + VAULT + '/plays/' + playId).then(function (p) {
+            if (['delivered', 'delivery_failed', 'payment_rejected', 'payment_missing'].indexOf(p.status) >= 0 || tries > 60) return p;
+            return new Promise(function (r) { setTimeout(r, 3000); }).then(poll);
+          });
+        })();
+      })
+      .then(function (p) {
+        return loadItems(true).then(function (items) {
+          var it = (items || []).filter(function (c) { return c.mint === p.mint; })[0] || {};
+          var img = it.imageUrl ? '<img src="' + esc(it.imageUrl) + '" alt="">' : '<div></div>';
+          var head = p.status === 'delivered' ? '<b style="font-size:18px">You drew ' + esc(it.name || short(p.mint)) + '</b>' : p.status === 'delivery_failed' ? '<b>Drawn: ' + esc(it.name || short(p.mint)) + ' — delivery is being retried by the operator (your payment is recorded)</b>' : '<b>' + esc(p.status.replace(/_/g, ' ')) + (p.failReason ? ' — ' + esc(p.failReason) : '') + '</b>';
+          var proof = '<div class="proof"><span>commit (before you paid): ' + esc(p.serverSeedHash) + '</span>' + (p.serverSeed ? '<span>server seed (revealed): ' + esc(p.serverSeed) + '</span>' : '') + '<span>your seed: ' + esc(p.clientSeed) + ' · nonce ' + p.nonce + '</span>' + (p.digest ? '<span>digest = HMAC(seed, play|yourSeed|nonce): ' + esc(p.digest) + ' → index ' + p.index + ' of ' + p.snapshot.length + ' (sorted by mint)</span>' : '') + '<span>' + (p.paymentSignature ? '<a href="https://solscan.io/tx/' + p.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (p.deliverySignature ? ' · <a href="https://solscan.io/tx/' + p.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span></div>';
+          playMsg(img + '<div>' + head + '<p class="muted" style="margin:6px 0 10px">' + (p.status === 'delivered' ? 'Sent to your wallet from custody.' : '') + '</p>' + proof + '</div>');
+          renderPlay(); loadStats(true).then(function (st) { tradePanel(st); renderVault(); });
+        });
+      })
+      .catch(function (e) { playMsg('<div></div><div class="muted">' + esc((e && e.message) || String(e)) + '</div>'); })
+      .then(function () { PL.busy = false; });
   });
 
   // ── item ──

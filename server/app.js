@@ -15,6 +15,8 @@
  *   POST /v1/vaults/create/open | deposited | submit | confirm | abandon   the Create door (custody + launch)
  *   GET  /v1/vaults/create/:creationId
  *   GET  /token/:mint.json                                 token metadata for created vaults
+ *   GET  /v1/vaults/:vault/play                            bands, prices, odds
+ *   POST /v1/vaults/:vault/plays · /plays/:id/submit · GET /plays/:id · GET /plays   the Play door
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
  * are added. `x-api-key` is optional: it identifies the integrator for limits; it never
@@ -101,7 +103,8 @@ function buildApp(deps) {
   app.get('/v1/vaults/:vault/activity', pick, wrap(async (req, res) => {
     const doors = req.vb.service.listActivity({ limit: 50 });
     const admits = req.vb.admissions ? req.vb.admissions.list({ limit: 50 }).map((a) => ({ type: 'admit', at: a.at, mint: a.mint, from: a.owner, status: a.status, valueUsd: a.valueUsd, signature: a.signature })) : [];
-    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits].sort((x, y) => y.at - x.at).slice(0, 50) });
+    const plays = req.vb.play ? req.vb.play.list({ limit: 50 }).map((p) => ({ type: 'play', at: p.at, playId: p.playId, band: p.band, currency: p.currency, price: p.price, unit: p.unit, mint: p.mint, to: p.player, status: p.status, paymentSignature: p.paymentSignature, deliverySignature: p.deliverySignature })) : [];
+    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays].sort((x, y) => y.at - x.at).slice(0, 50) });
   }));
   app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {
     if (!readWallet) throw new VaultError(503, 'wallet reader not configured');
@@ -138,6 +141,19 @@ function buildApp(deps) {
     const { owner, side, amount, slippageBps } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await trader(req).build({ owner, side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
   }));
+
+  // ── the Play door ──
+  const playOf = (req) => need(req.vb.play, 'play');
+  app.get('/v1/vaults/:vault/play', pick, wrap(async (req, res) => { const b = await playOf(req).bands(); res.json({ ...b, tokenSymbol: req.vb.meta.token ? req.vb.meta.token.symbol : null }); }));
+  app.post('/v1/vaults/:vault/plays', pick, wrap(async (req, res) => {
+    const { band, player, currency, clientSeed } = req.body || {};
+    res.status(201).json({ readAt: new Date().toISOString(), ...(await playOf(req).start({ band, player, currency, clientSeed })) });
+  }));
+  app.post('/v1/vaults/:vault/plays/:id/submit', pick, wrap(async (req, res) => {
+    res.status(202).json(playOf(req).submit({ playId: req.params.id, signature: req.body?.signature }));
+  }));
+  app.get('/v1/vaults/:vault/plays/:id', pick, wrap(async (req, res) => { res.json(playOf(req).get(req.params.id)); }));
+  app.get('/v1/vaults/:vault/plays', pick, wrap(async (req, res) => { res.json({ readAt: new Date().toISOString(), plays: playOf(req).list() }); }));
 
   // ── items, the gacha door, redemptions ──
   app.get('/v1/vaults/:vault/items', pick, wrap(async (req, res) => {

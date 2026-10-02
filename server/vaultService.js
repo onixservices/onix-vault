@@ -48,7 +48,7 @@ function exitPriceUsd(item) {
  * @param {function} deps.deliver          ({ mint, toAddress, reservationId }) => Promise<{ sig }>
  * @param {object} deps.config             vaultWallet, usdcMint, memoProgramId, reservationTtlMs, strikesToBlock, redeemPremium
  */
-function createVaultService({ db, readItems, chain, deliver, now = Date.now, config }) {
+function createVaultService({ db, readItems, chain, deliver, now = Date.now, config, isMintBusy = () => false }) {
   const ttl = config.reservationTtlMs;
   const strikes = config.strikesToBlock ?? 3;
   const premium = config.redeemPremium ?? 1.15;
@@ -108,6 +108,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     if (!it) throw new VaultError(404, 'not in the vault, or not priced');
     const t = now();
     if (reservationsRepo.liveForMint(db, mint, t)) throw new VaultError(409, 'already reserved');
+    if (isMintBusy(mint)) throw new VaultError(409, 'this item was drawn by a play and is on its way out');
     const id = crypto.randomUUID();
     const recentBlockhash = await chain.getLatestBlockhash();
     const paymentTx = buildPaymentTx({
@@ -136,7 +137,8 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     const parsed = await chain.getParsedTransaction(paymentSignature);
     if (!parsed || !st) throw new VaultError(409, 'payment not found on chain yet — retry');
     if (st.confirmationStatus !== 'finalized') throw new VaultError(409, 'payment not finalized yet — retry');
-    const v = readPayment(parsed, { vaultWallet: config.vaultWallet, usdcMint: config.usdcMint, expectedMemo: r.id, minAmountUsd: r.exit_price_usd });
+    // the integrator that reserved must be the one that paid (2 Oct 2026: readPayment never checked who paid)
+    const v = readPayment(parsed, { vaultWallet: config.vaultWallet, usdcMint: config.usdcMint, expectedMemo: r.id, minAmountUsd: r.exit_price_usd, payer: r.integrator });
     if (!v.ok) throw new VaultError(402, `payment does not cover this reservation (${v.reason})`);
 
     // Only now does the vault sign. `settling` is the reentrancy lock; UNIQUE(payment_sig) is the last one.

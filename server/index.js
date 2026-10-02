@@ -24,6 +24,8 @@ const { createCurveTrader, productionCurveDeps } = require('./curve');
 const { createAdmissions, VAULT_RULES } = require('./admissions');
 const { describeRules } = require('./rules');
 const { createVaultCreator } = require('./creation');
+const { createPlay } = require('./play');
+const reservationsRepo = require('./reservationsRepo');
 const keyring = require('./keyring');
 const { normalize } = require('./registry');
 const { loadVaults } = require('./registry');
@@ -49,7 +51,7 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   const bs58 = require('bs58');
   const encode = bs58.encode || bs58.default?.encode;
 
-  const deliver = async ({ mint, toAddress, reservationId }) => {
+  const deliver = async ({ mint, toAddress, reservationId = null, onSigned = null }) => {
     if (!signer.configured()) throw new VaultError(503, 'vault signer not configured');
     const from = signer.publicKey();
     if (from !== vaultWallet) throw new VaultError(503, `signer ${from} is not the configured vault wallet ${vaultWallet}`);
@@ -63,14 +65,17 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     signer.signTransaction(tx);
     const sig = encode(tx.signatures.find((s) => s.publicKey.toBase58() === from).signature);
     const signedB64 = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
-    db.prepare('UPDATE vault_reservations SET delivery_tx_b64 = ?, updated_at = ? WHERE id = ?').run(signedB64, Date.now(), reservationId);
+    // persist the signed transaction BEFORE broadcasting: a crash between the two must never lose a delivery
+    if (reservationId) db.prepare('UPDATE vault_reservations SET delivery_tx_b64 = ?, updated_at = ? WHERE id = ?').run(signedB64, Date.now(), reservationId);
+    if (onSigned) onSigned(signedB64);
     try { await chain.sendRawTransaction(signedB64); }
     catch (e) { console.warn(`[vault ${def.id}] broadcast of delivery ${reservationId} failed (persisted; rebroadcast possible): ${e.message}`); }
     return { sig };
   };
 
+  let play = null;   // assigned below; the two doors share one view of what is busy
   const service = createVaultService({
-    db, readItems, chain, deliver,
+    db, readItems, chain, deliver, isMintBusy: (mint) => Boolean(play && play.busyMints().includes(mint)),
     config: { vaultWallet, usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID, reservationTtlMs: C.RESERVATION_TTL_MS, strikesToBlock: C.STRIKES_TO_BLOCK, redeemPremium: C.REDEEM_PREMIUM },
   });
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
@@ -104,7 +109,9 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     onAdmitted: def.manifest ? (mint) => db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)').run(vaultWallet, mint, 'admission', Date.now()) : null });
   const meta = { id: def.id, name: def.name, operator: def.operator, creator: def.creator || null, custodians: def.custodians, description: def.description, token: def.token, links: def.links || {}, graduationUsd: def.graduationUsd,
     rulesText: describeRules(def.rules), gradMult: def.gradMult ?? null, creatorFeePct: def.creatorFeePct ?? null, custody: def.custodyIndex != null ? 'derived' : def.secretEnv ? 'operator' : 'none' };
-  return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
+  play = createPlay({ db, chain, vaultWallet, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, readItems, readStats: () => stats.read(), deliver,
+    isMintBusy: (mint) => Boolean(reservationsRepo.liveForMint(db, mint, Date.now())), usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID });
+  return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, play, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
 }
 
 /**
@@ -142,6 +149,7 @@ function main() {
     console.log(`[vault] Onix.Vault server on 127.0.0.1:${C.PORT} · ${vaults.length} vault(s)`);
   });
   setInterval(() => { for (const v of vaults) { try { v.service.sweepExpired(); } catch (e) { console.warn(`[vault ${v.meta.id}] sweep failed`, e.message); } } }, 60_000).unref();
+  setInterval(() => { for (const v of vaults) if (v.play) v.play.sweep().then((r) => { if (r.delivered || r.failed) console.log(`[vault ${v.meta.id}] plays: ${r.verified} verified · ${r.delivered} delivered · ${r.failed} failed`); }).catch((e) => console.warn(`[vault ${v.meta.id}] play sweep failed`, e.message)); }, 10_000).unref();
   setInterval(() => { creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
   setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }

@@ -133,6 +133,15 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .tabs button{background:none; border:0; border-bottom:2px solid transparent; padding:10px 12px; color:var(--text-muted); font-weight:500; cursor:pointer; min-height:44px}
 .tabs button.on{color:var(--text); border-bottom-color:var(--brand)}
 .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px}
+.bands{display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px}
+.band{background:var(--wash),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:14px 16px; display:flex; flex-direction:column; gap:10px}
+.band.empty{opacity:.5}
+.band .bh{display:flex; justify-content:space-between; align-items:baseline} .band .bh b{font-size:15px} .band .bh span{font:500 12px var(--mono); color:var(--text-muted)}
+.band .thumbs{display:flex; gap:4px; height:64px} .band .thumbs img{height:100%; aspect-ratio:3/4; object-fit:cover; border-radius:3px}
+.band .acts{display:flex; gap:8px; flex-wrap:wrap} .band .acts .cta{min-height:36px; padding:0 12px; font-size:13px}
+.playres{background:var(--wash),var(--surface); border:1px solid var(--border-active); border-radius:var(--r-lg); padding:16px 18px; display:grid; grid-template-columns:minmax(120px,160px) 1fr; gap:16px; align-items:start}
+.playres img{width:100%; border-radius:6px} .playres .proof{font:500 12px var(--mono); color:var(--text-muted); word-break:break-all; display:grid; gap:4px}
+@media(max-width:560px){ .playres{grid-template-columns:1fr} }
 .item{background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column; box-shadow:var(--glow-card); transition:border-color .15s,box-shadow .15s,transform .15s}
 .item:hover{border-color:var(--border-active); box-shadow:var(--glow-card-hover); transform:translateY(-1px); color:inherit}
 .item .ph{background:var(--stage); aspect-ratio:3/4; display:flex; align-items:center; justify-content:center; position:relative; padding:2%}

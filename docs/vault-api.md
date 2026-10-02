@@ -101,6 +101,23 @@ later. Nothing is ever pre-signed by the server.
 | — | `POST /v1/vaults/create/abandon` `{ creationId, owner }` | before launch: custody returns every item to the creator (signed by the derived key). Expired creations (2 h) are abandoned by a sweep |
 | — | `GET /v1/vaults/create/{creationId}` | where it stands; while open, what custody still lacks and fresh deposit transactions for exactly that |
 
+### The Play door
+
+Pay, draw one item from a band, get it delivered from custody. The draw is commit-reveal (`server/draw.js`,
+ported from Onix.Cards): the hash is published before payment, the player's seed rides in the payment memo,
+the seed is revealed with the result; anyone recomputes `HMAC(seed, playId|clientSeed|nonce)` → index in the
+band's snapshot sorted by mint.
+
+| | |
+|---|---|
+| `GET /v1/vaults/{vault}/play` | the bands (by custodian value): items, odds (1/n), `priceUsdc` = average × 1.15, `priceTokens` = average × 1.10 ÷ (realisable backing ÷ supply) — **share of backing, never the market price**; `kind` = draw (3+ items) / pick / empty |
+| `POST /v1/vaults/{vault}/plays` `{ band, player, currency: usdc|token, clientSeed }` | 201: `playId`, `serverSeedHash`, price, and the **payment transaction** for the player to sign — USDC: transfer to custody + memo `play:<id>`; token: `burnChecked` of the player's own tokens + memo. Single unsigned signer = player; simulated first (402 when the wallet lacks funds). 1 unpaid play per wallet; 6 plays an hour |
+| `POST /v1/vaults/{vault}/plays/{id}/submit` `{ signature }` | 202: recorded (UNIQUE). A sweep (10 s) waits for finality, reads the payment from the transaction itself (payer, amount, memo; for a burn: the instruction, the mint, the authority, the balance delta), draws, holds the item, delivers from custody (build → assert → simulate → sign → persist → broadcast) |
+| `GET /v1/vaults/{vault}/plays/{id}` · `GET …/plays` | the proof: commit, seed (once done), client seed, digest, index, nonce, snapshot, signatures |
+
+A USDC play leaves the money in custody (the treasury buys the next item). A token play burns supply. An item
+drawn by a play is never sold to an integrator underneath it, and vice versa.
+
 ### The Buy door
 
 `POST /v1/vaults/{vault}/trades/quote` and `…/trades/build` — a Meteora DBC quote on the live pool and

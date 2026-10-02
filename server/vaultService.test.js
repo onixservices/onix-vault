@@ -116,6 +116,7 @@ describe('settle', () => {
       { p: parsedPayment({ amount: 19.99, memo: 'ID' }), code: 402 },
       { p: parsedPayment({ amount: 20, memo: 'other' }), code: 402 },
       { p: parsedPayment({ amount: 20, memo: 'ID', to: Keypair.generate().publicKey.toBase58() }), code: 402 },
+      { p: parsedPayment({ amount: 20, memo: 'ID', signer: Keypair.generate().publicKey.toBase58() }), code: 402 },   // paid by someone else
       { p: parsedPayment({ amount: 20, memo: 'ID', err: { InstructionError: [0, 'Custom'] } }), code: 402 },
     ]) {
       const { svc, chain, delivered } = make();

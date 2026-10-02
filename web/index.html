@@ -225,6 +225,7 @@
 
     <div class="tabs" role="tablist">
       <button class="on" data-tab="items">Items</button>
+      <button data-tab="play" id="tab-play-btn">Play</button>
       <button data-tab="activity">Activity</button>
       <button data-tab="proof">Proof</button>
     </div>
@@ -232,6 +233,13 @@
     <div id="tab-items" class="sec">
       <div class="grid" id="grid"></div>
       <p class="faint" style="font-size:12.5px">Each card: the custodian's insured value is the index; the exit price is <span class="mono">max(index, market)</span>; redeem = exit × 1.15, paid by burning $VEONIX. Photos and facts are the token's own metadata.</p>
+    </div>
+
+    <div id="tab-play" class="sec" style="display:none">
+      <p class="muted" style="font-size:14px" id="play-lede">Pick a band. Pay in USDC or burn the vault's token. One item from the band is drawn — provably — and sent to your wallet from custody.</p>
+      <div class="bands" id="bands"></div>
+      <div class="playres" id="play-res" style="display:none"></div>
+      <p class="faint" style="font-size:12.5px">USDC price = the band's average listed value × 1.15 — the item leaves, the money stays in the vault to buy the next one. Token price = average × 1.10 in <b>share of backing</b> (backing ÷ supply), never at the market price: a pump buys nothing cheaper. Draws are commit-reveal: the hash is published before you pay, your seed goes in the memo, and the seed is revealed with the result.</p>
     </div>
 
     <div id="tab-activity" class="sec" style="display:none">

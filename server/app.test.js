@@ -85,6 +85,23 @@ describe('routes — what the page reads', () => {
     const st = await fetch(b3 + '/v1/vaults/create/C1'); assert.equal((await st.json()).status, 'opened');
     s3.close();
   });
+  test('the Play door routes: bands, start (201), submit (202), get, list; activity merges plays', async () => {
+    const got = [];
+    const play = { bands: async () => ({ bands: [{ id: 'b1', items: 2 }], currencies: { usdc: true, token: true } }), start: async (a) => { got.push(a); return { playId: 'PL1', paymentTransaction: 'TX', serverSeedHash: 'H' }; }, submit: (a) => { got.push(a); return { playId: a.playId, status: 'submitted' }; }, get: (id) => ({ playId: id, status: 'delivered' }), list: () => [{ playId: 'PL1', at: 9, band: 'b1', currency: 'usdc', price: 25.3, unit: 'USDC', mint: 'M', player: 'P', status: 'delivered', paymentSignature: 'PS', deliverySignature: 'DS' }], busyMints: () => [] };
+    const app4 = buildApp({ vaults: [{ wallet: 'V4', meta: { id: 'v4', name: 'V4', token: { symbol: 'FOUR' } }, service: { listItems: async () => [], listActivity: () => [], listRedemptions: () => [] }, stats: null, admissions: null, trader: null, play, itemsAge: () => 0, signerConfigured: () => true }], readWallet, webDir: null });
+    const s4 = await new Promise((r) => { const x = app4.listen(0, '127.0.0.1', () => r(x)); });
+    const b4 = 'http://127.0.0.1:' + s4.address().port;
+    const post = async (p, body) => { const r = await fetch(b4 + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
+    const bands = await (await fetch(b4 + '/v1/vaults/V4/play')).json(); assert.equal(bands.tokenSymbol, 'FOUR'); assert.equal(bands.bands.length, 1);
+    const st = await post('/v1/vaults/V4/plays', { band: 'b1', player: 'P', currency: 'usdc', clientSeed: 's' });
+    assert.equal(st.status, 201); assert.deepEqual(got[0], { band: 'b1', player: 'P', currency: 'usdc', clientSeed: 's' });
+    const sub = await post('/v1/vaults/V4/plays/PL1/submit', { signature: 'SIG' });
+    assert.equal(sub.status, 202); assert.deepEqual(got[1], { playId: 'PL1', signature: 'SIG' });
+    assert.equal((await (await fetch(b4 + '/v1/vaults/V4/plays/PL1')).json()).status, 'delivered');
+    const act = await (await fetch(b4 + '/v1/vaults/V4/activity')).json();
+    assert.equal(act.activity[0].type, 'play'); assert.equal(act.activity[0].to, 'P');
+    s4.close();
+  });
   test('zero vaults is a served state: /v1/vaults is empty, health is ok, any vault path is 404', async () => {
     const app0 = buildApp({ vaults: [], readWallet, webDir: null });
     const s0 = await new Promise((r) => { const x = app0.listen(0, '127.0.0.1', () => r(x)); });
