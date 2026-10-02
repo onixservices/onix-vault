@@ -111,6 +111,14 @@
   // ── the trade panel: quote on the API, sign & send in the wallet (never here) ──
   var T = { side: 'buy', wallet: null, timer: null, busy: false };
   function provider() { return window.solana || (window.phantom && window.phantom.solana) || null; }
+  // The wallet signs AND sends (it simulates and applies its own protections that way). web3.js
+  // is vendored at /vendor/solana-web3.min.js so the page can hand it a Transaction object —
+  // the `request({ message })` form was refused by current Phantom builds ("version 24").
+  function signAndSend(w, txB64) {
+    var raw = Uint8Array.from(atob(txB64), function (ch) { return ch.charCodeAt(0); });
+    var tx = window.solanaWeb3.Transaction.from(raw);
+    return w.signAndSendTransaction(tx).then(function (r) { return r && r.signature ? r.signature : String(r); });
+  }
   function tradePanel(st) {
     var p = st && st.pool, el = $('trade');
     el.classList.toggle('off', !p);
@@ -157,11 +165,9 @@
       .then(function (b) {
         if (b.error) throw new Error(b.error);
         $('t-go').textContent = 'Confirm in your wallet…';
-        // Phantom simulates and sends it itself: the shape that never trips its warnings
-        return w.request({ method: 'signAndSendTransaction', params: { message: b.message } });
+        return signAndSend(w, b.transaction);
       })
-      .then(function (r) {
-        var sig = r && r.signature ? r.signature : String(r);
+      .then(function (sig) {
         $('t-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + sig.slice(0, 8) + '…</a>';
         $('t-amount').value = ''; $('t-quote').textContent = 'You receive —';
         setTimeout(function () { loadStats().then(function (st) { tradePanel(st); renderVault(); }); }, 4000);
@@ -344,7 +350,7 @@
       .then(function (b) {
         if (b.error) throw new Error(b.error);
         $('sd-go').textContent = 'Confirm in your wallet…';
-        return w.request({ method: 'signAndSendTransaction', params: { message: b.message } }).then(function (r) { return { sig: r && r.signature ? r.signature : String(r), b: b }; });
+        return signAndSend(w, b.transaction).then(function (sig) { return { sig: sig, b: b }; });
       })
       .then(function (x) {
         return fetch('/v1/vaults/' + VAULT + '/admissions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mint: c.mint, owner: SD.wallet, signature: x.sig, valueUsd: x.b.valueUsd }) })
