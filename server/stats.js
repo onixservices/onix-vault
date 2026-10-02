@@ -16,7 +16,7 @@ const BAND = Object.freeze({ floor: 0.87, ceiling: 1.25, redeemPremium: 1.15, ad
 /**
  * @param {function} [readConfig]  async (configPubkey) => { migrationQuoteThresholdUsd, lockedVestingTokens } — read once (a config is immutable)
  */
-function createStatsReader({ readItems, chain, config = {}, now = Date.now, cacheMs = 30_000, readConfig = null }) {
+function createStatsReader({ readItems, chain, config = {}, now = Date.now, cacheMs = 30_000, readConfig = null, readDamm = null }) {
   let cfgCache = null;
   const haircut = config.haircut ?? 0.89;
   const graduationUsd = config.graduationUsd ?? null;
@@ -30,9 +30,13 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
       const [acct, supply] = await Promise.all([chain.getAccountInfoBase64(config.pool), chain.getTokenSupplyUi(config.baseMint)]);
       if (!acct) return { pool: null, poolStatus: 'unreadable: pool account not found' };
       const p = decodeVirtualPool(Uint8Array.from(Buffer.from(acct.data[0], 'base64')));
-      const priceUsd = priceFromSqrtPrice(p.sqrtPrice, baseDecimals, quoteDecimals);
-      const mcapUsd = priceUsd * supply;
       if (!cfgCache && readConfig) { try { cfgCache = await readConfig(p.config); } catch (e) { cfgCache = null; } }
+      // after migration the curve's price is frozen; the live price is the graduated DAMM v2 pool's
+      let priceUsd = priceFromSqrtPrice(p.sqrtPrice, baseDecimals, quoteDecimals), damm = null;
+      if (p.isMigrated && readDamm && cfgCache && cfgCache.migrationFeeOption != null) {
+        try { damm = await readDamm({ baseMint: config.baseMint, migrationFeeOption: cfgCache.migrationFeeOption }); if (damm && damm.priceUsd > 0) priceUsd = damm.priceUsd; } catch (e) { damm = { error: e.message }; }
+      }
+      const mcapUsd = priceUsd * supply;
       // what the curve graduates on: USDC in its reserve against the threshold in the config
       const raisedUsd = Number(p.quoteReserve) / 10 ** quoteDecimals;
       const thresholdUsd = cfgCache ? cfgCache.migrationQuoteThresholdUsd : null;
@@ -48,7 +52,8 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
           graduationProgress: thresholdUsd ? Math.min(1, raisedUsd / thresholdUsd) : graduationUsd ? Math.min(1, mcapUsd / graduationUsd) : null,
           raisedUsd, graduationUsdc: thresholdUsd,
           openingMcapUsd: config.openingMcapUsd ?? null,
-          locked: lockedTokens != null ? { tokens: lockedTokens, pct: Math.round(lockedTokens / supply * 1000) / 10, creatorPct: config.creatorPct ?? null, releasesAt: 'graduation', vestingMonths: config.vestingMonths ?? null } : null,
+          locked: lockedTokens != null ? { tokens: lockedTokens, pct: Math.round(lockedTokens / supply * 1000) / 10, creatorPct: config.creatorPct ?? null, releasesAt: 'graduation', vestingMonths: config.vestingMonths ?? null, locker: cfgCache && cfgCache.locker ? cfgCache.locker : null } : null,
+          damm: damm && !damm.error ? { address: damm.address, priceUsd: damm.priceUsd } : null,
           partnerFeeClaimableUsd: Number(p.partnerQuoteFee) / 10 ** quoteDecimals,
           feesLifetimeUsd: Number(p.totalTradingQuoteFee) / 10 ** quoteDecimals,
           isMigrated: p.isMigrated,

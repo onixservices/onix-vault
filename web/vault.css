@@ -188,6 +188,7 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .trade{background:var(--wash),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:var(--glow-card); position:sticky; top:72px}
 .trade-top{display:flex; justify-content:space-between; align-items:center}
 .trade-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.tgrad{display:none; flex-direction:column; gap:10px} .trade.graduated .tgrad{display:flex} .trade.graduated .tabs2, .trade.graduated .amt, .trade.graduated .bal, .trade.graduated .q, .trade.graduated #t-go, .trade.graduated #t-msg{display:none}
 .trade-stats div{display:flex; flex-direction:column; gap:4px} .trade-stats .lab{margin:0}
 .trade-stats b{font:600 15px/1 var(--mono); font-variant-numeric:tabular-nums}
 .mature{display:flex; flex-direction:column; gap:7px; padding:10px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border)}

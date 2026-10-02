@@ -79,6 +79,8 @@
         : '<span class="tag">' + st.poolStatus + '</span>';
       var p = st.pool, gq = p && p.graduationUsdc;
       $('m-grad').textContent = gq ? usd2(gq) + ' USDC' : '—';
+      $('m-head').textContent = p && st.poolStatus === 'migrated' ? 'Graduated — trading on the open market' : 'Opens to the whole market when';
+      $('m-grad').style.display = p && st.poolStatus === 'migrated' ? 'none' : ''; $('m-tail').style.display = p && st.poolStatus === 'migrated' ? 'none' : '';
       if (p) {
         var pr = Math.round((p.graduationProgress || 0) * 100);
         $('m-pct').textContent = pr + '%'; $('m-prog').style.width = pr + '%';
@@ -90,7 +92,9 @@
         if (lk) {
           var cre = lk.creatorPct != null ? Math.round(p.supply * lk.creatorPct / 100) : lk.tokens;
           $('m-share-t').textContent = (mine ? 'Your share: ' : 'Creator\'s share: ') + cre.toLocaleString('en-US') + ' ' + SYM() + (lk.creatorPct != null ? ' (' + lk.creatorPct + '%)' : '');
-          $('m-share-s').textContent = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · released when trading opens to the whole market' + (lk.vestingMonths ? ', then over ' + lk.vestingMonths + ' months' : '');
+          var lkr = lk.locker;
+          if (st.poolStatus === 'migrated' && lkr) $('m-share-s').innerHTML = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · vesting over ' + (lk.vestingMonths || 6) + ' months in <a href="' + esc(lkr.url) + '" target="_blank" rel="noopener">' + esc(lkr.program) + '</a>' + (mine ? ' — <a href="' + esc(lkr.url) + '" target="_blank" rel="noopener"><b>claim what has vested</b></a>' : '') + ' · <a href="https://solscan.io/account/' + esc(lkr.escrow) + '" target="_blank" rel="noopener">escrow</a>';
+          else $('m-share-s').textContent = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · released when trading opens to the whole market' + (lk.vestingMonths ? ', then over ' + lk.vestingMonths + ' months' : '');
         }
       } else { $('m-pct').textContent = '—'; $('m-prog').style.width = '0%'; $('m-raised').textContent = '—'; $('m-left').textContent = '—'; $('m-mcap').textContent = '—'; $('m-open').textContent = ''; $('m-fees').textContent = '—'; $('m-share').style.display = 'none'; }
       $('v-idx').textContent = st.backing.indexUsd.toLocaleString('en-US'); $('v-mult').textContent = st.backing.multiplier;
@@ -184,8 +188,16 @@
   function tradePanel(st) {
     var p = st && st.pool, el = $('trade');
     paintBalance();
+    var migrated = p && st.poolStatus === 'migrated';
     el.classList.toggle('off', !p);
+    el.classList.toggle('graduated', !!migrated);
     $('t-state').textContent = p ? (st.poolStatus === 'live' ? 'trading' : st.poolStatus) : 'not launched';
+    if (migrated) {
+      var mint = p.baseMint, damm = p.damm && p.damm.address;
+      $('t-grad').innerHTML = '<p class="muted" style="font-size:13.5px">The curve filled and the token moved to the open market. Trade it there:</p>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (damm ? '<a class="cta sm" href="https://app.meteora.ag/dammv2/' + damm + '" target="_blank" rel="noopener">Trade on Meteora</a>' : '')
+        + '<a class="cta ghost sm" href="https://jup.ag/swap/USDC-' + mint + '" target="_blank" rel="noopener">Swap on Jupiter</a></div>';
+    }
     $('t-state').className = 'tag' + (p ? ' live' : '');
     $('t-price').textContent = p ? price(p.priceUsd) : '—';
     $('t-mcap').textContent = p ? usd(p.mcapUsd) : '—';

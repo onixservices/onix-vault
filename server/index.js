@@ -80,9 +80,24 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     const cfg = await client.state.getPoolConfig(new PublicKey(configPk));
     const lv = cfg.lockedVestingConfig;
     const tokens = (Number(lv.cliffUnlockAmount.toString()) + Number(lv.amountPerPeriod.toString()) * Number(lv.numberOfPeriod.toString())) / 10 ** C.BASE_DECIMALS;
-    return { migrationQuoteThresholdUsd: Number(cfg.migrationQuoteThreshold.toString()) / 10 ** C.QUOTE_DECIMALS, lockedVestingTokens: tokens };
+    // the creator's vesting lives in Jupiter Lock (Meteora's Locker program): the escrow is derivable from the pool
+    const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
+    let locker = null;
+    if (def.pool && tokens > 0) { try { locker = { program: 'Jupiter Lock', escrow: sdk.deriveEscrow(sdk.deriveBaseKeyForLocker(new PublicKey(def.pool))).toBase58(), url: 'https://lock.jup.ag' }; } catch (e) { locker = null; } }
+    return { migrationQuoteThresholdUsd: Number(cfg.migrationQuoteThreshold.toString()) / 10 ** C.QUOTE_DECIMALS, lockedVestingTokens: tokens, migrationFeeOption: Number(cfg.migrationFeeOption), locker };
   };
-  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig });
+  // the graduated pool (DAMM v2): derived from the DBC migration fee option, read with the cp-amm SDK
+  const readDamm = async ({ baseMint, migrationFeeOption }) => {
+    const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
+    const { CpAmm, getPriceFromSqrtPrice } = require('@meteora-ag/cp-amm-sdk');
+    const { Connection, PublicKey } = require('@solana/web3.js');
+    const dammConfig = sdk.DAMM_V2_MIGRATION_FEE_ADDRESS[migrationFeeOption];
+    if (!dammConfig) return null;
+    const address = sdk.deriveDammV2PoolAddress(dammConfig, new PublicKey(baseMint), new PublicKey(C.USDC_MINT));
+    const st = await new CpAmm(new Connection(C.RPC_URL, 'confirmed')).fetchPoolState(address);
+    return { address: address.toBase58(), priceUsd: Number(getPriceFromSqrtPrice(st.sqrtPrice, C.BASE_DECIMALS, C.QUOTE_DECIMALS).toString()) };
+  };
+  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig, readDamm });
   const trader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
   // only the creator adds items (2 Oct 2026); a file-registry vault names its creator, else nobody can
   const admissions = createAdmissions({ db, chain, vaultWallet, creator: def.creator || null, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,

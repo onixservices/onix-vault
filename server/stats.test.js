@@ -70,8 +70,22 @@ describe('stats — with a pool', () => {
     assert.ok(Math.abs(s.pool.raisedUsd - 5.346709) < 1e-9);
     assert.equal(s.pool.graduationUsdc, 16.550833);
     assert.ok(Math.abs(s.pool.graduationProgress - 5.346709 / 16.550833) < 1e-9, 'progress follows the USDC, not the mcap');
-    assert.deepEqual(s.pool.locked, { tokens: 6_000_000, pct: 60, creatorPct: 50, releasesAt: 'graduation', vestingMonths: 6 });
+    assert.deepEqual(s.pool.locked, { tokens: 6_000_000, pct: 60, creatorPct: 50, releasesAt: 'graduation', vestingMonths: 6, locker: null });
+    assert.equal(s.pool.damm, null, 'no DAMM pool while the curve is live');
     assert.equal(s.pool.openingMcapUsd, 42.72);
+  });
+  test('migrated: the price comes from the graduated DAMM v2 pool, the locker is reported, the curve price is ignored', async () => {
+    const sqrt = BigInt(Math.round(Math.sqrt(0.0002) * 2 ** 32)) << 32n;
+    const chain = { getAccountInfoBase64: async () => ({ data: [poolBytes({ sqrtPrice: sqrt, migrated: true })] }), getTokenSupplyUi: async () => 10_000_000 };
+    const stats = createStatsReader({ readItems: async () => items, chain, config: { haircut: 0.89, graduationUsd: 106.8, pool: 'POOL', baseMint: 'MINT', creatorPct: 50 }, now: () => 1,
+      readConfig: async () => ({ migrationQuoteThresholdUsd: 20, lockedVestingTokens: 5_000_000, migrationFeeOption: 6, locker: { program: 'Jupiter Lock', escrow: 'ESC', url: 'https://lock.jup.ag' } }),
+      readDamm: async ({ baseMint, migrationFeeOption }) => { assert.equal(baseMint, 'MINT'); assert.equal(migrationFeeOption, 6); return { address: 'DAMM', priceUsd: 0.0005 }; } });
+    const s = await stats.read();
+    assert.equal(s.poolStatus, 'migrated');
+    assert.ok(Math.abs(s.pool.priceUsd - 0.0005) < 1e-12, 'DAMM price, not the frozen curve price');
+    assert.ok(Math.abs(s.pool.mcapUsd - 5000) < 1e-6);
+    assert.deepEqual(s.pool.damm, { address: 'DAMM', priceUsd: 0.0005 });
+    assert.equal(s.pool.locked.locker.escrow, 'ESC');
   });
   test('pool configured but unreadable → pool null, status says so, backing still served (never a 500 for the page)', async () => {
     const chain = { getAccountInfoBase64: async () => { throw new Error('rpc down'); }, getTokenSupplyUi: async () => 1 };
