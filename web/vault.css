@@ -175,6 +175,8 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .mature.big .mhd{font-size:15px} .mature.big .mhd b{font-size:16px}
 .mature.big .prog{height:10px} .mature.big .prog i{box-shadow:var(--glow-positive)}
 .mrow{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:4px}
+.mrow small{display:block; font-size:11px; margin-top:2px}
+.mshare{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); font-size:13px; color:var(--text-muted)} .mshare b{color:var(--brand); font-family:var(--mono); font-size:14px}
 @media(max-width:560px){ .mrow{grid-template-columns:1fr 1fr} }
 .mrow div{display:flex; flex-direction:column; gap:4px} .mrow .lab{margin:0}
 .mrow b{font:600 17px/1 var(--mono); font-variant-numeric:tabular-nums}

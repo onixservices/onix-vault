@@ -76,14 +76,22 @@
       $('tk-tags').innerHTML = st.pool
         ? '<span class="tag live">trading</span><a class="tag" href="https://solscan.io/token/' + st.pool.baseMint + '" target="_blank" rel="noopener">mint ' + short(st.pool.baseMint) + '</a><a class="tag" href="https://solscan.io/account/' + st.pool.address + '" target="_blank" rel="noopener">pool ' + short(st.pool.address) + '</a><span class="tag">10% of every trade feeds the vault</span>'
         : '<span class="tag">' + st.poolStatus + '</span>';
-      var g = st.pool && st.pool.graduationUsd ? st.pool.graduationUsd : (META.graduationUsd || 3500);
-      $('m-grad').textContent = usd(g);
-      if (st.pool) {
-        var pr = Math.round((st.pool.graduationProgress || 0) * 100);
+      var p = st.pool, gq = p && p.graduationUsdc;
+      $('m-grad').textContent = gq ? usd2(gq) + ' USDC' : '—';
+      if (p) {
+        var pr = Math.round((p.graduationProgress || 0) * 100);
         $('m-pct').textContent = pr + '%'; $('m-prog').style.width = pr + '%';
-        $('m-raised').textContent = usd(st.pool.mcapUsd); $('m-left').textContent = usd(Math.max(0, g - st.pool.mcapUsd));
-        $('m-price').textContent = price(st.pool.priceUsd); $('m-fees').textContent = usd2(st.pool.feesLifetimeUsd);
-      } else { $('m-pct').textContent = '—'; $('m-prog').style.width = '0%'; $('m-raised').textContent = '—'; $('m-left').textContent = '—'; $('m-price').textContent = '—'; $('m-fees').textContent = '—'; }
+        $('m-raised').textContent = usd2(p.raisedUsd || 0); $('m-left').textContent = gq ? usd2(Math.max(0, gq - (p.raisedUsd || 0))) : '—';
+        $('m-mcap').textContent = usd(p.mcapUsd); $('m-open').textContent = p.openingMcapUsd ? 'opened at ' + usd(p.openingMcapUsd) : '';
+        $('m-fees').textContent = usd2(p.feesLifetimeUsd);
+        var mine = W.addr && W.addr === VAULT, lk = p.locked;
+        $('m-share').style.display = lk ? '' : 'none';
+        if (lk) {
+          var cre = lk.creatorPct != null ? Math.round(p.supply * lk.creatorPct / 100) : lk.tokens;
+          $('m-share-t').textContent = (mine ? 'Your share: ' : 'Creator\'s share: ') + cre.toLocaleString('en-US') + ' ' + SYM() + (lk.creatorPct != null ? ' (' + lk.creatorPct + '%)' : '');
+          $('m-share-s').textContent = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · released when trading opens to the whole market' + (lk.reservePct ? ' · plus ' + lk.reservePct + '% reserved to pay items that come in' : '');
+        }
+      } else { $('m-pct').textContent = '—'; $('m-prog').style.width = '0%'; $('m-raised').textContent = '—'; $('m-left').textContent = '—'; $('m-mcap').textContent = '—'; $('m-open').textContent = ''; $('m-fees').textContent = '—'; $('m-share').style.display = 'none'; }
       $('v-idx').textContent = st.backing.indexUsd.toLocaleString('en-US'); $('v-mult').textContent = st.backing.multiplier;
       $('v-back').textContent = usd(st.backing.realisableUsd);
       $('v-age').textContent = ago(st.ageMs);

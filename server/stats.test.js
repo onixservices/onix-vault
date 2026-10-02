@@ -51,13 +51,28 @@ describe('stats — with a pool', () => {
     assert.ok(Math.abs(s.pool.mcapUsd - 2000) < 1e-6);
     assert.ok(Math.abs(s.pool.ratio - 2000 / 133.5) < 1e-9);
     assert.equal(s.pool.graduationUsd, 3500);
-    assert.ok(Math.abs(s.pool.graduationProgress - 2000 / 3500) < 1e-9);
+    assert.ok(Math.abs(s.pool.graduationProgress - 2000 / 3500) < 1e-9, 'no config reader → mcap-based fallback');
+    assert.equal(s.pool.raisedUsd, 0); assert.equal(s.pool.graduationUsdc, null); assert.equal(s.pool.locked, null);
     assert.equal(s.pool.partnerFeeClaimableUsd, 2.5);
     assert.equal(s.pool.feesLifetimeUsd, 12);
     assert.equal(s.pool.isMigrated, false);
     assert.equal(s.poolStatus, 'live');
   });
 
+  test('with the config: progress = USDC in the curve ÷ threshold (not market cap); the locked allocation is reported', async () => {
+    const sqrt = BigInt(Math.round(Math.sqrt(0.0002) * 2 ** 32)) << 32n;
+    const bytes = poolBytes({ sqrtPrice: sqrt });
+    const b = Buffer.from(bytes, 'base64'); b.writeBigUInt64LE(5_346_709n, POOL_LAYOUT.quoteReserve);
+    const chain = { getAccountInfoBase64: async () => ({ data: [b.toString('base64')] }), getTokenSupplyUi: async () => 10_000_000 };
+    const stats = createStatsReader({ readItems: async () => items, chain, config: { haircut: 0.89, graduationUsd: 106.8, pool: 'POOL', baseMint: 'MINT', creatorPct: 50, reservePct: 10, openingMcapUsd: 42.72 }, now: () => 1,
+      readConfig: async () => ({ migrationQuoteThresholdUsd: 16.550833, lockedVestingTokens: 6_000_000 }) });
+    const s = await stats.read();
+    assert.ok(Math.abs(s.pool.raisedUsd - 5.346709) < 1e-9);
+    assert.equal(s.pool.graduationUsdc, 16.550833);
+    assert.ok(Math.abs(s.pool.graduationProgress - 5.346709 / 16.550833) < 1e-9, 'progress follows the USDC, not the mcap');
+    assert.deepEqual(s.pool.locked, { tokens: 6_000_000, pct: 60, creatorPct: 50, reservePct: 10, releasesAt: 'graduation' });
+    assert.equal(s.pool.openingMcapUsd, 42.72);
+  });
   test('pool configured but unreadable → pool null, status says so, backing still served (never a 500 for the page)', async () => {
     const chain = { getAccountInfoBase64: async () => { throw new Error('rpc down'); }, getTokenSupplyUi: async () => 1 };
     const stats = createStatsReader({ readItems: async () => items, chain, config: { haircut: 0.89, graduationUsd: 3500, pool: 'POOL', baseMint: 'MINT' }, now: () => 1 });

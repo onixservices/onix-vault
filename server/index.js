@@ -70,8 +70,16 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     db, readItems, chain, deliver,
     config: { vaultWallet, usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID, reservationTtlMs: C.RESERVATION_TTL_MS, strikesToBlock: C.STRIKES_TO_BLOCK, redeemPremium: C.REDEEM_PREMIUM },
   });
-  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS }, cacheMs: C.ITEMS_CACHE_MS });
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
+  const readConfig = async (configPk) => {
+    const client = await curveDeps.getClient();
+    const { PublicKey } = require('@solana/web3.js');
+    const cfg = await client.state.getPoolConfig(new PublicKey(configPk));
+    const lv = cfg.lockedVestingConfig;
+    const tokens = (Number(lv.cliffUnlockAmount.toString()) + Number(lv.amountPerPeriod.toString()) * Number(lv.numberOfPeriod.toString())) / 10 ** C.BASE_DECIMALS;
+    return { migrationQuoteThresholdUsd: Number(cfg.migrationQuoteThreshold.toString()) / 10 ** C.QUOTE_DECIMALS, lockedVestingTokens: tokens };
+  };
+  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, reservePct: def.reservePct ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig });
   const trader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
   const admissions = createAdmissions({ db, chain, vaultWallet, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
     trader, signer, getUsdcBalance: () => curveDeps.getBalanceUi(vaultWallet, C.USDC_MINT),

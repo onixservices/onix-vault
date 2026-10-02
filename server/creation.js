@@ -181,7 +181,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
 function rowToDef(r, db = null) {
   const manifest = db ? () => db.prepare('SELECT mint FROM vault_items WHERE vault = ?').all(r.wallet).map((x) => x.mint) : null;
   return { id: r.id, manifest, name: r.name, operator: r.operator, description: `${r.token_name} · created by ${r.operator}`, wallet: r.wallet, secretEnv: null,
-    pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
+    pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, creatorPct: SPLIT.creatorPct, reservePct: SPLIT.reservePct, openingMcapUsd: r.graduation_usd / SPLIT.gradMult, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
 }
 
 module.exports = { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, SPLIT, LIMITS, WALLET_WRAPPER_PROGRAMS };
