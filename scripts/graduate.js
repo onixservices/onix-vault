@@ -53,22 +53,22 @@ async function main() {
   console.log(`payer ${payer.toBase58()} ${(await chain.getBalanceLamports(payer.toBase58())) / LAMPORTS_PER_SOL} SOL\n`);
   if (raised + 1e-6 < threshold) throw new Error('the curve is not full yet');
 
-  // 1. migrate to DAMM v2 (permissionless; the payer creates the pool and the two locked positions)
+  // 1. the creator's vesting locker (Meteora's Locker program) — the program requires it BEFORE the migration when lockedVesting is set (measured 2 Oct 2026: NotPermitToDoThisAction otherwise)
+  console.log('1. createLocker');
+  try { const tx = await client.migration.createLocker({ payer, pool: poolPk }); tx.feePayer = payer; await send('locker', tx, [defaultSigner]); }
+  catch (e) { console.log(`   locker: ${e.message.slice(0, 160)}`); }
+
+  // 2. migrate to DAMM v2 (permissionless; the payer creates the pool and the two locked positions) — only after the locker
   if (!s.isMigrated) {
     const dammConfig = sdk.DAMM_V2_MIGRATION_FEE_ADDRESS[cfg.migrationFeeOption];
     if (!dammConfig) throw new Error(`no DAMM v2 config for migrationFeeOption ${cfg.migrationFeeOption}`);
-    console.log(`1. migrateToDammV2 (fee option ${cfg.migrationFeeOption} → damm config ${dammConfig.toBase58()})`);
+    console.log(`2. migrateToDammV2 (fee option ${cfg.migrationFeeOption} → damm config ${dammConfig.toBase58()})`);
     const res = await client.migration.migrateToDammV2({ payer, pool: poolPk, dammConfig });
     const tx = res.transaction; tx.feePayer = payer;
     const extra = [res.firstPositionNftKeypair, res.secondPositionNftKeypair].filter(Boolean);
     const sig = await send('migrate', tx, [{ signTransaction: (t) => { if (extra.length) t.partialSign(...extra); return t; } }, defaultSigner]);
     if (!sig && GO) throw new Error('migration failed');
-  } else console.log('1. already migrated');
-
-  // 2. the creator's vesting locker (Meteora's Locker program): permissionless to open; the creator claims from it
-  console.log('2. createLocker');
-  try { const tx = await client.migration.createLocker({ payer, pool: poolPk }); tx.feePayer = payer; await send('locker', tx, [defaultSigner]); }
-  catch (e) { console.log(`   locker: ${e.message.slice(0, 160)}`); }
+  } else console.log('2. already migrated');
 
   // 3. the migration fee (30% of the raise) → the fee claimer = custody
   console.log('3. partnerWithdrawMigrationFee → custody');
