@@ -40,15 +40,19 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
     const cfg = await client.state.getPoolConfig(vp.poolState ? vp.poolState.config : vp.config);
     const sell = side === 'sell';
     const amountIn = toUnits(amount, sell ? baseDecimals : quoteDecimals);
-    const q = client.pool.swapQuote({
-      virtualPool: vp, config: cfg, swapBaseForQuote: sell, amountIn, slippageBps,
-      hasReferral: false, eligibleForFirstSwapWithMinFee: false, currentPoint: await getCurrentPoint(cfg),
-    });
+    const common = { virtualPool: vp, config: cfg, swapBaseForQuote: sell, slippageBps, hasReferral: false, eligibleForFirstSwapWithMinFee: false, currentPoint: await getCurrentPoint(cfg) };
+    // a BUY fills partially: whatever the curve still takes before graduation is taken, the rest stays with the
+    // buyer (nobody has to guess the room left — measured 2 Oct 2026: $0.23 refused with $0.20 to go)
+    const partial = !sell && typeof client.pool.swapQuote2 === 'function';
+    const q = partial ? client.pool.swapQuote2({ ...common, swapMode: 1 /* PartialFill */, amountIn }) : client.pool.swapQuote({ ...common, amountIn });
     const outDec = sell ? quoteDecimals : baseDecimals;
+    const used = partial && q.includedFeeInputAmount ? q.includedFeeInputAmount : amountIn;
+    const left = partial && q.amountLeft ? q.amountLeft : new BN(0);
     return {
-      raw: { amountIn, minimumAmountOut: q.minimumAmountOut, poolPk },
+      raw: { amountIn, minimumAmountOut: q.minimumAmountOut, poolPk, partial },
       view: {
-        side, amountIn: amount, amountOut: fromUnits(q.outputAmount, outDec), minimumAmountOut: fromUnits(q.minimumAmountOut, outDec),
+        side, amountIn: amount, amountInUsed: fromUnits(used, sell ? baseDecimals : quoteDecimals), amountInLeft: fromUnits(left, sell ? baseDecimals : quoteDecimals), partial: !left.isZero(),
+        amountOut: fromUnits(q.outputAmount, outDec), minimumAmountOut: fromUnits(q.minimumAmountOut, outDec),
         tradingFeeUsd: fromUnits(q.tradingFee, quoteDecimals), protocolFeeUsd: fromUnits(q.protocolFee, quoteDecimals),
         slippageBps, unitIn: sell ? 'token' : 'USDC', unitOut: sell ? 'USDC' : 'token',
       },
@@ -62,7 +66,9 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
     let ownerPk; try { ownerPk = new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
     const { raw, view } = await _quote({ side, amount, slippageBps });
     const client = await getClient();
-    const tx = await client.pool.swap({ owner: ownerPk, pool: raw.poolPk, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: side === 'sell', referralTokenAccount: null });
+    const tx = raw.partial
+      ? await client.pool.swap2({ owner: ownerPk, pool: raw.poolPk, swapMode: 1 /* PartialFill */, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: false, referralTokenAccount: null })
+      : await client.pool.swap({ owner: ownerPk, pool: raw.poolPk, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: side === 'sell', referralTokenAccount: null });
     tx.feePayer = ownerPk;
     tx.recentBlockhash = await getLatestBlockhash();
     // compile first (signatures are derived at compile time), then assert on what we send

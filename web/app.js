@@ -210,7 +210,7 @@
           else $('t-quote').textContent = q.error;
           return;
         }
-        $('t-quote').textContent = 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
+        $('t-quote').textContent = (q.partial ? 'The curve takes ' + usd2(q.amountInUsed) + ' of this and graduates; ' + usd2(q.amountInLeft) + ' stays with you. ' : '') + 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
       }).catch(function (e) { $('t-quote').textContent = 'Could not quote: ' + e.message; });
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (b) {

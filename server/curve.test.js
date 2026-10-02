@@ -14,6 +14,9 @@ function fakeClient({ outBase = 1_000_000n, outQuote = 4_000_000n } = {}) {
   const client = {
     state: { getPool: async () => ({ poolState: { tag: 'pool' } }), getPoolConfig: async () => ({ activationType: 0 }) },
     pool: {
+      // the fake curve takes $20 more before graduation; output mirrors swapQuote's shape (outBase for a full fill)
+      swapQuote2: (args) => { calls.push(['quote2', args]); const room = 20_000_000n; const inAmt = BigInt(args.amountIn.toString()); const used = inAmt > room ? room : inAmt; const left = inAmt - used; const out = outBase * used / inAmt; return { includedFeeInputAmount: new BN(used.toString()), amountLeft: new BN(left.toString()), outputAmount: new BN(out.toString()), minimumAmountOut: new BN((out * 99n / 100n).toString()), tradingFee: new BN(400_000), protocolFee: new BN(100_000) }; },
+      swap2: async (args) => { calls.push(['swap2', args]); const tx = new Transaction(); tx.add(SystemProgram.transfer({ fromPubkey: args.owner, toPubkey: new PublicKey(POOL), lamports: 1 })); return tx; },
       swapQuote: (args) => { calls.push(['quote', args]); const out = args.swapBaseForQuote ? outQuote : outBase; return { outputAmount: new BN(out.toString()), minimumAmountOut: new BN((out * 99n / 100n).toString()), tradingFee: new BN(400_000), protocolFee: new BN(100_000) }; },
       swap: async (args) => {
         calls.push(['swap', args]);
@@ -62,6 +65,22 @@ describe('curve — quote', () => {
   });
 });
 
+describe('curve — buys fill partially up to graduation', () => {
+  test('a buy larger than the room left is quoted and built as PartialFill: the rest stays with the buyer', async () => {
+    const fc = fakeClient();
+    const t = createCurveTrader(deps(fc));
+    const q = await t.quote({ side: 'buy', amount: 25 });           // the fake curve takes $20 more
+    assert.equal(q.partial, true); assert.equal(q.amountInUsed, 20); assert.equal(q.amountInLeft, 5);
+    const small = await t.quote({ side: 'buy', amount: 1 });
+    assert.equal(small.partial, false); assert.equal(small.amountInUsed, 1);
+    const out = await t.build({ owner: OWNER, side: 'buy', amount: 25 });
+    assert.ok(fc.calls.some((c) => c[0] === 'swap2' && c[1].swapMode === 1), 'built with swapMode PartialFill');
+    assert.ok(out.transaction);
+    const s = await t.quote({ side: 'sell', amount: 1000 });
+    assert.equal(s.partial, false, 'sells stay exact-in');
+  });
+});
+
 describe('curve — build', () => {
   test('returns the unsigned swap for the owner: fee payer = owner, single signer, nothing pre-signed, blockhash set; plus the message for Phantom', async () => {
     const fc = fakeClient();
@@ -73,7 +92,7 @@ describe('curve — build', () => {
     assert.ok(tx.recentBlockhash);
     assert.equal(typeof out.message, 'string'); assert.ok(out.message.length > 40);
     assert.equal(out.quote.amountOut, 1);
-    assert.equal(fc.calls.find((c) => c[0] === 'swap')[1].minimumAmountOut.toString(), '990000');
+    assert.equal(fc.calls.find((c) => c[0] === 'swap2' || c[0] === 'swap')[1].minimumAmountOut.toString(), '990000');
   });
   test('pre-flight: a swap that would fail (no USDC) is refused with 402 and BOTH numbers — the wallet never sees it', async () => {
     const t = createCurveTrader(deps(fakeClient(), { simulate: async () => ({ err: { InstructionError: [1, { Custom: 1 }] }, logs: ['Program log: Error: insufficient funds'] }), getBalanceUi: async () => 0 }));
