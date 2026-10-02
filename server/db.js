@@ -82,6 +82,14 @@ const SCHEMA = `
     launch_sig TEXT,
     closed_at INTEGER
   );
+  -- what a created vault declares as backing (at creation, then each verified admission)
+  CREATE TABLE IF NOT EXISTS vault_items (
+    vault TEXT NOT NULL,
+    mint TEXT NOT NULL,
+    source TEXT NOT NULL,              -- creation | admission
+    added_at INTEGER NOT NULL,
+    PRIMARY KEY (vault, mint)
+  );
 `;
 
 /** Columns added after the first deploy: add them if an older file lacks them. */

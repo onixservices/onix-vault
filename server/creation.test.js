@@ -79,7 +79,7 @@ describe('Create door — quote', () => {
 describe('Create door — build', () => {
   test('config: Onix pays and signs, is the fee claimer; pool tx: creator pays, mint pre-signed, simulated; symbol/name validated', async () => {
     const { creator, sent, calls } = make();
-    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC' });
+    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a', 'b'] });
     assert.equal(calls[0][0], 'config'); assert.equal(calls[0][1].feeClaimer.toBase58(), partnerKp.publicKey.toBase58()); assert.equal(calls[0][1].payer.toBase58(), partnerKp.publicKey.toBase58());
     assert.equal(sent.length, 1, 'the config was broadcast by the server');
     assert.ok(Transaction.from(Buffer.from(sent[0], 'base64')).verifySignatures(), 'config tx fully signed (partner + config key)');
@@ -88,36 +88,41 @@ describe('Create door — build', () => {
     assert.equal(checkCreatorPlusMint(tx, OWNER, out.baseMint), null);
     assert.ok(out.creationId && out.pool && out.config && out.message);
     assert.equal(out.curve.graduationUsd, 445); assert.equal(out.backing.realisableUsd, 89);
-    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'veonix' }), 400);   // lower-case
-    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'VEONIX' }), 409);   // taken
-    await rejects(creator.build({ owner: 'nope', name: 'x', symbol: 'ABC' }), 400);
+    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'veonix', mints: ['a'] }), 400);   // lower-case
+    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'VEONIX', mints: ['a'] }), 409);   // taken
+    await rejects(creator.build({ owner: 'nope', name: 'x', symbol: 'ABC', mints: ['a'] }), 400);
+    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC', mints: [] }), 400);
+    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC', mints: ['zzz'] }), 422);  // not in the wallet
   });
   test('a wallet with nothing eligible is refused before anything is created on chain', async () => {
     const { creator, sent } = make({ assets: [asset('p', '40', KNOWN_CUSTODIANS['Phygitals'][0])] });
-    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC' }), 422);
+    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC', mints: ['p'] }), 422);
     assert.equal(sent.length, 0);
   });
   test('a pool tx that fails simulation is refused (409) — the wallet never sees it', async () => {
     const { creator, chain } = make();
     chain.sim = { err: { InstructionError: [0, 'Custom'] }, logs: ['Program log: nope'] };
-    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC' }), 409);
+    await rejects(creator.build({ owner: OWNER, name: 'x', symbol: 'ABC', mints: ['a'] }), 409);
   });
 });
 
 describe('Create door — confirm', () => {
   test('the pool on chain → the vault is registered in the DB with the creator\'s wallet as the vault, no key', async () => {
     const { creator, db } = make();
-    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC' });
+    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['b'] });   // one of the two: only it backs the vault
+    assert.equal(out.backing.items, 1); assert.equal(out.backing.realisableUsd, 53.4);
     const def = await creator.confirm({ creationId: out.creationId, signature: 'LAUNCH' });
+    assert.deepEqual(def.manifest(), ['b']);
     assert.equal(def.id, 'myc'); assert.equal(def.wallet, OWNER); assert.equal(def.secretEnv, null); assert.equal(def.pool, out.pool); assert.equal(def.baseMint, out.baseMint);
-    assert.equal(def.token.symbol, 'MYC'); assert.equal(def.graduationUsd, 445); assert.equal(def.rules, 'vault1');
+    assert.equal(def.token.symbol, 'MYC'); assert.equal(def.graduationUsd, 267); assert.equal(def.rules, 'vault1');
     assert.equal(db.prepare('SELECT launch_sig FROM vaults WHERE id = ?').get('myc').launch_sig, 'LAUNCH');
     await rejects(creator.confirm({ creationId: out.creationId }), 404);  // consumed
     assert.deepEqual(rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get('myc')).token, { name: 'My Cards', symbol: 'MYC', image: '/token/default.png' });
+    assert.equal(db.prepare('SELECT count(*) n FROM vault_items WHERE vault = ?').get(OWNER).n, 1);
   });
   test('not on chain yet → 409, nothing registered', async () => {
     const { creator, db } = make({ poolOnChain: false });
-    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC' });
+    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
     await rejects(creator.confirm({ creationId: out.creationId }), 409);
     assert.equal(db.prepare('SELECT count(*) n FROM vaults').get().n, 0);
   });

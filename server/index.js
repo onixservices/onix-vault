@@ -41,7 +41,7 @@ const noSigner = { configured: () => false, publicKey: () => { throw new VaultEr
 function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null, signer: signerOverride = null }) {
   const vaultWallet = def.wallet;
   const signer = signerOverride || (!def.secretEnv ? noSigner : def.secretEnv === 'VAULT_SECRET_KEY' ? defaultSigner : defaultSigner.fromEnv(def.secretEnv));
-  const readItems = readItemsOverride || createItemsReader({ rpcUrl: C.RPC_URL, vaultWallet, marketRefUrl: C.MARKET_REF_URL, cacheMs: C.ITEMS_CACHE_MS });
+  const readItems = readItemsOverride || createItemsReader({ rpcUrl: C.RPC_URL, vaultWallet, marketRefUrl: C.MARKET_REF_URL, cacheMs: C.ITEMS_CACHE_MS, manifest: def.manifest || null });
   const transfer = createTransferBuilder(productionDeps(chain));
   const bs58 = require('bs58');
   const encode = bs58.encode || bs58.default?.encode;
@@ -74,7 +74,8 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
   const trader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
   const admissions = createAdmissions({ db, chain, vaultWallet, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
-    trader, signer, getUsdcBalance: () => curveDeps.getBalanceUi(vaultWallet, C.USDC_MINT) });
+    trader, signer, getUsdcBalance: () => curveDeps.getBalanceUi(vaultWallet, C.USDC_MINT),
+    onAdmitted: def.manifest ? (mint) => db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)').run(vaultWallet, mint, 'admission', Date.now()) : null });
   const meta = { id: def.id, name: def.name, operator: def.operator, custodians: def.custodians, description: def.description, token: def.token, graduationUsd: def.graduationUsd };
   return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
 }

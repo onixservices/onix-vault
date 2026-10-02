@@ -53,7 +53,7 @@ function loadFileVaults() {
 /** Vaults opened through the Create door live in the DB; the creator's wallet is the vault, no key here. */
 function loadDbVaults(db) {
   const { rowToDef } = require('./creation');
-  return db.prepare('SELECT * FROM vaults WHERE closed_at IS NULL ORDER BY created_at').all().map((r) => normalize(rowToDef(r)));
+  return db.prepare('SELECT * FROM vaults WHERE closed_at IS NULL ORDER BY created_at').all().map((r) => normalize(rowToDef(r, db)));
 }
 
 /** @returns {Array<object>} the vaults, operator's first */

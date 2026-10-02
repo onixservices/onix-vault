@@ -39,7 +39,7 @@ const r2 = (n) => Math.round(n * 100) / 100;
 const MONTH_MS = 30.4375 * 86_400_000;
 const bs58enc = (bytes) => bs58.encode(bytes);
 
-function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTransfer, now = Date.now, haircut = REALISABLE_MULTIPLIER, admission = rules.admission ?? 0.8, rpcUrl = null, trader = null, signer = null, getUsdcBalance = null }) {
+function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTransfer, now = Date.now, haircut = REALISABLE_MULTIPLIER, admission = rules.admission ?? 0.8, rpcUrl = null, trader = null, signer = null, getUsdcBalance = null, onAdmitted = null }) {
   const owed = (valueUsd) => r2(valueUsd * haircut * admission);
   const self = { _trader: trader };
 
@@ -94,6 +94,7 @@ function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTra
       let a; try { a = await chain.getAsset(r.mint); } catch { continue; }
       if (a && a.ownership && a.ownership.owner === vaultWallet && !a.burnt) {
         db.prepare("UPDATE vault_admissions SET status = 'admitted', updated_at = ? WHERE id = ? AND status = 'pending'").run(now(), r.id);
+        if (onAdmitted) onAdmitted(r.mint);
         verified += 1;
       }
     }

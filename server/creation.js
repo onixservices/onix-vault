@@ -3,7 +3,7 @@
  * a vault on them. The items never move: the creator's wallet IS the vault.
  *
  *   quote({ owner })                 what the wallet holds that counts, and the curve it implies
- *   build({ owner, name, symbol })   create the curve config (Onix is the partner: it pays for
+ *   build({ owner, name, symbol, mints })  create the curve config (Onix is the partner: it pays for
  *                                    and signs the config, and claims the trading fee), then the
  *                                    ONE transaction the creator signs: createPool, pre-signed by
  *                                    the throwaway mint key, simulated before it leaves
@@ -66,12 +66,13 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     return { items, indexUsd, realisableUsd: r2(indexUsd * haircut) };
   }
 
-  function checkInputs({ owner, name, symbol }) {
+  function checkInputs({ owner, name, symbol, mints }) {
+    if (!Array.isArray(mints) || !mints.length || !mints.every((m) => typeof m === 'string')) throw err(400, 'mints: pick at least one item');
     try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
     if (typeof name !== 'string' || !name.trim() || name.trim().length > LIMITS.nameMax) throw err(400, `name: 1–${LIMITS.nameMax} characters`);
     if (typeof symbol !== 'string' || !/^[A-Z0-9]{2,10}$/.test(symbol)) throw err(400, `symbol: 2–${LIMITS.symbolMax} characters, A–Z and digits`);
     if (existingSymbols().map((s) => s.toUpperCase()).includes(symbol)) throw err(409, `the symbol ${symbol} is taken`);
-    return { owner, name: name.trim(), symbol };
+    return { owner, name: name.trim(), symbol, mints: [...new Set(mints)] };
   }
 
   async function quote({ owner }) {
@@ -83,8 +84,13 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
   }
 
   async function build(input) {
-    const { owner, name, symbol } = checkInputs(input);
-    const b = await backingOf(owner);
+    const { owner, name, symbol, mints } = checkInputs(input);
+    const all = await backingOf(owner);
+    const missing = mints.filter((m) => !all.items.some((it) => it.mint === m));
+    if (missing.length) throw err(422, `not eligible or not in this wallet: ${missing.map((m) => m.slice(0, 6) + '…').join(', ')}`);
+    const picked = all.items.filter((it) => mints.includes(it.mint));
+    const b = { items: picked, indexUsd: picked.reduce((s, it) => s + it.custodianValueUsd, 0) };
+    b.realisableUsd = r2(b.indexUsd * haircut);
     if (b.items.length < LIMITS.minItems || b.realisableUsd < LIMITS.minBackingUsd) throw err(422, `nothing to open a vault on: needs at least ${LIMITS.minItems} eligible item worth $${LIMITS.minBackingUsd}+`);
     const { params, view } = curveParamsFor(b.realisableUsd);
     const curve = sdk.buildCurveWithMarketCap(params);
@@ -113,7 +119,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     const sim = await chain.simulateTransaction(bytes.toString('base64'));
     if (sim && sim.err) throw err(409, `the launch would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
     const pool = sdk.deriveDbcPoolAddress(quotePk, baseMintKp.publicKey, configKp.publicKey).toBase58();
-    pending.set(id, { owner, name, symbol, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
+    pending.set(id, { owner, name, symbol, mints, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
     return { creationId: id, pool, baseMint: baseMintKp.publicKey.toBase58(), config: configKp.publicKey.toBase58(), configSignature: configSig, curve: view, backing: { items: b.items.length, indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
   }
 
@@ -128,16 +134,19 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     db.prepare(`INSERT INTO vaults (id, name, operator, wallet, pool, base_mint, config, graduation_usd, token_name, token_symbol, rules, created_by, created_at, launch_sig)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'vault1', ?, ?, ?)`)
       .run(vaultId, p.name, p.owner.slice(0, 4) + '…' + p.owner.slice(-4), p.owner, p.pool, p.baseMint, p.config, p.graduationUsd, p.name, p.symbol, p.owner, t, signature);
+    const ins = db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)');
+    for (const m of p.mints) ins.run(p.owner, m, 'creation', t);
     pending.delete(creationId);
-    return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(vaultId));
+    return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(vaultId), db);
   }
 
   return { quote, build, confirm, SPLIT, LIMITS, _pending: pending };
 }
 
-/** A DB row → a registry entry (the same shape vaults.json uses). */
-function rowToDef(r) {
-  return { id: r.id, name: r.name, operator: r.operator, description: `${r.token_name} · created by ${r.operator}`, wallet: r.wallet, secretEnv: null,
+/** A DB row → a registry entry (the same shape vaults.json uses). `manifest` reads the declared items live. */
+function rowToDef(r, db = null) {
+  const manifest = db ? () => db.prepare('SELECT mint FROM vault_items WHERE vault = ?').all(r.wallet).map((x) => x.mint) : null;
+  return { id: r.id, manifest, name: r.name, operator: r.operator, description: `${r.token_name} · created by ${r.operator}`, wallet: r.wallet, secretEnv: null,
     pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
 }
 

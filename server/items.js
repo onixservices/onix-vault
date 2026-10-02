@@ -8,7 +8,7 @@
 const das = require('../src/reader/das');
 const { parseCard } = require('../src/reader/backing');
 
-function createItemsReader({ rpcUrl, vaultWallet, marketRefUrl = null, cacheMs = 30_000, now = Date.now, fetchImpl = fetch, fetchAssets = das.fetchAssetsByOwner } = {}) {
+function createItemsReader({ rpcUrl, vaultWallet, marketRefUrl = null, cacheMs = 30_000, now = Date.now, fetchImpl = fetch, fetchAssets = das.fetchAssetsByOwner, manifest = null } = {}) {
   let cache = { at: 0, items: null };
 
   async function marketRefs() {
@@ -19,7 +19,10 @@ function createItemsReader({ rpcUrl, vaultWallet, marketRefUrl = null, cacheMs =
   async function readItems() {
     if (cache.items && now() - cache.at < cacheMs) return cache.items;
     if (!rpcUrl || !vaultWallet) throw new Error('items: RPC_URL / VAULT_WALLET not configured');
-    const [assets, refs] = await Promise.all([fetchAssets(rpcUrl, vaultWallet), marketRefs()]);
+    const [all, refs] = await Promise.all([fetchAssets(rpcUrl, vaultWallet), marketRefs()]);
+    // a declared vault (its creator's wallet) counts only what was declared; the operator's vaults count the wallet
+    const declared = manifest ? new Set(manifest()) : null;
+    const assets = declared ? all.filter((a) => declared.has(a.id)) : all;
     const items = assets.map((a) => ({ c: parseCard(a), img: a.content?.links?.image || a.content?.files?.[0]?.uri || null }))
       .filter(({ c }) => c.counts).map(({ c, img }) => ({
       mint: c.mint, custodian: c.custodian, name: c.name, category: c.category,
