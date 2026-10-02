@@ -85,16 +85,21 @@ is the roadmap; until then the UI cannot build what the rule refuses, and the co
 
 ### The Create door
 
-Anyone with eligible items in a wallet opens a vault **on that wallet**: the items never move, the
-creator's wallet is the vault, and the server holds no key for it (deliveries are therefore not
-automatic for such a vault — it lists, trades and admits; the operator's vaults deliver).
+Anyone with eligible items opens a vault on them. The items go into a **custody wallet derived for
+the vault** (`server/keyring.js`: SLIP-0010 from one master seed, `m/44'/501'/<index>'/0'`, no key on
+disk), so every door works for every vault. The creator's own wallet is the pool's creator: it receives
+the 50% allocation (vesting from graduation) and the on-chain creator fee. Only the creator adds items
+later. Nothing is ever pre-signed by the server.
 
-| | |
-|---|---|
-| `GET /v1/vaults/create/quote?wallet=` | what the wallet holds that counts (registered custodian + value), backing, and the curve it implies: opens at **2× realisable**, graduates at **2.5× the opening cap**; supply **50% creator · 10% admission reserve · 40% curve** (the 60% sits in the DBC's `lockedVesting`, released to the creator at graduation) |
-| `POST /v1/vaults/create/build` `{ owner, name, symbol }` | Onix (the partner) creates and pays for the curve **config** and is its fee claimer; then returns the **one** transaction the creator signs — `createPool`, creator = payer, pre-signed by the throwaway mint key, simulated before it leaves (409 with the log if it would fail). Symbol: 2–10 `A–Z0–9`, unique. |
-| `POST /v1/vaults/create/confirm` `{ creationId, signature }` | the pool account exists on chain → the vault is registered (DB) and served immediately under `/v1/vaults/{creatorWallet}/…`; 409 while the pool is not visible yet |
-| `GET /token/{mint}.json` | token metadata for created vaults (name, symbol, default image) |
+| step | call | what happens |
+|---|---|---|
+| 0 | `GET /v1/vaults/create/quote?wallet=&rules=` | what the wallet holds that THESE rules take; the curve it implies (opens at 2× realisable; graduates at `gradMult` × that; 50% creator) |
+| 1 | `POST /v1/vaults/create/open` `{ owner, name, symbol, mints, rules, description, links }` | validates (lists only; symbol unique and not reserved; 1 creation in flight per wallet; global cap/hour), allocates the custody index, returns `custodyWallet` and **`depositTransactions[]`** — items → custody (+0.03 SOL gas in the first), each single-signer = creator, unsigned, simulated. **Nothing of Onix is spent here.** |
+| 2 | `POST /v1/vaults/create/deposited` `{ creationId }` | 409 until the chain shows every item in custody (+ the gas). Then Onix creates the curve **config** (pays its rent, once; `feeClaimer` = the custody wallet) and returns the **launch transaction** (`createPool`, creator = payer), unsigned, simulated |
+| 3 | `POST /v1/vaults/create/submit` `{ creationId, signedTransaction }` | the creator signed it (`signTransaction`): same content as built (ComputeBudget/Lighthouse the wallet adds are ignored) → the throwaway mint key completes it → broadcast |
+| 4 | `POST /v1/vaults/create/confirm` `{ creationId, signature }` | the pool exists on chain → the vault is registered (custody wallet, creator, rules, manifest) and served at once |
+| — | `POST /v1/vaults/create/abandon` `{ creationId, owner }` | before launch: custody returns every item to the creator (signed by the derived key). Expired creations (2 h) are abandoned by a sweep |
+| — | `GET /v1/vaults/create/{creationId}` | where it stands; while open, what custody still lacks and fresh deposit transactions for exactly that |
 
 ### The Buy door
 

@@ -69,7 +69,7 @@
   function renderVault() {
     loadStats().then(function (st) {
       $('v-eyebrow').textContent = (META.name || 'Vault') + ' · operated by ' + (META.operator || '—') + ' · wallet ' + short(VAULT);
-      $('v-crumb').textContent = META.name || 'Vault'; $('v-send').href = vpath('/send'); $('t-sym').textContent = SYM();
+      $('v-crumb').textContent = META.name || 'Vault'; $('v-send').href = vpath('/send'); $('v-send').style.display = (W.addr && META.creator && W.addr === META.creator) ? '' : 'none'; $('t-sym').textContent = SYM();
       $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count;
       var tk = META.token || {};
       if (tk.name) $('tk-name').textContent = tk.name; if (tk.symbol) $('tk-sym').textContent = '$' + tk.symbol; if (tk.image) $('tk-img').src = tk.image;
@@ -84,7 +84,7 @@
         $('m-raised').textContent = usd2(p.raisedUsd || 0); $('m-left').textContent = gq ? usd2(Math.max(0, gq - (p.raisedUsd || 0))) : '—';
         $('m-mcap').textContent = usd(p.mcapUsd); $('m-open').textContent = p.openingMcapUsd ? 'opened at ' + usd(p.openingMcapUsd) : '';
         $('m-fees').textContent = usd2(p.feesLifetimeUsd);
-        var mine = W.addr && W.addr === VAULT, lk = p.locked;
+        var mine = W.addr && META.creator && W.addr === META.creator, lk = p.locked;
         $('m-share').style.display = lk ? '' : 'none';
         if (lk) {
           var cre = lk.creatorPct != null ? Math.round(p.supply * lk.creatorPct / 100) : lk.tokens;
@@ -95,7 +95,7 @@
       $('v-idx').textContent = st.backing.indexUsd.toLocaleString('en-US'); $('v-mult').textContent = st.backing.multiplier;
       $('v-back').textContent = usd(st.backing.realisableUsd);
       $('v-age').textContent = ago(st.ageMs);
-      $('p-wallet').textContent = VAULT;
+      $('p-wallet').textContent = VAULT; $('p-creator').textContent = META.creator || '—';
       tradePanel(st);
       if (st.pool) {
         $('v-mcap').textContent = usd(st.pool.mcapUsd);
@@ -142,7 +142,7 @@
     $('w-connect').textContent = a ? short(a) : 'Connect wallet';
     $('w-connect').classList.toggle('on', !!a);
     if (a) { $('sd-addr').value = a; }
-    if ($('s-create').classList.contains('on')) { if (a) scan(a); else { CQ = null; $('c-summary').textContent = 'Connect your wallet (top right) to see what it can open a vault on.'; renderPick(); } }
+    if ($('s-create').classList.contains('on')) { if (a) { scan(a); checkResume(); } else { CQ = null; $('c-summary').textContent = 'Connect your wallet (top right) to see what it can open a vault on.'; renderPick(); } }
     if (STATS) tradePanel(STATS);
     loadBalances();
     if (a && $('s-send').classList.contains('on')) sdScan(a); else sdRender();
@@ -280,24 +280,28 @@
     }
   }
 
-  // ── create: the connected wallet is the vault ──
-  var CQ = null, CR = { busy: false }, CSEL = {};
+  // ── create: items → token + rules → launch (deposits to custody, then the launch) ──
+  var CQ = null, CR = { busy: false, creationId: null }, CSEL = {}, CQ_PICK = { n: 0 };
+  function rulesFromForm() { return { category: $('f-cat').value, minValueUsd: Number($('f-minv').value), minGrade: $('f-grade').value === 'any' ? 'any' : Number($('f-grade').value), creatorFeePct: Number($('f-fee').value), gradMult: Number($('f-grad').value) }; }
   function renderPick() {
     var q = CQ;
     $('pick').innerHTML = !q ? '' : q.items.map(function (c) {
       var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
       return '<button type="button" class="pk' + (CSEL[c.mint] ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + usd(c.custodianValueUsd) + '</span></div></button>';
-    }).join('');
+    }).join('') + (q ? q.ineligible.map(function (x) {
+      var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
+      return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>not eligible</span></div></div>';
+    }).join('') : '');
     $('c-calc').style.display = q ? '' : 'none';
     var n = 0, idx = 0; if (q) q.items.forEach(function (c) { if (CSEL[c.mint]) { n++; idx += c.custodianValueUsd; } });
-    var real = Math.round(idx * 0.89 * 100) / 100;
-    CQ_PICK = { n: n, indexUsd: idx, realisableUsd: real, openingMcapUsd: Math.round(real * 2 * 100) / 100, graduationUsd: Math.round(real * 2 * 2.5 * 100) / 100 };
+    var real = Math.round(idx * 0.89 * 100) / 100, gm = Number($('f-grad').value) || 2.5;
+    CQ_PICK = { n: n, indexUsd: idx, realisableUsd: real, openingMcapUsd: Math.round(real * 2 * 100) / 100, graduationUsd: Math.round(real * 2 * gm * 100) / 100 };
     if (q) { $('c-sel').textContent = n; $('c-idx').textContent = usd(idx); $('c-real').textContent = usd(real); $('c-get').textContent = usd(real); }
     $('to2').disabled = !(q && n > 0 && real >= 5);
   }
   function scan(addr) {
     $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…'; CQ = null; renderPick();
-    get('/v1/vaults/create/quote?wallet=' + encodeURIComponent(addr)).then(function (q) {
+    get('/v1/vaults/create/quote?wallet=' + encodeURIComponent(addr) + '&rules=' + encodeURIComponent(JSON.stringify(rulesFromForm()))).then(function (q) {
       CQ = q; CSEL = {}; q.items.forEach(function (c) { CSEL[c.mint] = true; });
       $('c-summary').textContent = q.canCreate ? q.items.length + ' item' + (q.items.length === 1 ? '' : 's') + ' in ' + short(addr) + ' can back a vault' : 'Nothing in ' + short(addr) + ' can back a vault yet — ' + q.why;
       renderPick();
@@ -310,61 +314,82 @@
   function review() {
     var name = $('f-name').value.trim(), sym = $('f-sym').value.trim().toUpperCase();
     if (!name || !/^[A-Z0-9]{2,10}$/.test(sym)) { $('c2-msg').textContent = 'A name (up to 32 characters) and a symbol of 2–10 letters or digits.'; return false; }
+    var x = $('f-x').value.trim(); if (x && !/^https:\/\//.test(x)) { $('c2-msg').textContent = 'The X link must start with https://'; return false; }
     $('c2-msg').textContent = '';
+    renderPick();
+    var r = rulesFromForm();
     $('r-name').textContent = name; $('r-sym').textContent = '$' + sym; $('r-real').textContent = usd(CQ_PICK.realisableUsd); $('r-sel').textContent = CQ_PICK.n + ' item' + (CQ_PICK.n === 1 ? '' : 's');
     $('r-open').textContent = usd(CQ_PICK.openingMcapUsd); $('r-grad').textContent = usd(CQ_PICK.graduationUsd); $('r-get').textContent = usd(CQ_PICK.realisableUsd);
+    $('r-rules').textContent = 'Takes ' + ({ mixed: 'any graded card', pokemon: 'Pokémon cards', 'one-piece': 'One Piece cards', sports: 'sports cards' }[r.category]) + (r.minGrade !== 'any' ? ' graded ' + r.minGrade + '+' : '') + (r.minValueUsd ? ' worth $' + r.minValueUsd + '+' : '') + ' from Collector Crypt · your fee share ' + r.creatorFeePct + '% · graduates at ' + r.gradMult + '× the opening cap.';
     return true;
   }
-  var CQ_PICK = { n: 0 };
   $('pick').addEventListener('click', function (e) { var b = e.target.closest('button.pk'); if (!b) return; CSEL[b.dataset.mint] = !CSEL[b.dataset.mint]; renderPick(); });
+  ['f-cat', 'f-minv', 'f-grade'].forEach(function (id) { $(id).addEventListener('change', function () { if (W.addr) scan(W.addr); }); });
+  $('f-grad').addEventListener('change', renderPick);
   $('to2').addEventListener('click', function () { if (CQ && CQ_PICK.n > 0) step(2); });
   $('to3').addEventListener('click', function () { if (review()) step(3); });
   $('back1').addEventListener('click', function () { step(1); });
   $('back2').addEventListener('click', function () { step(2); });
   $('f-sym').addEventListener('input', function () { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+
+  function post(path, body) { return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); }); }
+  function cmsg(t, pct) { $('c-msg').textContent = t; if (pct != null) { $('c-prog').style.display = ''; $('c-prog-i').style.width = pct + '%'; } }
+  function remember(id) { try { if (id) localStorage.setItem('onix.vault.creation', id); else localStorage.removeItem('onix.vault.creation'); } catch (e) {} }
+  function remembered() { try { return localStorage.getItem('onix.vault.creation'); } catch (e) { return null; } }
+
+  // the launch, from a creation that is at least "opened"
+  function launchFrom(creationId, depositTxs) {
+    var w = provider();
+    CR.busy = true; $('c-launch').disabled = true;
+    var p = Promise.resolve();
+    (depositTxs || []).forEach(function (b64, i) {
+      p = p.then(function () { cmsg('Sign deposit ' + (i + 1) + ' of ' + depositTxs.length + ' in your wallet (your items + gas → the vault\'s custody)…', 10 + 30 * i / depositTxs.length); return signAndSend(w, b64); });
+    });
+    return p.then(function () {
+      cmsg('Waiting for the chain to show the items in custody, then setting up the curve (Onix pays this part)…', 45);
+      var tries = 0;
+      return (function dep() { tries++; return post('/v1/vaults/create/deposited', { creationId: creationId }).then(function (x) { if (x.status === 200) return x.body; if (x.status === 409 && tries < 24) return new Promise(function (r) { setTimeout(r, 5000); }).then(dep); throw new Error(x.body.error || 'could not confirm the deposit'); }); })();
+    }).then(function (d) {
+      cmsg('Sign the launch in your wallet…', 70);
+      var raw = Uint8Array.from(atob(d.transaction), function (ch) { return ch.charCodeAt(0); });
+      return w.signTransaction(window.solanaWeb3.Transaction.from(raw));
+    }).then(function (signed) {
+      cmsg('Sending the launch…', 80);
+      var bytes = signed.serialize({ requireAllSignatures: false, verifySignatures: false });
+      var b64 = btoa(Array.prototype.map.call(bytes, function (x) { return String.fromCharCode(x); }).join(''));
+      return post('/v1/vaults/create/submit', { creationId: creationId, signedTransaction: b64 }).then(function (s) { if (s.status !== 200) throw new Error(s.body.error || 'could not send the launch'); return s.body.signature; });
+    }).then(function (sig) {
+      cmsg('Launched: ' + short(sig) + ' · confirming on chain…', 90);
+      var tries = 0;
+      return (function conf() { tries++; return post('/v1/vaults/create/confirm', { creationId: creationId, signature: sig }).then(function (x) { if (x.status === 201) return x.body.vault; if (x.status === 409 && tries < 20) return new Promise(function (r) { setTimeout(r, 3000); }).then(conf); throw new Error(x.body.error || 'could not confirm'); }); })();
+    }).then(function (v) {
+      cmsg('Your vault is live.', 100); remember(null);
+      return loadVaults().then(function () { location.hash = '#/vault/' + v.id; });
+    }).catch(function (e) { cmsg((e && e.message) || String(e)); })
+      .then(function () { CR.busy = false; $('c-launch').disabled = false; });
+  }
   $('c-launch').addEventListener('click', function () {
     if (CR.busy || !CQ || !W.addr) return;
+    var w = provider(); if (!w) { cmsg('No Solana wallet found in this browser.'); return; }
     var name = $('f-name').value.trim(), sym = $('f-sym').value.trim().toUpperCase();
-    var w = provider(); if (!w) { $('c-msg').textContent = 'No Solana wallet found in this browser.'; return; }
-    CR.busy = true; $('c-launch').disabled = true; $('c-msg').textContent = 'Setting up the curve (Onix signs this part)…';
-    var creationId = null;
-    fetch('/v1/vaults/create/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: W.addr, name: name, symbol: sym, mints: Object.keys(CSEL).filter(function (m) { return CSEL[m]; }) }) })
-      .then(function (r) { return r.json(); })
-      .then(function (b) {
-        if (b.error) throw new Error(b.error);
-        creationId = b.creationId;
-        $('c-msg').textContent = 'Sign the launch in your wallet…';
-        var raw = Uint8Array.from(atob(b.transaction), function (ch) { return ch.charCodeAt(0); });
-        return w.signTransaction(window.solanaWeb3.Transaction.from(raw));
-      })
-      .then(function (signed) {
-        $('c-msg').textContent = 'Sending…';
-        var bytes = signed.serialize({ requireAllSignatures: false, verifySignatures: false });
-        var b64 = btoa(Array.prototype.map.call(bytes, function (x) { return String.fromCharCode(x); }).join(''));
-        return fetch('/v1/vaults/create/submit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ creationId: creationId, signedTransaction: b64 }) })
-          .then(function (r) { return r.json(); }).then(function (s) { if (s.error) throw new Error(s.error); return s.signature; });
-      })
-      .then(function (sig) {
-        $('c-msg').textContent = 'Launched: ' + short(sig) + ' · confirming on chain…';
-        var tries = 0;
-        return (function confirmLoop() {
-          tries++;
-          return fetch('/v1/vaults/create/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ creationId: creationId, signature: sig }) })
-            .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
-            .then(function (x) {
-              if (x.status === 201) return x.body.vault;
-              if (x.status === 409 && tries < 20) return new Promise(function (res) { setTimeout(res, 3000); }).then(confirmLoop);
-              throw new Error(x.body.error || 'could not confirm');
-            });
-        })();
-      })
-      .then(function (v) {
-        $('c-msg').textContent = 'Your vault is live.';
-        return loadVaults().then(function () { location.hash = '#/vault/' + v.id; });
-      })
-      .catch(function (e) { $('c-msg').textContent = (e && e.message) || String(e); })
-      .then(function () { CR.busy = false; $('c-launch').disabled = false; });
+    var body = { owner: W.addr, name: name, symbol: sym, mints: Object.keys(CSEL).filter(function (m) { return CSEL[m]; }), rules: rulesFromForm(), description: $('f-desc').value.trim() || null, links: $('f-x').value.trim() ? { x: $('f-x').value.trim() } : {} };
+    CR.busy = true; $('c-launch').disabled = true; cmsg('Opening the vault (custody wallet)…', 5);
+    post('/v1/vaults/create/open', body).then(function (x) {
+      if (x.status !== 201) throw new Error(x.body.error || 'could not open');
+      CR.creationId = x.body.creationId; remember(CR.creationId); CR.busy = false;
+      return launchFrom(x.body.creationId, x.body.depositTransactions);
+    }).catch(function (e) { cmsg((e && e.message) || String(e)); CR.busy = false; $('c-launch').disabled = false; });
   });
+  // a creation left half-way (page closed, wallet declined): continue or take the items back
+  function checkResume() {
+    var id = remembered(); $('c-resume').style.display = 'none'; if (!id || !W.addr) return;
+    get('/v1/vaults/create/' + id).then(function (s) {
+      if (s.status === 'launched' || s.status === 'abandoned') { remember(null); return; }
+      $('c-resume-sym').textContent = '$' + s.symbol + ' · ' + s.status; $('c-resume').style.display = '';
+      $('c-resume-go').onclick = function () { step(3); $('r-name').textContent = s.name; $('r-sym').textContent = '$' + s.symbol; launchFrom(id, s.depositTransactions || null); };
+      $('c-resume-abandon').onclick = function () { $('c-resume-abandon').disabled = true; post('/v1/vaults/create/abandon', { creationId: id, owner: W.addr }).then(function (x) { remember(null); $('c-resume').style.display = 'none'; alert(x.status === 200 ? 'Your items are on their way back (' + x.body.returned.length + ' transfer(s)).' : (x.body.error || 'could not abandon')); }); };
+    }).catch(function () {});
+  }
   renderPick();
 
   // ── How it works: the simulation panel (an example vault; the real one is above) ──
@@ -477,7 +502,7 @@
     else if ((m = h.match(/^#\/vault\/([^\/]+)\/send$/))) { id = 'send'; selectVault(m[1]); $('sd-crumb-vault').textContent = META.name; $('sd-crumb-vault').href = vpath(); $('sd-back').href = vpath(); $('sd-sym').textContent = SYM(); if (META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); SD.items = { eligible: [], ineligible: [] }; SD.pick = null; sdRender(); }
     else if ((m = h.match(/^#\/vault\/([^\/]+)/))) { id = 'vault'; selectVault(m[1]); renderVault(); }
     else if ((m = h.match(/^#\/item\/(.+)$/))) { id = 'item'; renderItem(m[1]); }
-    else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); if (W.addr) scan(W.addr); }
+    else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); if (W.addr) { scan(W.addr); checkResume(); } }
     else if (h.indexOf('#/integrate') === 0) id = 'integrate';
     else if (h.indexOf('#/how') === 0) id = 'how';
     if (id === 'home') renderBoard();

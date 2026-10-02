@@ -28,6 +28,7 @@ module.exports = {
   getAsset: (id) => rpc('getAsset', { id }),
   getAccountInfoBase64: async (pubkey) => (await rpc('getAccountInfo', [pubkey, { encoding: 'base64' }])).value,
   getTokenSupplyUi: async (mint) => (await rpc('getTokenSupply', [mint])).value.uiAmount,
+  getBalanceLamports: async (pubkey) => (await rpc('getBalance', [pubkey, { commitment: 'confirmed' }])).value,
   /** Poll until a signature is confirmed (or fails / times out). Used only for transactions this server sent. */
   waitForSignature: async (sig, { timeoutMs = 60_000, everyMs = 1500 } = {}) => {
     const t0 = Date.now();

@@ -22,7 +22,9 @@ const { createStatsReader } = require('./stats');
 const { createWalletReader } = require('./wallet');
 const { createCurveTrader, productionCurveDeps } = require('./curve');
 const { createAdmissions, VAULT_RULES } = require('./admissions');
+const { describeRules } = require('./rules');
 const { createVaultCreator } = require('./creation');
+const keyring = require('./keyring');
 const { normalize } = require('./registry');
 const { loadVaults } = require('./registry');
 const das = require('../src/reader/das');
@@ -40,7 +42,8 @@ const noSigner = { configured: () => false, publicKey: () => { throw new VaultEr
 
 function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null, signer: signerOverride = null }) {
   const vaultWallet = def.wallet;
-  const signer = signerOverride || (!def.secretEnv ? noSigner : def.secretEnv === 'VAULT_SECRET_KEY' ? defaultSigner : defaultSigner.fromEnv(def.secretEnv));
+  // custody: a derived wallet (keyring) · the operator's env key · or nobody (list only)
+  const signer = signerOverride || (def.custodyIndex != null ? keyring.custodySigner(def.custodyIndex) : !def.secretEnv ? noSigner : def.secretEnv === 'VAULT_SECRET_KEY' ? defaultSigner : defaultSigner.fromEnv(def.secretEnv));
   const readItems = readItemsOverride || createItemsReader({ rpcUrl: C.RPC_URL, vaultWallet, marketRefUrl: C.MARKET_REF_URL, cacheMs: C.ITEMS_CACHE_MS, manifest: def.manifest || null });
   const transfer = createTransferBuilder(productionDeps(chain));
   const bs58 = require('bs58');
@@ -84,7 +87,8 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   // only the creator adds items (2 Oct 2026); a file-registry vault names its creator, else nobody can
   const admissions = createAdmissions({ db, chain, vaultWallet, creator: def.creator || null, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
     onAdmitted: def.manifest ? (mint) => db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)').run(vaultWallet, mint, 'admission', Date.now()) : null });
-  const meta = { id: def.id, name: def.name, operator: def.operator, creator: def.creator || null, custodians: def.custodians, description: def.description, token: def.token, graduationUsd: def.graduationUsd };
+  const meta = { id: def.id, name: def.name, operator: def.operator, creator: def.creator || null, custodians: def.custodians, description: def.description, token: def.token, links: def.links || {}, graduationUsd: def.graduationUsd,
+    rulesText: describeRules(def.rules), gradMult: def.gradMult ?? null, creatorFeePct: def.creatorFeePct ?? null, custody: def.custodyIndex != null ? 'derived' : def.secretEnv ? 'operator' : 'none' };
   return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
 }
 
@@ -104,8 +108,10 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
   // the Create door: Onix (the operator key) is the curve's partner — it pays for the config and claims the fee
   const partner = signer || defaultSigner;
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
-  const creator = creatorOverride || createVaultCreator({ db, chain, sdk: require('@meteora-ag/dynamic-bonding-curve-sdk'), getClient: curveDeps.getClient, partner, quoteMint: C.USDC_MINT,
-    fetchAssets: das.fetchAssetsByOwner, rpcUrl: C.RPC_URL, metadataBase: C.PUBLIC_URL, haircut: C.HAIRCUT, existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || '') });
+  const transferForCreation = createTransferBuilder(productionDeps(chain));
+  const creator = creatorOverride || createVaultCreator({ db, chain, sdk: require('@meteora-ag/dynamic-bonding-curve-sdk'), getClient: curveDeps.getClient, partner, keyring, quoteMint: C.USDC_MINT,
+    fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transferForCreation.buildTransferTx(a), rpcUrl: C.RPC_URL, metadataBase: C.PUBLIC_URL, haircut: C.HAIRCUT,
+    existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null) });
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
   const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db });
@@ -115,12 +121,13 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
 }
 
 function main() {
-  const { app, vaults } = createServer();
+  const { app, vaults, creator } = createServer();
   app.listen(C.PORT, '127.0.0.1', () => {
     for (const v of vaults) console.log(`[vault] ${v.meta.name} (${v.meta.id}) · ${v.wallet} · pool ${v.def.pool || '—'} · signer ${v.signerConfigured() ? 'configured' : 'NOT configured (list only)'}`);
     console.log(`[vault] Onix.Vault server on 127.0.0.1:${C.PORT} · ${vaults.length} vault(s)`);
   });
   setInterval(() => { for (const v of vaults) { try { v.service.sweepExpired(); } catch (e) { console.warn(`[vault ${v.meta.id}] sweep failed`, e.message); } } }, 60_000).unref();
+  setInterval(() => { creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
   setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }
 

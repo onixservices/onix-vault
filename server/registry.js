@@ -12,7 +12,9 @@
  *      "token": { "name": "Veonix", "symbol": "VEONIX", "image": "/token/veonix.png" },
  *      "rules": "vault1" }]
  *
- * A second vault is a second entry. The key never leaves the server's .env.
+ * A second vault is a second entry. The key never leaves the server's .env. An entry may name
+ * `custodyIndex` (its wallet is derived from VAULT_MASTER_SEED — server/keyring.js) instead of
+ * `secretEnv`, and `creator` (the wallet allowed to add items; the pool's creator).
  */
 'use strict';
 const fs = require('fs');
@@ -32,7 +34,8 @@ function normalize(v) {
   const rules = typeof v.rules === 'string' ? VAULT_RULES[v.rules] : v.rules;
   if (!rules) throw new Error(`vault ${v.id}: unknown rules "${v.rules}"`);
   if (!v.wallet) throw new Error(`vault ${v.id}: no wallet`);
-  return { ...v, id: String(v.id), rules, custodians: v.custodians || rules.custodians, graduationUsd: v.graduationUsd ?? C.GRADUATION_USD, pool: v.pool || null, baseMint: v.baseMint || null };
+  return { ...v, id: String(v.id), rules, custodians: v.custodians || rules.custodians, graduationUsd: v.graduationUsd ?? C.GRADUATION_USD, pool: v.pool || null, baseMint: v.baseMint || null,
+    custodyIndex: v.custodyIndex ?? null, creator: v.creator || null, secretEnv: v.secretEnv || null };
 }
 
 function registryPath() { return process.env.ONIX_VAULTS_FILE || path.join(path.dirname(C.DB_PATH), 'vaults.json'); }

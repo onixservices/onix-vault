@@ -1,35 +1,48 @@
 /**
- * server/creation.js — the Create door: anyone with eligible items in their wallet opens
- * a vault on them. The items never move: the creator's wallet IS the vault.
+ * server/creation.js — the Create door: anyone with eligible items opens a vault on them.
+ * The items go into a CUSTODY wallet derived for this vault (server/keyring.js), so every
+ * door works for every vault; the creator keeps the token economics (50% allocation, the
+ * on-chain creator fee) through their own wallet, which is the pool's creator.
  *
- *   quote({ owner })                 what the wallet holds that counts, and the curve it implies
- *   build({ owner, name, symbol, mints })  create the curve config (Onix is the partner: it pays for
- *                                    and signs the config, and claims the trading fee), then the
- *                                    ONE transaction the creator signs: createPool, UNSIGNED (a
- *                                    pre-signature makes Phantom refuse it), simulated before it leaves
- *   submit({ creationId, signedTransaction })  the creator's signed tx: same message we built →
- *                                    the mint key adds its signature → broadcast
- *   confirm({ creationId })          the chain says the pool exists → the vault is registered
+ * Four steps, two kinds of signature from the creator, nothing pre-signed by us:
+ *   quote({ owner, rules })          what the wallet holds that this vault would take, and the curve it implies
+ *   open({ owner, name, symbol, mints, rules, … })
+ *                                    allocates the custody wallet and returns the DEPOSIT transactions
+ *                                    (items → custody, + gas), each single-signer = creator, unsigned
+ *   deposited({ creationId })        the chain says custody holds the items → Onix creates the curve
+ *                                    config (pays its rent; the custody wallet is the fee claimer) →
+ *                                    returns the ONE launch transaction (createPool), unsigned, simulated
+ *   submit({ creationId, signedTransaction })  the creator signed it: same content we built → the
+ *                                    throwaway mint key completes it → broadcast
+ *   confirm({ creationId })          the pool exists → the vault is registered and served
+ *   abandon({ creationId, owner })   before launch: custody returns the items to the creator
  *
- * Supply split (src/curve/params.js, decided 2 Oct 2026): 50% to the creator in the DBC's
- * lockedVesting (released at graduation, linear over 6 months), 50% on the curve. The curve
- * opens at 2× realisable backing, so the creator's half is worth the items on day one, and
- * graduates at gradMult × the opening cap. Only the creator adds items; there is no reserve.
+ * Supply split (src/curve/params.js, decided 2 Oct 2026): 50% creator in lockedVesting (released at
+ * graduation, linear 6 months), 50% curve. Opens at 2× realisable backing. Only the creator adds items.
  */
 'use strict';
 const crypto = require('crypto');
-const { PublicKey, Keypair, Transaction } = require('@solana/web3.js');
+const { PublicKey, Keypair, Transaction, SystemProgram, LAMPORTS_PER_SOL } = require('@solana/web3.js');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 const { paramsFor, DECIDED } = require('../src/curve/params');
-const { itemPassesRules, VAULT_RULES } = require('./admissions');
+const { validateRules, itemPassesRules } = require('./rules');
+const { checkSingleSignerUnsigned } = require('./txAssertions');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
 const r2 = (n) => Math.round(n * 100) / 100;
 
-const LIMITS = Object.freeze({ nameMax: 32, symbolMax: 10, minItems: 1, minBackingUsd: 5 });
+const LIMITS = Object.freeze({
+  nameMax: 32, symbolMax: 10, descriptionMax: 200, minItems: 1, minBackingUsd: 5,
+  gasSol: 0.03,                 // what the creator sends the custody wallet for its future transactions
+  txMaxBytes: 1232,
+  creationTtlMs: 2 * 60 * 60 * 1000,
+  maxOpenPerHour: 10,           // global: every launch costs Onix the config rent
+  // symbols nobody may take: money, the chain, the big names a buyer could be fooled by
+  reservedSymbols: Object.freeze(['USDC', 'USDT', 'SOL', 'WSOL', 'JUP', 'MET', 'BONK', 'VEONIX', 'ONIX', 'CARDS', 'BTC', 'ETH']),
+});
 
-/** The curve for a backing — the decided shape (src/curve/params.js) with the creator's two choices. */
+/** The curve for a backing — the decided shape with the creator's two choices. */
 function curveParamsFor(backingUsd, { gradMult, creatorFeePct } = {}) {
   return paramsFor({ backingUsd, ...(gradMult ? { gradMult } : {}), ...(creatorFeePct ? { creatorFeePct } : {}) });
 }
@@ -37,8 +50,7 @@ function curveParamsFor(backingUsd, { gradMult, creatorFeePct } = {}) {
 /**
  * A pool-creation transaction has two signers: the creator (signs in the wallet) and the new
  * mint (throwaway key, signs here AFTER the creator). What leaves for the wallet carries no
- * signature at all — Phantom refuses a transaction with a foreign pre-signature. The options
- * say what each slot must look like at each stage.
+ * signature at all — Phantom refuses a transaction with a foreign pre-signature.
  */
 function checkCreatorPlusMint(tx, creator, mint, { creatorSigned = false, mintSigned = false } = {}) {
   const sigs = tx.signatures.map((s) => ({ key: s.publicKey.toBase58(), signed: s.signature !== null }));
@@ -63,118 +75,248 @@ function instructionsOf(tx) {
   return JSON.stringify({ feePayer: tx.feePayer?.toBase58(), ixs: tx.instructions.filter((ix) => !WALLET_WRAPPER_PROGRAMS.has(ix.programId.toBase58())).map((ix) => ({ p: ix.programId.toBase58(), k: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), d: Buffer.from(ix.data).toString('base64') })) });
 }
 
-function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fetchAssets, rpcUrl = null, metadataBase, rules = VAULT_RULES.vault1, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [] }) {
-  const pending = new Map(); // creationId → { owner, name, symbol, config, baseMintKp, pool, at }
+function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quoteMint, fetchAssets, buildTransfer, rpcUrl = null, metadataBase, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [], reservedIndexes = () => [], gasSol = LIMITS.gasSol, limits = LIMITS }) {
+  const pending = new Map(); // creationId → { baseMintKp, baseMint, pool, content } (the mint key lives only here, only until submit)
 
-  async function backingOf(owner) {
+  // ── reading ──
+  async function itemsOf(owner, rules) {
     const assets = await fetchAssets(rpcUrl, owner);
-    const items = [];
-    for (const a of assets) { const v = itemPassesRules(a, rules); if (v.ok) { const c = parseCard(a); items.push({ mint: c.mint, name: c.name, custodianValueUsd: c.insuredUsd, imageUrl: a.content?.links?.image || null }); } }
+    const items = [], ineligible = [];
+    for (const a of assets) {
+      const v = itemPassesRules(a, rules); const c = parseCard(a);
+      const row = { mint: c.mint, name: c.name, category: c.category, grade: c.grade, imageUrl: a.content?.links?.image || null };
+      if (v.ok) items.push({ ...row, custodianValueUsd: c.insuredUsd }); else ineligible.push({ ...row, reason: v.reason });
+    }
     const indexUsd = items.reduce((s, it) => s + it.custodianValueUsd, 0);
-    return { items, indexUsd, realisableUsd: r2(indexUsd * haircut) };
+    return { items, ineligible, indexUsd, realisableUsd: r2(indexUsd * haircut), total: assets.length };
   }
+  const backingOfMints = (items, mints) => { const picked = items.filter((it) => mints.includes(it.mint)); const indexUsd = picked.reduce((s, it) => s + it.custodianValueUsd, 0); return { items: picked, indexUsd, realisableUsd: r2(indexUsd * haircut) }; };
 
-  function checkInputs({ owner, name, symbol, mints }) {
+  function checkInputs({ owner, name, symbol, mints, description, links }) {
+    try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
+    if (typeof name !== 'string' || !name.trim() || name.trim().length > limits.nameMax) throw err(400, `name: 1–${limits.nameMax} characters`);
+    if (typeof symbol !== 'string' || !/^[A-Z0-9]{2,10}$/.test(symbol)) throw err(400, `symbol: 2–${limits.symbolMax} characters, A–Z and digits`);
+    if (limits.reservedSymbols.includes(symbol)) throw err(422, `the symbol ${symbol} is reserved`);
+    const taken = [...existingSymbols(), ...db.prepare('SELECT token_symbol s FROM vaults').all().map((r) => r.s), ...db.prepare("SELECT symbol s FROM vault_creations WHERE status IN ('opened','deposited')").all().map((r) => r.s)];
+    if (taken.map((s) => String(s).toUpperCase()).includes(symbol)) throw err(409, `the symbol ${symbol} is taken`);
     if (!Array.isArray(mints) || !mints.length || !mints.every((m) => typeof m === 'string')) throw err(400, 'mints: pick at least one item');
-    try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
-    if (typeof name !== 'string' || !name.trim() || name.trim().length > LIMITS.nameMax) throw err(400, `name: 1–${LIMITS.nameMax} characters`);
-    if (typeof symbol !== 'string' || !/^[A-Z0-9]{2,10}$/.test(symbol)) throw err(400, `symbol: 2–${LIMITS.symbolMax} characters, A–Z and digits`);
-    if (existingSymbols().map((s) => s.toUpperCase()).includes(symbol)) throw err(409, `the symbol ${symbol} is taken`);
-    return { owner, name: name.trim(), symbol, mints: [...new Set(mints)] };
+    if (description != null && (typeof description !== 'string' || description.length > limits.descriptionMax)) throw err(400, `description: up to ${limits.descriptionMax} characters`);
+    const lk = {};
+    if (links && typeof links === 'object') for (const k of ['x', 'site']) if (links[k]) { const u = String(links[k]); if (!/^https:\/\/[^\s]{3,200}$/.test(u)) throw err(400, `links.${k}: an https URL`); lk[k] = u; }
+    return { owner, name: name.trim(), symbol, mints: [...new Set(mints)], description: description ? String(description).trim() : null, links: lk };
   }
 
-  async function quote({ owner }) {
+  async function quote({ owner, rules: rulesIn }) {
     try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
-    const b = await backingOf(owner);
-    const can = b.items.length >= LIMITS.minItems && b.realisableUsd >= LIMITS.minBackingUsd;
-    // an empty wallet still gets a quote (nothing to open on); the curve preview needs a positive backing
-    const { view } = curveParamsFor(Math.max(b.realisableUsd, LIMITS.minBackingUsd));
-    return { wallet: owner, ...b, canCreate: can, why: can ? null : `needs at least ${LIMITS.minItems} eligible item worth $${LIMITS.minBackingUsd}+`, curve: view, creatorTokensWorthUsd: r2(view.openingMcapUsd * view.creatorPct / 100) };
+    const rules = validateRules(rulesIn || {});
+    const b = await itemsOf(owner, rules);
+    const can = b.items.length >= limits.minItems && b.realisableUsd >= limits.minBackingUsd;
+    const { view } = curveParamsFor(Math.max(b.realisableUsd, limits.minBackingUsd), { gradMult: rules.gradMult, creatorFeePct: rules.creatorFeePct });
+    return { wallet: owner, rules, ...b, canCreate: can, why: can ? null : `needs at least ${limits.minItems} eligible item worth $${limits.minBackingUsd}+`, curve: view, creatorTokensWorthUsd: r2(view.openingMcapUsd * view.creatorPct / 100), gasSol };
   }
 
-  async function build(input) {
-    const { owner, name, symbol, mints } = checkInputs(input);
-    const all = await backingOf(owner);
+  // ── step 1: open — custody allocated, deposit transactions built; nothing of ours is spent ──
+  function nextCustodyIndex() {
+    const used = new Set([...reservedIndexes(), ...db.prepare('SELECT custody_index i FROM vaults WHERE custody_index IS NOT NULL').all().map((r) => r.i), ...db.prepare('SELECT custody_index i FROM vault_creations').all().map((r) => r.i)]);
+    let i = 0; while (used.has(i)) i += 1; return i;
+  }
+  async function packTransfers({ owner, custody, mints, withGas }) {
+    const ownerPk = new PublicKey(owner), custodyPk = new PublicKey(custody);
+    const blockhash = await chain.getLatestBlockhash();
+    const txs = []; let cur = null;
+    const fresh = () => { const t = new Transaction({ feePayer: ownerPk, recentBlockhash: blockhash }); if (withGas && !txs.length && !cur) t.add(SystemProgram.transfer({ fromPubkey: ownerPk, toPubkey: custodyPk, lamports: Math.round(gasSol * LAMPORTS_PER_SOL) })); return t; };
+    // web3.js throws on a transaction over the packet limit — that IS the overflow signal
+    const size = (t) => { try { return t.serialize({ requireAllSignatures: false, verifySignatures: false }).length; } catch { return Infinity; } };
+    for (const mint of mints) {
+      const b64 = await buildTransfer({ mint, fromAddress: owner, toAddress: custody, recentBlockhash: blockhash });
+      const ixs = Transaction.from(Buffer.from(b64, 'base64')).instructions;
+      if (!cur) cur = fresh();
+      const trial = new Transaction({ feePayer: ownerPk, recentBlockhash: blockhash }); cur.instructions.forEach((ix) => trial.add(ix)); ixs.forEach((ix) => trial.add(ix));
+      if (size(trial) > limits.txMaxBytes && cur.instructions.length) { txs.push(cur); cur = fresh(); ixs.forEach((ix) => cur.add(ix)); }
+      else ixs.forEach((ix) => cur.add(ix));
+      if (size(cur) > limits.txMaxBytes) throw err(422, `item ${mint.slice(0, 6)}… does not fit in one transaction`);
+    }
+    if (cur && cur.instructions.length) txs.push(cur);
+    const out = [];
+    for (const t of txs) {
+      const bytes = t.serialize({ requireAllSignatures: false, verifySignatures: false });
+      const fail = checkSingleSignerUnsigned(Transaction.from(bytes), owner);
+      if (fail) throw new Error(`deposit tx does not pass assertions: ${fail.assertion} (${fail.message})`);
+      const sim = await chain.simulateTransaction(bytes.toString('base64'));
+      if (sim && sim.err) throw err(409, `a deposit would fail on chain: ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ') || JSON.stringify(sim.err)}`);
+      out.push(bytes.toString('base64'));
+    }
+    return out;
+  }
+
+  async function open(input) {
+    const { owner, name, symbol, mints, description, links } = checkInputs(input);
+    const rules = validateRules(input.rules || {});
+    const t = now();
+    if (db.prepare("SELECT id FROM vault_creations WHERE owner = ? AND status IN ('opened','deposited') AND expires_at > ?").get(owner, t)) throw err(409, 'this wallet already has a vault being created — finish or abandon it first');
+    if (db.prepare("SELECT count(*) n FROM vault_creations WHERE created_at > ?").get(t - 3_600_000).n >= limits.maxOpenPerHour) throw err(429, 'too many vaults being created right now — try again in a while');
+    const all = await itemsOf(owner, rules);
     const missing = mints.filter((m) => !all.items.some((it) => it.mint === m));
     if (missing.length) throw err(422, `not eligible or not in this wallet: ${missing.map((m) => m.slice(0, 6) + '…').join(', ')}`);
-    const picked = all.items.filter((it) => mints.includes(it.mint));
-    const b = { items: picked, indexUsd: picked.reduce((s, it) => s + it.custodianValueUsd, 0) };
-    b.realisableUsd = r2(b.indexUsd * haircut);
-    if (b.items.length < LIMITS.minItems || b.realisableUsd < LIMITS.minBackingUsd) throw err(422, `nothing to open a vault on: needs at least ${LIMITS.minItems} eligible item worth $${LIMITS.minBackingUsd}+`);
-    const { params, view } = curveParamsFor(b.realisableUsd);
-    const curve = sdk.buildCurveWithMarketCap(params);
-    const client = await getClient();
-    const partnerPk = new PublicKey(partner.publicKey()), quotePk = new PublicKey(quoteMint), ownerPk = new PublicKey(owner);
-
-    // 1. the config — Onix's side: it pays, it signs, it is the fee claimer. Inert until a pool uses it.
-    const configKp = Keypair.generate();
-    const ctx = await client.partner.createConfig({ ...curve, config: configKp.publicKey, feeClaimer: partnerPk, leftoverReceiver: partnerPk, quoteMint: quotePk, payer: partnerPk });
-    ctx.feePayer = partnerPk; ctx.recentBlockhash = await chain.getLatestBlockhash();
-    ctx.partialSign(configKp); partner.signTransaction(ctx);
-    const configSig = await chain.sendRawTransaction(ctx.serialize().toString('base64'));
-    await chain.waitForSignature(configSig);
-
-    // 2. the pool — the creator's transaction: creator pays and creates, the mint key pre-signs
-    const baseMintKp = Keypair.generate();
+    const b = backingOfMints(all.items, mints);
+    if (b.items.length < limits.minItems || b.realisableUsd < limits.minBackingUsd) throw err(422, `nothing to open a vault on: needs at least ${limits.minItems} eligible item worth $${limits.minBackingUsd}+`);
+    const index = nextCustodyIndex();
+    const custody = keyring.custodySigner(index).publicKey();
+    const depositTransactions = await packTransfers({ owner, custody, mints, withGas: gasSol > 0 });
     const id = crypto.randomUUID();
+    db.prepare(`INSERT INTO vault_creations (id, owner, custody_index, custody_wallet, name, symbol, mints_json, rules_json, description, links_json, status, created_at, updated_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'opened', ?, ?, ?)`)
+      .run(id, owner, index, custody, name, symbol, JSON.stringify(mints), JSON.stringify(rules), description, JSON.stringify(links), t, t, t + limits.creationTtlMs);
+    return { creationId: id, custodyWallet: custody, depositTransactions, gasSol, items: b.items.length, backing: { indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, expiresAt: t + limits.creationTtlMs };
+  }
+
+  // ── step 2: deposited — the chain says custody holds the items → config (Onix pays) → launch tx ──
+  function creation(creationId) { const c = db.prepare('SELECT * FROM vault_creations WHERE id = ?').get(creationId); if (!c) throw err(404, 'unknown creation'); return c; }
+
+  async function deposited({ creationId }) {
+    const c = creation(creationId);
+    if (!['opened', 'deposited'].includes(c.status)) throw err(409, `this creation is ${c.status}`);
+    if (c.expires_at <= now()) throw err(410, 'this creation expired — open again');
+    const mints = JSON.parse(c.mints_json), rules = JSON.parse(c.rules_json);
+    const held = await itemsOf(c.custody_wallet, rules);
+    const notThere = mints.filter((m) => !held.items.some((it) => it.mint === m));
+    if (notThere.length) throw err(409, `custody does not hold ${notThere.length} of ${mints.length} items yet (${notThere.map((m) => m.slice(0, 6) + '…').join(', ')})`);
+    const lamports = await chain.getBalanceLamports(c.custody_wallet);
+    if (lamports < Math.round(gasSol * LAMPORTS_PER_SOL * 0.9)) throw err(409, `custody wallet has ${(lamports / LAMPORTS_PER_SOL).toFixed(4)} SOL; needs ${gasSol}`);
+    const b = backingOfMints(held.items, mints);
+    const { params, view } = curveParamsFor(b.realisableUsd, { gradMult: rules.gradMult, creatorFeePct: rules.creatorFeePct });
+    const client = await getClient();
+    const partnerPk = new PublicKey(partner.publicKey()), quotePk = new PublicKey(quoteMint), ownerPk = new PublicKey(c.owner), custodyPk = new PublicKey(c.custody_wallet);
+
+    // the config — paid by Onix, once per creation; the custody wallet claims the partner fee and the leftover
+    let config = c.config;
+    if (!config) {
+      const curve = sdk.buildCurveWithMarketCap(params);
+      const configKp = Keypair.generate();
+      const ctx = await client.partner.createConfig({ ...curve, config: configKp.publicKey, feeClaimer: custodyPk, leftoverReceiver: custodyPk, quoteMint: quotePk, payer: partnerPk });
+      ctx.feePayer = partnerPk; ctx.recentBlockhash = await chain.getLatestBlockhash();
+      ctx.partialSign(configKp); partner.signTransaction(ctx);
+      const configSig = await chain.sendRawTransaction(ctx.serialize().toString('base64'));
+      await chain.waitForSignature(configSig);
+      config = configKp.publicKey.toBase58();
+      db.prepare("UPDATE vault_creations SET config = ?, config_sig = ?, status = 'deposited', backing_usd = ?, graduation_usd = ?, updated_at = ? WHERE id = ?").run(config, configSig, b.realisableUsd, view.graduationUsd, now(), c.id);
+    }
+
+    // the launch — the creator's transaction: creator pays and creates; the mint key signs AFTER the creator
+    const baseMintKp = Keypair.generate();
     const uri = `${metadataBase}/token/${baseMintKp.publicKey.toBase58()}.json`;
-    const ptx = await client.creator.createPool({ name, symbol, uri, payer: ownerPk, poolCreator: ownerPk, config: configKp.publicKey, baseMint: baseMintKp.publicKey });
+    const ptx = await client.creator.createPool({ name: c.name, symbol: c.symbol, uri, payer: ownerPk, poolCreator: ownerPk, config: new PublicKey(config), baseMint: baseMintKp.publicKey });
     ptx.feePayer = ownerPk; ptx.recentBlockhash = await chain.getLatestBlockhash();
     const bytes = ptx.serialize({ requireAllSignatures: false, verifySignatures: false });
     const compiled = Transaction.from(bytes);
-    const fail = checkCreatorPlusMint(compiled, owner, baseMintKp.publicKey.toBase58());
+    const fail = checkCreatorPlusMint(compiled, c.owner, baseMintKp.publicKey.toBase58());
     if (fail) throw new Error(`createPool tx does not pass assertions: ${fail.assertion} (${fail.message})`);
     const sim = await chain.simulateTransaction(bytes.toString('base64'));
     if (sim && sim.err) throw err(409, `the launch would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
-    const pool = sdk.deriveDbcPoolAddress(quotePk, baseMintKp.publicKey, configKp.publicKey).toBase58();
-    pending.set(id, { owner, name, symbol, mints, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), baseMintKp, content: instructionsOf(compiled), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
-    return { creationId: id, pool, baseMint: baseMintKp.publicKey.toBase58(), config: configKp.publicKey.toBase58(), configSignature: configSig, curve: view, backing: { items: b.items.length, indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
+    const pool = sdk.deriveDbcPoolAddress(quotePk, baseMintKp.publicKey, new PublicKey(config)).toBase58();
+    pending.set(c.id, { baseMintKp, baseMint: baseMintKp.publicKey.toBase58(), pool, content: instructionsOf(compiled) });
+    return { creationId: c.id, custodyWallet: c.custody_wallet, pool, baseMint: baseMintKp.publicKey.toBase58(), config, curve: view, backing: { items: b.items.length, indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
   }
 
-  /**
-   * The creator signed in the wallet; the server completes with the mint key and broadcasts.
-   * Only the exact message built in `build` is completed — anything else is refused.
-   */
+  // ── step 3: submit — the creator signed; the mint key completes; broadcast ──
   async function submit({ creationId, signedTransaction }) {
+    const c = creation(creationId);
     const p = pending.get(creationId);
-    if (!p) throw err(404, 'unknown or expired creation — build again');
+    if (!p) throw err(409, 'the launch transaction is no longer held — call deposited again to rebuild it');
     let tx; try { tx = Transaction.from(Buffer.from(String(signedTransaction || ''), 'base64')); } catch { throw err(400, 'signedTransaction must be a base64 transaction'); }
-    // the wallet's library may re-order the account table when it hands the signed tx back; what must match is the content
     if (instructionsOf(tx) !== p.content) { console.warn('[create] signed tx differs from the built one · built:', p.content, '· got:', instructionsOf(tx)); throw err(409, 'the signed transaction is not the one that was built'); }
-    const fail = checkCreatorPlusMint(tx, p.owner, p.baseMint, { creatorSigned: true, mintSigned: false });
+    const fail = checkCreatorPlusMint(tx, c.owner, p.baseMint, { creatorSigned: true, mintSigned: false });
     if (fail) throw err(409, `signed transaction does not pass assertions: ${fail.assertion} (${fail.message})`);
     tx.partialSign(p.baseMintKp);
     if (!tx.verifySignatures()) throw err(409, 'the creator signature does not verify');
     const sig = await chain.sendRawTransaction(tx.serialize().toString('base64'));
-    p.launchSig = sig;
+    db.prepare('UPDATE vault_creations SET base_mint = ?, pool = ?, launch_sig = ?, updated_at = ? WHERE id = ?').run(p.baseMint, p.pool, sig, now(), c.id);
     return { creationId, signature: sig, pool: p.pool, baseMint: p.baseMint };
   }
 
-  /** The chain is the witness: the pool account exists → the vault is registered. */
+  // ── step 4: confirm — the chain is the witness: the pool exists → the vault is registered ──
   async function confirm({ creationId, signature = null }) {
-    const p = pending.get(creationId);
-    if (!p) throw err(404, 'unknown or expired creation — build again');
-    const acct = await chain.getAccountInfoBase64(p.pool);
+    const c = creation(creationId);
+    if (c.status === 'launched') return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(c.symbol.toLowerCase()), db);
+    if (!c.pool) throw err(409, 'the launch has not been submitted');
+    const acct = await chain.getAccountInfoBase64(c.pool);
     if (!acct) throw err(409, 'the pool is not on chain yet — try again in a few seconds');
-    const t = now();
-    const vaultId = p.symbol.toLowerCase();
-    db.prepare(`INSERT INTO vaults (id, name, operator, wallet, pool, base_mint, config, graduation_usd, token_name, token_symbol, rules, created_by, created_at, launch_sig)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'vault1', ?, ?, ?)`)
-      .run(vaultId, p.name, p.owner.slice(0, 4) + '…' + p.owner.slice(-4), p.owner, p.pool, p.baseMint, p.config, p.graduationUsd, p.name, p.symbol, p.owner, t, signature || p.launchSig || null);
+    const t = now(), rules = JSON.parse(c.rules_json), vaultId = c.symbol.toLowerCase();
+    db.prepare(`INSERT INTO vaults (id, name, operator, wallet, creator, custody_index, pool, base_mint, config, graduation_usd, grad_mult, creator_fee_pct, token_name, token_symbol, rules, rules_json, description, links_json, created_by, created_at, launch_sig)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, ?, ?)`)
+      .run(vaultId, c.name, c.owner.slice(0, 4) + '…' + c.owner.slice(-4), c.custody_wallet, c.owner, c.custody_index, c.pool, c.base_mint, c.config, c.graduation_usd, rules.gradMult, rules.creatorFeePct, c.name, c.symbol, c.rules_json, c.description, c.links_json, c.owner, t, signature || c.launch_sig || null);
     const ins = db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)');
-    for (const m of p.mints) ins.run(p.owner, m, 'creation', t);
+    for (const m of JSON.parse(c.mints_json)) ins.run(c.custody_wallet, m, 'creation', t);
+    db.prepare("UPDATE vault_creations SET status = 'launched', updated_at = ? WHERE id = ?").run(t, c.id);
     pending.delete(creationId);
     return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(vaultId), db);
   }
 
-  return { quote, build, submit, confirm, DECIDED, LIMITS, _pending: pending };
+  // ── before launch: custody returns the items to the creator (build → assert → simulate → sign → broadcast) ──
+  async function abandon({ creationId, owner = null }) {
+    const c = creation(creationId);
+    if (owner && owner !== c.owner) throw err(403, 'only the creator can abandon this creation');
+    if (!['opened', 'deposited', 'abandoned'].includes(c.status)) throw err(409, `this creation is ${c.status}`);
+    const signer = keyring.custodySigner(c.custody_index);
+    const held = await fetchAssets(rpcUrl, c.custody_wallet);
+    const returned = [];
+    for (const a of held) {
+      if (!JSON.parse(c.mints_json).includes(a.id)) continue;
+      const b64 = await buildTransfer({ mint: a.id, fromAddress: c.custody_wallet, toAddress: c.owner, recentBlockhash: await chain.getLatestBlockhash() });
+      const tx = Transaction.from(Buffer.from(b64, 'base64'));
+      const fail = checkSingleSignerUnsigned(tx, c.custody_wallet);
+      if (fail) throw new Error(`return tx does not pass assertions: ${fail.assertion}`);
+      const sim = await chain.simulateTransaction(b64);
+      if (sim && sim.err) throw err(409, `returning ${a.id.slice(0, 6)}… would fail on chain: ${JSON.stringify(sim.err)}`);
+      signer.signTransaction(tx);
+      const sig = await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64'));
+      returned.push({ mint: a.id, signature: sig });
+    }
+    db.prepare("UPDATE vault_creations SET status = 'abandoned', updated_at = ? WHERE id = ?").run(now(), c.id);
+    pending.delete(creationId);
+    return { creationId, returned };
+  }
+
+  /** Expired creations are abandoned (items returned). Called by the server's sweep. */
+  async function sweep() {
+    const rows = db.prepare("SELECT id FROM vault_creations WHERE status IN ('opened','deposited') AND expires_at <= ?").all(now());
+    const out = [];
+    for (const r of rows) { try { out.push(await abandon({ creationId: r.id })); } catch (e) { console.warn(`[create] sweep could not abandon ${r.id}: ${e.message}`); } }
+    return out;
+  }
+
+  /** Where a creation stands — and, while it is open, fresh deposit transactions for whatever custody does not hold yet. */
+  async function status({ creationId, owner = null }) {
+    const c = creation(creationId);
+    if (owner && owner !== c.owner) throw err(403, 'not your creation');
+    const out = { creationId: c.id, status: c.status, owner: c.owner, custodyWallet: c.custody_wallet, symbol: c.symbol, name: c.name, mints: JSON.parse(c.mints_json), pool: c.pool, baseMint: c.base_mint, config: c.config, expiresAt: c.expires_at };
+    if (c.status === 'opened' || c.status === 'deposited') {
+      const held = await fetchAssets(rpcUrl, c.custody_wallet);
+      const missing = out.mints.filter((m) => !held.some((a) => a.id === m));
+      const lamports = await chain.getBalanceLamports(c.custody_wallet);
+      out.missingMints = missing; out.custodySol = lamports / LAMPORTS_PER_SOL;
+      if (missing.length) out.depositTransactions = await packTransfers({ owner: c.owner, custody: c.custody_wallet, mints: missing, withGas: lamports < Math.round(gasSol * LAMPORTS_PER_SOL * 0.9) });
+    }
+    return out;
+  }
+
+  return { quote, open, deposited, submit, confirm, abandon, sweep, status, DECIDED, LIMITS: limits, _pending: pending };
 }
 
 /** A DB row → a registry entry (the same shape vaults.json uses). `manifest` reads the declared items live. */
 function rowToDef(r, db = null) {
   const manifest = db ? () => db.prepare('SELECT mint FROM vault_items WHERE vault = ?').all(r.wallet).map((x) => x.mint) : null;
-  return { id: r.id, manifest, name: r.name, operator: r.operator, description: `${r.token_name} · created by ${r.operator}`, wallet: r.wallet, secretEnv: null,
-    pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, creatorPct: DECIDED.creatorPct, openingMcapUsd: Math.round(r.graduation_usd / (r.grad_mult || DECIDED.gradMultDefault) * 100) / 100, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
+  let rules = r.rules; try { if (r.rules_json) rules = JSON.parse(r.rules_json); } catch { /* fall back to the named rule set */ }
+  const gradMult = r.grad_mult || DECIDED.gradMultDefault;
+  return {
+    id: r.id, manifest, name: r.name, operator: r.operator, creator: r.creator || null, custodyIndex: r.custody_index ?? null, secretEnv: null,
+    description: r.description || `${r.token_name} · created by ${r.operator}`, wallet: r.wallet,
+    pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, gradMult, creatorFeePct: r.creator_fee_pct || DECIDED.creatorTradingFeePercentage,
+    creatorPct: DECIDED.creatorPct, vestingMonths: DECIDED.vestingMonths, openingMcapUsd: Math.round(r.graduation_usd / gradMult * 100) / 100,
+    token: { name: r.token_name, symbol: r.token_symbol, image: r.image ? `/token/${r.base_mint}.png` : '/token/default.png', banner: r.banner ? `/token/${r.base_mint}-banner.png` : null },
+    links: (() => { try { return r.links_json ? JSON.parse(r.links_json) : {}; } catch { return {}; } })(),
+    rules, createdBy: r.created_by, createdAt: r.created_at,
+  };
 }
 
 module.exports = { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, DECIDED, LIMITS, WALLET_WRAPPER_PROGRAMS };

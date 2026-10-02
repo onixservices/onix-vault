@@ -245,7 +245,7 @@
 
     <div id="tab-proof" class="sec" style="display:none">
       <div class="prov">
-        <div class="r"><span class="k">The items</span><span>Read from the vault wallet on Solana with the DAS API, cached for seconds, age shown. <b>Not a list we keep.</b> Grade, certificate and physical vault come from the asset's own metadata. Vault wallet: <span class="mono" id="p-wallet"></span></span></div>
+        <div class="r"><span class="k">The items</span><span>Read from the vault wallet on Solana with the DAS API, cached for seconds, age shown. <b>Not a list we keep.</b> Grade, certificate and physical vault come from the asset's own metadata. Custody wallet: <span class="mono" id="p-wallet"></span> · creator: <span class="mono" id="p-creator"></span> — the creator chose the rules and is paid on chain; only the vault's doors move items out of custody.</span></div>
         <div class="r"><span class="k">Index</span><span>The <b>Insured Value</b> attribute written on chain by the custodian (Collector Crypt). An index they assign — not a market price, not a number of ours.</span></div>
         <div class="r"><span class="k">The 0.89×</span><span>Cards sell for less than the index. <b>0.89× is the measured median</b> across our own sales; backing is shown after that haircut, with its sample and date.</span></div>
         <div class="r"><span class="k">What the market pays</span><span>Token price (from the Meteora pool) × tokens in circulation, both on chain, read with the same open-source decoder anyone can run. <b id="p-pool"></b></span></div>
@@ -367,16 +367,25 @@
 
     <div id="c2" class="sec" style="display:none">
       <div class="form">
-        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" maxlength="32" placeholder="e.g. Vintage watches"></div>
-        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" maxlength="10" placeholder="e.g. VWATCH" style="text-transform:uppercase"></div>
-        <div class="f"><label for="f-quote">Priced in</label><select id="f-quote"><option>USDC (dollars)</option></select></div>
+        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" maxlength="32" placeholder="e.g. My Pokémon shelf"></div>
+        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" maxlength="10" placeholder="e.g. SHELF" style="text-transform:uppercase"></div>
+        <div class="f"><label for="f-desc">One line about it</label><input id="f-desc" value="" maxlength="200" placeholder="what this collection is, in your words"></div>
+        <div class="f"><label for="f-x">X profile (optional)</label><input id="f-x" value="" placeholder="https://x.com/you"></div>
+      </div>
+      <p class="eyebrow" style="margin-top:6px">Rules — what this vault takes and how it pays you</p>
+      <div class="form">
+        <div class="f"><label for="f-cat">Category</label><select id="f-cat"><option value="mixed">Any graded card</option><option value="pokemon">Pokémon</option><option value="one-piece">One Piece</option><option value="sports">Sports</option></select></div>
+        <div class="f"><label for="f-minv">Minimum item value</label><select id="f-minv"><option value="0">Any</option><option value="10">$10+</option><option value="25">$25+</option><option value="50">$50+</option><option value="100">$100+</option></select></div>
+        <div class="f"><label for="f-grade">Minimum grade</label><select id="f-grade"><option value="any">Any</option><option value="8">8+</option><option value="9">9+</option><option value="10">10 only</option></select></div>
+        <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40% (3.2% of every trade)</option><option value="50">50%</option></select></div>
+        <div class="f"><label for="f-grad">Opens to the whole market at</label><select id="f-grad"><option value="2">2× the opening cap</option><option value="2.5" selected>2.5× the opening cap</option><option value="3">3× the opening cap</option></select></div>
       </div>
       <div class="terms">
-        <div><b>Opens at</b><span>2× what is inside — so your 50% is worth your items on day one</span></div>
-        <div><b>Opens to the whole market at</b><span>2.5× the opening cap</span></div>
-        <div><b>Token split</b><span>50% you · 10% reserved to pay items that come in later · 40% on the curve</span></div>
-        <div><b>Fee on every trade</b><span>10% — half buys the next item, 30% buys tokens back, 20% operator</span></div>
-        <div><b>Your tokens</b><span>released when trading opens to the whole market</span></div>
+        <div><b>Opens at</b><span>2× what is inside — your 50% is worth your items on day one</span></div>
+        <div><b>Token split</b><span>50% you · 50% on the curve. Yours is released when trading opens to everyone, then over 6 months</span></div>
+        <div><b>Fee on every trade</b><span>10%: your share goes to your wallet on chain from the first trade; the vault keeps the rest to buy the next item; the first 60 s charge 99% → 10% so bots cannot front-run you</span></div>
+        <div><b>At graduation</b><span>30% of the USDC raised goes into the vault to buy more items</span></div>
+        <div><b>Custody</b><span>your items move to a wallet created for this vault; only the vault's doors can move them out. You can take them back any time before launch</span></div>
       </div>
       <p class="faint" id="c2-msg" style="font-size:12.5px;min-height:16px"></p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Next: review</button><button class="cta ghost" id="back1">Back</button></div>
@@ -390,9 +399,14 @@
         <div><div class="lab">Open market at</div><div class="cv" id="r-grad">$0</div><div class="cs">when trading opens to everyone</div></div>
         <div><div class="lab">Your share</div><div class="cv v" id="r-get">$0</div><div class="cs">50% of the token, released at that point</div></div>
       </div>
-      <p class="muted" style="font-size:13.5px">Launching creates the token and its curve on Solana. You sign one transaction in your wallet (≈0.03 SOL network cost). Onix sets up the curve first and is its fee partner. This cannot be undone: the token exists from here on.</p>
+      <p class="muted" style="font-size:13.5px" id="r-rules"></p>
+      <p class="muted" style="font-size:13.5px">Launching takes a few signatures in your wallet: one per deposit (your items + 0.03 SOL of gas go to the vault's custody wallet), then one for the launch (≈0.03 SOL). Onix sets up the curve in between. The token exists from the launch on; before that you can take everything back.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta big" id="c-launch" type="button">Launch vault</button><button class="cta ghost" id="back2">Back</button></div>
+      <div class="prog" id="c-prog" style="display:none"><i id="c-prog-i" style="width:0%"></i></div>
       <p class="faint" id="c-msg" style="font-size:12.5px;min-height:16px"></p>
+    </div>
+    <div class="sec" id="c-resume" style="display:none">
+      <p class="muted" style="font-size:13.5px">You have a vault being created (<span id="c-resume-sym"></span>). <button type="button" class="lnk" id="c-resume-go">Continue</button> · <button type="button" class="lnk" id="c-resume-abandon">Take my items back</button></p>
     </div>
   </div>
 </section>

@@ -69,7 +69,16 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,               -- the symbol, lower-case
     name TEXT NOT NULL,
     operator TEXT NOT NULL,            -- short form of the creator wallet
-    wallet TEXT NOT NULL UNIQUE,       -- the creator's wallet: it IS the vault
+    wallet TEXT NOT NULL UNIQUE,       -- the CUSTODY wallet (derived, server/keyring.js): where the items live
+    creator TEXT,                      -- the creator's wallet: pool creator, gets the allocation and the creator fee
+    custody_index INTEGER UNIQUE,      -- derivation index of the custody wallet
+    rules_json TEXT,                   -- the creator's rules (server/rules.js)
+    grad_mult REAL,
+    creator_fee_pct INTEGER,
+    description TEXT,
+    image TEXT,                        -- stored upload name (data/uploads/…) or null
+    banner TEXT,
+    links_json TEXT,
     pool TEXT NOT NULL UNIQUE,
     base_mint TEXT NOT NULL UNIQUE,
     config TEXT NOT NULL,
@@ -82,6 +91,34 @@ const SCHEMA = `
     launch_sig TEXT,
     closed_at INTEGER
   );
+  -- a vault being created: custody allocated, items on their way, config, launch — until launched or abandoned
+  CREATE TABLE IF NOT EXISTS vault_creations (
+    id TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,               -- the creator
+    custody_index INTEGER NOT NULL UNIQUE,
+    custody_wallet TEXT NOT NULL,
+    name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    mints_json TEXT NOT NULL,
+    rules_json TEXT NOT NULL,
+    description TEXT,
+    links_json TEXT,
+    image TEXT,
+    banner TEXT,
+    status TEXT NOT NULL,              -- opened | deposited | launched | abandoned
+    config TEXT,                       -- once Onix created it (after the deposit)
+    config_sig TEXT,
+    backing_usd REAL,
+    graduation_usd REAL,
+    base_mint TEXT,
+    pool TEXT,
+    launch_sig TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_creations_owner ON vault_creations (owner, status);
+
   -- what a created vault declares as backing (at creation, then each verified admission)
   CREATE TABLE IF NOT EXISTS vault_items (
     vault TEXT NOT NULL,
@@ -98,6 +135,11 @@ function migrate(db) {
     const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
     if (!cols.includes('vault')) db.exec(`ALTER TABLE ${t} ADD COLUMN vault TEXT`);
     if (t === 'vault_admissions' && !cols.includes('unlock_at')) db.exec(`ALTER TABLE ${t} ADD COLUMN unlock_at INTEGER`);
+  }
+  // vaults created before custody (1-2 Oct) lack these columns
+  const vcols = db.prepare('PRAGMA table_info(vaults)').all().map((c) => c.name);
+  for (const [name, type] of [['creator', 'TEXT'], ['custody_index', 'INTEGER'], ['rules_json', 'TEXT'], ['grad_mult', 'REAL'], ['creator_fee_pct', 'INTEGER'], ['description', 'TEXT'], ['image', 'TEXT'], ['banner', 'TEXT'], ['links_json', 'TEXT']]) {
+    if (!vcols.includes(name)) db.exec(`ALTER TABLE vaults ADD COLUMN ${name} ${type}`);
   }
 }
 

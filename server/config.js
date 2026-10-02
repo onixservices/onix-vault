@@ -20,6 +20,8 @@ module.exports = Object.freeze({
   // the only secret (env VAULT_SECRET_KEY); the property is named so the pre-commit hook's
   // "secret assigned to variable" pattern never matches real code — the hook stays strict.
   SIGNER_SECRET: env('VAULT_SECRET_KEY'),
+  // the master seed every custody wallet derives from (server/keyring.js); generated on the server, never logged
+  KEYRING_SEED: env('VAULT_MASTER_SEED'),
   USDC_MINT: env('USDC_MINT', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
   PUBLIC_URL: env('ONIX_VAULT_PUBLIC_URL', 'https://vault.onix.finance'),
   MEMO_PROGRAM_ID: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',

@@ -12,7 +12,8 @@
  *   POST /v1/vaults/:vault/redemptions
  *   GET  /v1/wallets/:wallet/eligible-items              any registered custodian, any vault
  *   GET  /v1/vaults/create/quote?wallet=                  what a wallet could open a vault on
- *   POST /v1/vaults/create/build | create/submit | create/confirm   the Create door (creator signs ONE tx)
+ *   POST /v1/vaults/create/open | deposited | submit | confirm | abandon   the Create door (custody + launch)
+ *   GET  /v1/vaults/create/:creationId
  *   GET  /token/:mint.json                                 token metadata for created vaults
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
@@ -54,14 +55,19 @@ function buildApp(deps) {
   app.get('/v1/vaults', wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), vaults: await Promise.all(vaults.map(summary)) });
   }));
-  // ── the Create door: the creator's wallet IS the vault; Onix is the curve's partner ──
+  // ── the Create door: items go into a derived custody wallet; the creator is the pool's creator; Onix is the partner ──
   const needCreator = () => { if (!creator) throw new VaultError(503, 'vault creation not configured'); return creator; };
   app.get('/v1/vaults/create/quote', wrap(async (req, res) => {
-    res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || '') })) });
+    let rules = {}; if (req.query.rules) { try { rules = JSON.parse(String(req.query.rules)); } catch { throw new VaultError(400, 'rules must be JSON'); } }
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || ''), rules })) });
   }));
-  app.post('/v1/vaults/create/build', wrap(async (req, res) => {
-    const { owner, name, symbol, mints } = req.body || {};
-    res.json({ readAt: new Date().toISOString(), ...(await needCreator().build({ owner, name, symbol, mints })) });
+  app.post('/v1/vaults/create/open', wrap(async (req, res) => {
+    const { owner, name, symbol, mints, rules, description, links, imageId, bannerId } = req.body || {};
+    res.status(201).json({ readAt: new Date().toISOString(), ...(await needCreator().open({ owner, name, symbol, mints, rules, description, links, imageId, bannerId })) });
+  }));
+  app.post('/v1/vaults/create/deposited', wrap(async (req, res) => {
+    const { creationId } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().deposited({ creationId })) });
   }));
   app.post('/v1/vaults/create/submit', wrap(async (req, res) => {
     const { creationId, signedTransaction } = req.body || {};
@@ -70,13 +76,22 @@ function buildApp(deps) {
   app.post('/v1/vaults/create/confirm', wrap(async (req, res) => {
     const { creationId, signature } = req.body || {};
     const def = await needCreator().confirm({ creationId, signature });
-    const b = addVault ? addVault(def) : null;
+    const already = vaults.find((x) => x.wallet === def.wallet);
+    const b = already || (addVault ? addVault(def) : null);
     res.status(201).json({ readAt: new Date().toISOString(), vault: b ? await summary(b) : def });
+  }));
+  app.post('/v1/vaults/create/abandon', wrap(async (req, res) => {
+    const { creationId, owner } = req.body || {};
+    if (!owner) throw new VaultError(400, 'owner is required');
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().abandon({ creationId, owner })) });
+  }));
+  app.get('/v1/vaults/create/:creationId', wrap(async (req, res) => {
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().status({ creationId: req.params.creationId })) });
   }));
   app.get('/token/:mint.json', (req, res, next) => {
     const r = db ? db.prepare('SELECT * FROM vaults WHERE base_mint = ?').get(req.params.mint) : null;
     if (!r) return next();
-    res.json({ name: r.token_name, symbol: r.token_symbol, description: `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${req.protocol}://${req.get('host')}/token/default.png` });
+    res.json({ name: r.token_name, symbol: r.token_symbol, description: r.description || `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${req.protocol}://${req.get('host')}/token/${r.image ? r.base_mint + '.png' : 'default.png'}` });
   });
   app.get('/v1/vaults/:vault/stats', pick, wrap(async (req, res) => {
     const st = need(req.vb.stats, 'stats');
