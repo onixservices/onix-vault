@@ -68,6 +68,7 @@
   // ── vault page ──
   function renderVault() {
     loadStats().then(function (st) {
+      if (T.wallet && st.pool && (BAL.wallet !== T.wallet || BAL.usdc == null)) loadBalances();
       $('v-eyebrow').textContent = (META.name || 'Vault') + ' · operated by ' + (META.operator || '—') + ' · wallet ' + short(VAULT);
       $('v-crumb').textContent = META.name || 'Vault'; $('v-send').href = vpath('/send'); $('v-send').style.display = (W.addr && META.creator && W.addr === META.creator) ? '' : 'none'; $('t-sym').textContent = SYM();
       $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count; $('v-what').textContent = (st.items.count === 1 ? 'graded card' : 'graded cards') + (META.rulesText ? ' · ' + META.rulesText.replace(/ from .*$/, '').toLowerCase() : '');
@@ -201,7 +202,11 @@
       .then(function (q) {
         if (q.error) {
           var h = heldNow();
-          if (/insufficient liquidity/i.test(q.error)) $('t-quote').textContent = 'That is more than the curve holds.' + (h != null ? ' You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' : Math.floor(h).toLocaleString('en-US') + ' ' + SYM()) + ' — use Max.' : '');
+          if (/insufficient liquidity/i.test(q.error)) {
+            var p = STATS && STATS.pool, room = p && p.graduationUsdc ? Math.max(0, p.graduationUsdc - (p.raisedUsd || 0)) : null;
+            if (T.side === 'buy' && room != null) $('t-quote').textContent = 'The curve only takes ' + usd2(room) + ' more before it graduates — try ' + usd2(Math.ceil(room / 0.9 * 100) / 100) + ' (fee included).';
+            else $('t-quote').textContent = 'That is more than the curve holds.' + (h != null ? ' You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' : Math.floor(h).toLocaleString('en-US') + ' ' + SYM()) + ' — use Max.' : '');
+          }
           else $('t-quote').textContent = q.error;
           return;
         }
