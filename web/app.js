@@ -46,7 +46,7 @@
   function tile(v) {
     var st = v.stats, p = st && st.pool, sym = '$' + ((v.token && v.token.symbol) || 'TOKEN');
     var pct = p ? Math.round((p.graduationProgress || 0) * 100) : 0;
-    return '<a class="vcard" href="#/vault/' + v.id + '"><div class="strip big" data-strip="' + v.vault + '"></div><div class="body">'
+    return '<a class="vcard" href="#/vault/' + v.id + '"><div class="strip" data-strip="' + v.vault + '"></div><div class="body">'
       + '<div class="head"><b>' + esc(v.name) + '</b><span class="tag gold">operated by ' + esc(v.operator || '—') + '</span></div>'
       + '<div class="kv"><div><span class="l">Backing</span><span class="x g">' + (st ? usd(st.backing.realisableUsd) : '—') + '</span></div><div><span class="l">Market cap</span><span class="x">' + (p ? usd(p.mcapUsd) : '—') + '</span></div><div><span class="l">Ratio</span><span class="x">' + (p && p.ratio != null ? p.ratio.toFixed(2) + '×' : '—') + '</span></div></div>'
       + '<div class="prog"><i style="width:' + pct + '%"></i></div>'
@@ -58,7 +58,7 @@
     VAULTS.forEach(function (v) {
       get('/v1/vaults/' + v.vault + '/items').then(function (b) {
         var el = document.querySelector('[data-strip="' + v.vault + '"]'); if (!el) return;
-        el.innerHTML = b.items.slice(0, 10).map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span></span>'; }).join('');
+        el.innerHTML = b.items.slice(0, 5).map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span></span>'; }).join('');
       });
     });
     var st0 = VAULTS[0] && VAULTS[0].stats;
@@ -127,6 +127,28 @@
   // ── the trade panel: quote on the API, sign & send in the wallet (never here) ──
   var T = { side: 'buy', wallet: null, timer: null, busy: false };
   function provider() { return window.solana || (window.phantom && window.phantom.solana) || null; }
+  // ── the wallet: connected once, in the header; every door reads the same address ──
+  var W = { addr: null };
+  function setWallet(a) {
+    W.addr = a; T.wallet = a; SD.wallet = a;
+    $('w-connect').textContent = a ? short(a) : 'Connect wallet';
+    $('w-connect').classList.toggle('on', !!a);
+    if (a) { $('sd-addr').value = a; $('c-addr').value = a; }
+    if (STATS) tradePanel(STATS);
+    if (a && $('s-send').classList.contains('on')) sdScan(a); else sdRender();
+  }
+  function connectWallet(opts) {
+    var w = provider();
+    if (!w || !w.connect) { if (!opts || !opts.silent) alert('No Solana wallet found in this browser.'); return Promise.reject(new Error('no wallet')); }
+    return w.connect(opts && opts.silent ? { onlyIfTrusted: true } : undefined)
+      .then(function (r) { setWallet((r && r.publicKey ? r.publicKey : w.publicKey).toString()); return W.addr; });
+  }
+  $('w-connect').addEventListener('click', function () {
+    if (W.addr) { var w = provider(); if (w && w.disconnect) w.disconnect().catch(function () {}); setWallet(null); return; }
+    connectWallet().catch(function () {});
+  });
+  (function () { var w = provider(); if (w && w.on) { w.on('disconnect', function () { setWallet(null); }); w.on('accountChanged', function (pk) { setWallet(pk ? pk.toString() : null); }); } })();
+  window.addEventListener('load', function () { connectWallet({ silent: true }).catch(function () {}); });
   // The wallet signs AND sends (it simulates and applies its own protections that way). web3.js
   // is vendored at /vendor/solana-web3.min.js so the page can hand it a Transaction object —
   // the `request({ message })` form was refused by current Phantom builds ("version 24").
@@ -168,11 +190,7 @@
     if (!(STATS && STATS.pool) || T.busy) return;
     var w = provider();
     if (!w || !w.connect) { $('t-msg').textContent = 'No Solana wallet found in this browser.'; return; }
-    if (!T.wallet) {
-      w.connect().then(function (r) { T.wallet = (r && r.publicKey ? r.publicKey : w.publicKey).toString(); $('t-msg').textContent = 'Wallet ' + short(T.wallet); tradePanel(STATS); })
-        .catch(function () { $('t-msg').textContent = 'Wallet connection was declined.'; });
-      return;
-    }
+    if (!T.wallet) { connectWallet().catch(function () { $('t-msg').textContent = 'Wallet connection was declined.'; }); return; }
     var v = parseFloat($('t-amount').value);
     if (!(v > 0)) { $('t-msg').textContent = 'Enter an amount.'; return; }
     T.busy = true; $('t-go').textContent = 'Building…'; $('t-msg').textContent = '';
@@ -266,12 +284,6 @@
   });
   $('c-scan').addEventListener('click', function () { var a = $('c-addr').value.trim(); if (a) scan(a); });
   $('c-addr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var a = $('c-addr').value.trim(); if (a) scan(a); } });
-  $('c-connect').addEventListener('click', function () {
-    var w = window.solana || (window.phantom && window.phantom.solana);
-    if (!w || !w.connect) { $('c-summary').textContent = 'No Solana wallet found in this browser — paste an address instead.'; return; }
-    w.connect().then(function (r) { var a = (r && r.publicKey ? r.publicKey : w.publicKey).toString(); $('c-addr').value = a; scan(a); })
-      .catch(function () { $('c-summary').textContent = 'Wallet connection was declined.'; });
-  });
   function step(n) {
     [1, 2, 3].forEach(function (k) { $('c' + k).style.display = k === n ? '' : 'none'; var s = $('st' + k); s.className = 'step' + (k === n ? ' on' : k < n ? ' done' : ''); });
     window.scrollTo({ top: 0 });
@@ -359,12 +371,7 @@
   $('sd-pick').addEventListener('click', function (e) { var b = e.target.closest('button.pk'); if (!b) return; SD.pick = SD.pick === b.dataset.mint ? null : b.dataset.mint; sdRender(); });
   $('sd-scan').addEventListener('click', function () { var a = $('sd-addr').value.trim(); if (a) sdScan(a); });
   $('sd-addr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var a = $('sd-addr').value.trim(); if (a) sdScan(a); } });
-  function sdConnect() {
-    var w = provider();
-    if (!w || !w.connect) { $('sd-msg').textContent = 'No Solana wallet found in this browser — paste an address to see what could go in.'; return Promise.reject(new Error('no wallet')); }
-    return w.connect().then(function (r) { SD.wallet = (r && r.publicKey ? r.publicKey : w.publicKey).toString(); $('sd-addr').value = SD.wallet; sdScan(SD.wallet); return SD.wallet; });
-  }
-  $('sd-connect').addEventListener('click', function () { sdConnect().catch(function () {}); });
+  function sdConnect() { return connectWallet().catch(function (e) { $('sd-msg').textContent = e.message === 'no wallet' ? 'No Solana wallet found in this browser — paste an address to see what could go in.' : 'Wallet connection was declined.'; throw e; }); }
   $('sd-go').addEventListener('click', function () {
     if (SD.busy) return;
     var c = SD.items.eligible.filter(function (x) { return x.mint === SD.pick; })[0]; if (!c) return;

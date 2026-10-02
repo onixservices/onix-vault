@@ -63,7 +63,8 @@ nav{display:flex; gap:20px; margin-left:auto}
 nav a{color:var(--text-muted); font-size:13px; font-weight:500; padding:4px 2px; text-decoration:none; transition:color .15s}
 nav a:hover{color:var(--text)} nav a.on{color:var(--brand)}
 nav a:focus-visible{outline:none; box-shadow:var(--glow-focus); border-radius:4px}
-@media(max-width:720px){ .top .in{flex-wrap:wrap; row-gap:2px; padding:10px 16px} nav{order:3; width:100%; justify-content:space-between; gap:0; margin-left:0} nav a{padding:12px 4px} .top .cta{display:none} }
+@media(max-width:720px){ .top .in{flex-wrap:wrap; row-gap:2px; padding:10px 16px} nav{order:3; width:100%; justify-content:space-between; gap:0; margin-left:0} nav a{padding:12px 4px} .top .wbtn{order:2} }
+.wbtn{font-family:var(--mono,ui-monospace,monospace); font-weight:600; letter-spacing:.01em} .wbtn.on{color:var(--brand); border-color:var(--border-active)}
 
 /* ── buttons: ONE green CTA per screen; everything else is hairline ── */
 .cta{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 20px; border-radius:var(--r-md); border:1px solid transparent; background:var(--cta-green); color:#04140f; font-weight:700; font-size:var(--fs-body); text-decoration:none; cursor:pointer; white-space:nowrap; box-shadow:0 6px 24px rgba(var(--aura-rgb),.18); transition:transform .15s,box-shadow .15s,background .15s,border-color .15s}
@@ -92,14 +93,12 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .home-head{display:flex; flex-direction:column; gap:10px; align-items:center; text-align:center; padding-top:6px}
 .home-head h1{font-size:var(--fs-display)}
 .home-head .lede{color:var(--text-muted); font-size:var(--fs-body); max-width:60ch}
-.board{display:grid; grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr); gap:14px}
-@media(max-width:760px){ .board{grid-template-columns:1fr} }
+.board{display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:14px}
+@media(max-width:400px){ .board{grid-template-columns:1fr} }
 .vcard{background:var(--wash),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; text-decoration:none; color:inherit; display:flex; flex-direction:column; box-shadow:var(--glow-card); transition:border-color .15s,box-shadow .15s,transform .15s}
 .vcard:hover{border-color:var(--border-active); box-shadow:var(--glow-card-hover); transform:translateY(-1px); color:inherit}
-.vcard .strip{display:grid; grid-template-columns:repeat(5,1fr); gap:2px; background:var(--stage); padding:10px; height:112px}
-.vcard .strip.big{grid-template-columns:repeat(10,1fr); height:150px}
-@media(max-width:760px){ .vcard .strip.big{grid-template-columns:repeat(5,1fr); height:112px} .vcard .strip.big img:nth-child(n+6){display:none} }
-.vcard .strip img{width:100%; height:100%; object-fit:cover; border-radius:3px; filter:drop-shadow(0 0 6px rgba(var(--aura-rgb),.18))}
+.vcard .strip{display:flex; justify-content:center; gap:4px; background:var(--stage); padding:10px; height:150px}
+.vcard .strip img{flex:0 1 calc(20% - 4px); min-width:0; height:100%; object-fit:cover; border-radius:3px; filter:drop-shadow(0 0 6px rgba(var(--aura-rgb),.18))}
 .vcard .body{padding:16px 18px 18px; display:flex; flex-direction:column; gap:12px}
 .vcard .head{display:flex; justify-content:space-between; gap:10px; align-items:baseline}
 .vcard .head b{font-size:var(--fs-title); font-weight:650; letter-spacing:-.02em}
@@ -109,7 +108,7 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .kv .x{font:600 var(--fs-metric)/1 var(--mono); font-variant-numeric:tabular-nums}
 .prog{height:4px; border-radius:2px; background:var(--border); overflow:hidden}
 .prog i{display:block; height:100%; background:var(--brand); border-radius:2px; box-shadow:var(--glow-positive)}
-.vcard.empty{border-style:dashed; align-items:center; justify-content:center; text-align:center; padding:28px; gap:10px; min-height:230px; color:var(--text-muted); background:var(--surface); box-shadow:none}
+.vcard.empty{border-style:dashed; align-items:center; justify-content:center; text-align:center; padding:28px; gap:10px; min-height:360px; color:var(--text-muted); background:var(--surface); box-shadow:none}
 .vcard.empty b{font-size:16px; color:var(--text)}
 
 /* ── vault page ── */
