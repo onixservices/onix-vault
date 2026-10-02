@@ -31,6 +31,7 @@ const { checkSingleSignerUnsigned } = require('./txAssertions');
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
 const r2 = (n) => Math.round(n * 100) / 100;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LIMITS = Object.freeze({
   nameMax: 32, symbolMax: 10, descriptionMax: 200, minItems: 1, minBackingUsd: 5,
@@ -75,7 +76,7 @@ function instructionsOf(tx) {
   return JSON.stringify({ feePayer: tx.feePayer?.toBase58(), ixs: tx.instructions.filter((ix) => !WALLET_WRAPPER_PROGRAMS.has(ix.programId.toBase58())).map((ix) => ({ p: ix.programId.toBase58(), k: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), d: Buffer.from(ix.data).toString('base64') })) });
 }
 
-function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quoteMint, fetchAssets, buildTransfer, rpcUrl = null, metadataBase, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [], reservedIndexes = () => [], gasSol = LIMITS.gasSol, limits = LIMITS }) {
+function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quoteMint, fetchAssets, buildTransfer, rpcUrl = null, metadataBase, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [], reservedIndexes = () => [], gasSol = LIMITS.gasSol, limits = LIMITS, retryMs = 2000 }) {
   const pending = new Map(); // creationId → { baseMintKp, baseMint, pool, content } (the mint key lives only here, only until submit)
 
   // ── reading ──
@@ -204,6 +205,12 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
       config = configKp.publicKey.toBase58();
       db.prepare("UPDATE vault_creations SET config = ?, config_sig = ?, status = 'deposited', backing_usd = ?, graduation_usd = ?, updated_at = ? WHERE id = ?").run(config, configSig, b.realisableUsd, view.graduationUsd, now(), c.id);
     }
+    // the RPC node the SDK reads from may lag the one that confirmed the signature (2 Oct 2026: "Pool config not
+    // found for virtual pool" right after a finalized createConfig) — read it back until it is there
+    for (let t = 0; ; t++) {
+      try { await client.state.getPoolConfig(new PublicKey(config)); break; }
+      catch (e) { if (t >= 10) throw err(503, `the curve config ${config} is not readable yet — try again in a moment`); await sleep(retryMs); }
+    }
 
     // the launch — the creator's transaction: creator pays and creates; the mint key signs AFTER the creator
     const baseMintKp = Keypair.generate();
@@ -292,7 +299,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   async function status({ creationId, owner = null }) {
     const c = creation(creationId);
     if (owner && owner !== c.owner) throw err(403, 'not your creation');
-    const out = { creationId: c.id, status: c.status, owner: c.owner, custodyWallet: c.custody_wallet, symbol: c.symbol, name: c.name, mints: JSON.parse(c.mints_json), pool: c.pool, baseMint: c.base_mint, config: c.config, expiresAt: c.expires_at };
+    const out = { creationId: c.id, status: c.status, owner: c.owner, custodyWallet: c.custody_wallet, symbol: c.symbol, name: c.name, mints: JSON.parse(c.mints_json), rules: JSON.parse(c.rules_json), backingUsd: c.backing_usd, graduationUsd: c.graduation_usd, pool: c.pool, baseMint: c.base_mint, config: c.config, expiresAt: c.expires_at };
     if (c.status === 'opened' || c.status === 'deposited') {
       const held = await fetchAssets(rpcUrl, c.custody_wallet);
       const missing = out.mints.filter((m) => !held.some((a) => a.id === m));

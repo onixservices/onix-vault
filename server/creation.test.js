@@ -66,7 +66,9 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
     getAccountInfoBase64: async () => (poolOnChain ? { data: ['AA=='] } : null),
     getBalanceLamports: async (w) => (lamports != null ? lamports : (world.sol[w] || 0)),
   };
+  let configReads = 0;
   const client = {
+    state: { getPoolConfig: async () => { configReads++; if (configReads <= 2) throw new Error('Pool config not found for virtual pool'); return { ok: true }; } },
     partner: { createConfig: async (a) => { calls.push(['config', a]); const tx = new Transaction(); tx.add(SystemProgram.createAccount({ fromPubkey: a.payer, newAccountPubkey: a.config, lamports: 1, space: 0, programId: SystemProgram.programId })); return tx; } },
     creator: { createPool: async (a) => { calls.push(['pool', a]); const tx = new Transaction(); tx.add(SystemProgram.createAccount({ fromPubkey: a.payer, newAccountPubkey: a.baseMint, lamports: 1, space: 0, programId: SystemProgram.programId })); return tx; } },
   };
@@ -79,10 +81,10 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
   };
   const kr = { custodySigner: (i) => keyring.custodySigner(i, SEED) };
   const creator = createVaultCreator({ db, chain, sdk, getClient: async () => client, partner: fromKeypair(partnerKp), keyring: kr, quoteMint: Keypair.generate().publicKey.toBase58(),
-    fetchAssets: async (rpc, owner) => world.assets.filter((a) => a.ownership.owner === owner), buildTransfer, metadataBase: 'https://v.test', now: () => 1_800_000_000_000, existingSymbols: () => ['VEONIX', 'TAKEN'], reservedIndexes: () => [0] });
+    fetchAssets: async (rpc, owner) => world.assets.filter((a) => a.ownership.owner === owner), buildTransfer, metadataBase: 'https://v.test', now: () => 1_800_000_000_000, retryMs: 1, existingSymbols: () => ['VEONIX', 'TAKEN'], reservedIndexes: () => [0] });
   // the creator "signs and sends" the deposit txs in the world
   const deposit = async (txs) => { for (const b64 of txs) { const tx = Transaction.from(Buffer.from(b64, 'base64')); tx.partialSign(ownerKp); await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64')); } };
-  return { creator, db, chain, sent, calls, world, deposit };
+  return { creator, db, chain, sent, calls, world, deposit, configReads: () => configReads };
 }
 const rejects = async (p, code) => { try { await p; assert.fail('expected rejection'); } catch (e) { assert.equal(e.statusCode, code, e.message); } };
 
@@ -148,7 +150,7 @@ describe('Create door — open (custody allocated, deposits built; Onix spends n
 
 describe('Create door — deposited → config (Onix pays, custody is the fee claimer) → launch tx (unsigned)', () => {
   test('before the items land, 409 and no config; after, the config is created once and the launch tx is built for the creator', async () => {
-    const { creator, chain, calls, sent, deposit, db } = make();
+    const { creator, chain, calls, sent, deposit, db, configReads } = make();
     const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a', 'b'] });
     await rejects(creator.deposited({ creationId: o.creationId }), 409);
     assert.equal(calls.length, 0, 'no config before the deposit');
@@ -158,6 +160,7 @@ describe('Create door — deposited → config (Onix pays, custody is the fee cl
     assert.equal(calls[0][1].feeClaimer.toBase58(), o.custodyWallet, 'the vault treasury is its custody wallet');
     assert.equal(calls[0][1].payer.toBase58(), partnerKp.publicKey.toBase58(), 'Onix pays the config');
     assert.ok(Transaction.from(Buffer.from(sent[sent.length - 1], 'base64')).verifySignatures(), 'config tx fully signed (partner + config key)');
+    assert.ok(configReads() >= 3, 'the config was read back until the RPC had it (2 Oct 2026 lag)');
     assert.equal(calls[1][0], 'pool'); assert.equal(calls[1][1].poolCreator.toBase58(), OWNER); assert.equal(calls[1][1].payer.toBase58(), OWNER);
     const tx = Transaction.from(Buffer.from(d.transaction, 'base64'));
     assert.equal(checkCreatorPlusMint(tx, OWNER, d.baseMint), null, 'leaves with NO signature');

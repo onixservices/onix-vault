@@ -386,7 +386,7 @@
     get('/v1/vaults/create/' + id).then(function (s) {
       if (s.status === 'launched' || s.status === 'abandoned') { remember(null); return; }
       $('c-resume-sym').textContent = '$' + s.symbol + ' · ' + s.status; $('c-resume').style.display = '';
-      $('c-resume-go').onclick = function () { step(3); $('r-name').textContent = s.name; $('r-sym').textContent = '$' + s.symbol; launchFrom(id, s.depositTransactions || null); };
+      $('c-resume-go').onclick = function () { step(3); $('r-name').textContent = s.name; $('r-sym').textContent = '$' + s.symbol; $('r-sel').textContent = s.mints.length + ' item' + (s.mints.length === 1 ? '' : 's'); if (s.backingUsd) { $('r-real').textContent = usd(s.backingUsd); $('r-get').textContent = usd(s.backingUsd); $('r-open').textContent = usd(s.backingUsd * 2); } if (s.graduationUsd) $('r-grad').textContent = usd(s.graduationUsd); launchFrom(id, s.depositTransactions || null); };
       $('c-resume-abandon').onclick = function () { $('c-resume-abandon').disabled = true; post('/v1/vaults/create/abandon', { creationId: id, owner: W.addr }).then(function (x) { remember(null); $('c-resume').style.display = 'none'; alert(x.status === 200 ? 'Your items are on their way back (' + x.body.returned.length + ' transfer(s)).' : (x.body.error || 'could not abandon')); }); };
     }).catch(function () {});
   }
