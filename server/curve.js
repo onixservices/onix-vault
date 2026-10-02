@@ -98,7 +98,18 @@ function productionCurveDeps({ rpcUrl, chain }) {
   const load = () => { if (!sdk) { sdk = require('@meteora-ag/dynamic-bonding-curve-sdk'); const { Connection } = require('@solana/web3.js'); conn = new Connection(rpcUrl, 'confirmed'); client = sdk.DynamicBondingCurveClient.create(conn, 'confirmed'); } };
   return {
     getClient: async () => { load(); return client; },
-    getCurrentPoint: async (cfg) => { load(); return sdk.getCurrentPoint(conn, cfg.activationType); },
+    // The SDK asks the block time of the newest slot; the RPC sometimes does not have it yet
+    // ("Block not available for slot N"). For a timestamp-activated curve the wall clock is
+    // the same number; for a slot-activated one the slot itself is.
+    getCurrentPoint: async (cfg) => {
+      load();
+      try { return await sdk.getCurrentPoint(conn, cfg.activationType); }
+      catch (e) {
+        const BN = require('bn.js');
+        if (Number(cfg.activationType) === 1) return new BN(Math.floor(Date.now() / 1000));
+        return new BN(await conn.getSlot('confirmed'));
+      }
+    },
     getLatestBlockhash: () => chain.getLatestBlockhash(),
     simulate: (b64) => chain.simulateTransaction(b64),
     getBalanceUi: async (owner, mint) => {
