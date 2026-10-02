@@ -10,6 +10,7 @@ const Database = require('better-sqlite3');
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS vault_reservations (
     id TEXT PRIMARY KEY,
+    vault TEXT,                    -- the vault wallet this row belongs to (one DB, N vaults)
     mint TEXT NOT NULL,
     integrator TEXT NOT NULL,
     winner TEXT NOT NULL,
@@ -30,6 +31,7 @@ const SCHEMA = `
 
   CREATE TABLE IF NOT EXISTS vault_redemptions (
     id TEXT PRIMARY KEY,
+    vault TEXT,
     mint TEXT NOT NULL,
     recipient TEXT NOT NULL,
     burn_sig TEXT NOT NULL UNIQUE,
@@ -45,6 +47,7 @@ const SCHEMA = `
 
   CREATE TABLE IF NOT EXISTS vault_admissions (
     id TEXT PRIMARY KEY,
+    vault TEXT,
     mint TEXT NOT NULL,
     owner TEXT NOT NULL,               -- who sent the item (and is owed tokens)
     signature TEXT NOT NULL UNIQUE,    -- the transfer the sender signed
@@ -61,11 +64,20 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_adm_status ON vault_admissions (status);
 `;
 
+/** Columns added after the first deploy: add them if an older file lacks them. */
+function migrate(db) {
+  for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) {
+    const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
+    if (!cols.includes('vault')) db.exec(`ALTER TABLE ${t} ADD COLUMN vault TEXT`);
+  }
+}
+
 function open(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 

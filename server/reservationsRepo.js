@@ -6,13 +6,13 @@
 'use strict';
 
 function add(db, {
-  id, mint, integrator, winner, exitPriceUsd, expiresAt, createdAt, idempotencyKey = null, paymentTxB64 = null,
+  id, mint, integrator, winner, exitPriceUsd, expiresAt, createdAt, idempotencyKey = null, paymentTxB64 = null, vault = null,
 }) {
   db.prepare(`
-    INSERT INTO vault_reservations (id, mint, integrator, winner, exit_price_usd, status,
+    INSERT INTO vault_reservations (id, vault, mint, integrator, winner, exit_price_usd, status,
                                     expires_at, idempotency_key, payment_tx_b64, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?, ?, ?, ?)
-  `).run(id, mint, integrator, winner, exitPriceUsd, expiresAt, idempotencyKey, paymentTxB64, createdAt, createdAt);
+    VALUES (?, ?, ?, ?, ?, ?, 'reserved', ?, ?, ?, ?, ?)
+  `).run(id, vault, mint, integrator, winner, exitPriceUsd, expiresAt, idempotencyKey, paymentTxB64, createdAt, createdAt);
   return get(db, id);
 }
 
@@ -53,8 +53,10 @@ function expiredCountFor(db, integrator) {
 }
 
 /** Settled sales, newest first — the gacha door's public trail. */
-function listSettled(db, limit = 100) {
-  return db.prepare("SELECT * FROM vault_reservations WHERE status = 'settled' ORDER BY updated_at DESC LIMIT ?").all(limit);
+function listSettled(db, limit = 100, vault = null) {
+  return vault
+    ? db.prepare("SELECT * FROM vault_reservations WHERE status = 'settled' AND vault = ? ORDER BY updated_at DESC LIMIT ?").all(vault, limit)
+    : db.prepare("SELECT * FROM vault_reservations WHERE status = 'settled' ORDER BY updated_at DESC LIMIT ?").all(limit);
 }
 
 function byPaymentSig(db, sig) {

@@ -20,21 +20,25 @@ const BN = require('bn.js');
 const { Connection, PublicKey } = require('@solana/web3.js');
 const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
 const C = require('../server/config');
-const signer = require('../server/signer');
+const signerMod = require('../server/signer');
+const { findVault } = require('../server/registry');
 const { decodeVirtualPool } = require('../src/reader/pool');
 
 const GO = process.argv.includes('--go');
+const vi = process.argv.indexOf('--vault');
+const DEF = findVault(vi >= 0 ? process.argv[vi + 1] : null);
+const signer = DEF.secretEnv === 'VAULT_SECRET_KEY' ? signerMod : signerMod.fromEnv(DEF.secretEnv);
 const MIN_USDC = parseFloat(process.env.ONIX_VAULT_FEE_CLAIM_MIN_USDC || '1');
 const SPLIT = { card: 0.5, buyback: 0.3, operator: 0.2 };
-const LEDGER = path.join(path.dirname(C.DB_PATH), 'fee-claims.json');
+const LEDGER = path.join(path.dirname(C.DB_PATH), DEF.id === '1' ? 'fee-claims.json' : `fee-claims-${DEF.id}.json`);
 const log = (...a) => console.log(...a);
 const usd = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 
 async function main() {
-  if (!C.POOL) throw new Error('ONIX_VAULT_POOL not set — no pool to claim from');
-  if (!signer.configured() || signer.publicKey() !== C.VAULT_WALLET) throw new Error('the configured key is not the vault wallet');
+  if (!DEF.pool) throw new Error(`vault ${DEF.id} has no pool to claim from`);
+  if (!signer.configured() || signer.publicKey() !== DEF.wallet) throw new Error('the configured key is not the vault wallet');
   const conn = new Connection(C.RPC_URL, 'confirmed');
-  const vault = new PublicKey(C.VAULT_WALLET), pool = new PublicKey(C.POOL);
+  const vault = new PublicKey(DEF.wallet), pool = new PublicKey(DEF.pool);
   const acct = await conn.getAccountInfo(pool);
   if (!acct) throw new Error('pool account not found');
   const p = decodeVirtualPool(Uint8Array.from(acct.data));

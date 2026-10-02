@@ -77,14 +77,14 @@ function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTra
     if (!mint || !owner || !signature || !(valueUsd > 0)) throw err(400, 'mint, owner, signature and valueUsd are required');
     if (db.prepare('SELECT id FROM vault_admissions WHERE signature = ?').get(signature)) throw err(409, 'this admission was already recorded');
     const id = crypto.randomUUID(); const t = now();
-    db.prepare(`INSERT INTO vault_admissions (id, mint, owner, signature, value_usd, owed_usd, lock_months, status, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`).run(id, mint, owner, signature, valueUsd, owed(valueUsd), rules.lockMonths, t, t);
+    db.prepare(`INSERT INTO vault_admissions (id, vault, mint, owner, signature, value_usd, owed_usd, lock_months, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`).run(id, vaultWallet, mint, owner, signature, valueUsd, owed(valueUsd), rules.lockMonths, t, t);
     return view(db.prepare('SELECT * FROM vault_admissions WHERE id = ?').get(id));
   }
 
   /** The chain is the witness: pending → admitted when the vault owns the item. */
   async function verifyPending() {
-    const rows = db.prepare("SELECT * FROM vault_admissions WHERE status = 'pending'").all();
+    const rows = db.prepare("SELECT * FROM vault_admissions WHERE status = 'pending' AND vault = ?").all(vaultWallet);
     let verified = 0;
     for (const r of rows) {
       let a; try { a = await chain.getAsset(r.mint); } catch { continue; }
@@ -101,7 +101,7 @@ function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTra
       status: r.status, tokens: r.tokens_sig ? 'locked' : 'pending', tokensSignature: r.tokens_sig || null, tokensAmount: r.tokens_amount ?? null, at: r.created_at, updatedAt: r.updated_at };
   }
   function list({ limit = 100 } = {}) {
-    return db.prepare('SELECT * FROM vault_admissions ORDER BY created_at DESC LIMIT ?').all(limit).map(view);
+    return db.prepare('SELECT * FROM vault_admissions WHERE vault = ? ORDER BY created_at DESC LIMIT ?').all(vaultWallet, limit).map(view);
   }
 
   return { eligible, build, record, verifyPending, list, rules };

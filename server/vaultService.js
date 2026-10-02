@@ -116,7 +116,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     });
     const r = reservationsRepo.add(db, {
       id, mint, integrator, winner, exitPriceUsd: it.exitPriceUsd, expiresAt: t + ttl, createdAt: t,
-      idempotencyKey, paymentTxB64: paymentTx,
+      idempotencyKey, paymentTxB64: paymentTx, vault: config.vaultWallet,
     });
     return _reservationView(r, paymentTx);
   }
@@ -184,18 +184,18 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     if (!mint || !burnSignature || !recipient) throw new VaultError(400, 'mint, burnSignature and recipient are required');
     if (redemptionsRepo.byBurnSig(db, burnSignature)) throw new VaultError(409, 'this burn was already submitted');
     const id = crypto.randomUUID();
-    const r = redemptionsRepo.add(db, { id, mint, recipient, burnSig: burnSignature, createdAt: now() });
+    const r = redemptionsRepo.add(db, { id, mint, recipient, burnSig: burnSignature, createdAt: now(), vault: config.vaultWallet });
     return { redemptionId: r.id, mint, recipient, burnSignature, status: r.status };
   }
-  function listRedemptions() { return redemptionsRepo.listPublic(db); }
+  function listRedemptions() { return redemptionsRepo.listPublic(db, config.vaultWallet); }
 
   /** The doors that fired, newest first: gacha sales (settled) and redemptions, each with its signatures. */
   function listActivity({ limit = 50 } = {}) {
-    const sales = reservationsRepo.listSettled(db, limit).map((r) => ({
+    const sales = reservationsRepo.listSettled(db, limit, config.vaultWallet).map((r) => ({
       type: 'gacha', at: r.updated_at, mint: r.mint, to: r.winner, integrator: r.integrator, priceUsd: r.exit_price_usd,
       paymentSignature: r.payment_sig, deliverySignature: r.delivery_sig,
     }));
-    const redemptions = redemptionsRepo.listPublic(db).map((x) => ({
+    const redemptions = redemptionsRepo.listPublic(db, config.vaultWallet).map((x) => ({
       type: 'redeem', at: x.created_at, mint: x.mint, to: x.recipient, status: x.status,
       burnSignature: x.burn_sig, deliverySignature: x.delivery_sig || null, tokensBurned: x.tokens_burned ?? null, priceUsdAtBurn: x.price_usd_at_burn ?? null,
     }));

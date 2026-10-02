@@ -160,27 +160,7 @@
       <h2>Vaults</h2>
       <div class="tags"><span class="tag live" id="b-live">read from chain</span><span class="tag" id="b-pool">token: —</span></div>
     </div>
-    <div class="board">
-      <a class="vcard" href="#/vault/1">
-        <div class="strip big" id="strip"></div>
-        <div class="body">
-          <div class="head"><b id="h-name">Vault #1</b><span class="tag gold" id="h-op">operated by Onix</span></div>
-          <div class="kv">
-            <div><span class="l">Backing</span><span class="x g" id="h-back"></span></div>
-            <div><span class="l">Market cap</span><span class="x" id="h-mcap"></span></div>
-            <div><span class="l">Ratio</span><span class="x" id="h-ratio"></span></div>
-          </div>
-          <div class="prog"><i id="h-prog"></i></div>
-          <p class="faint" style="font-size:12.5px"><span id="h-n"></span> items · <span id="h-desc"></span> · <span id="h-grad"></span></p>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="cta sm">Buy $VEONIX</span><span class="cta ghost sm">Send a card</span></div>
-        </div>
-      </a>
-      <a class="vcard empty" href="#/create">
-        <b>Your vault</b>
-        <p>Watches, wine, comics, cards. If a custodian you trust has put it on chain, it can back a token.</p>
-        <span class="cta sm">Create a vault</span>
-      </a>
-    </div>
+    <div class="board" id="board"></div>
   </div>
 
   <div class="note blue"><b>How to read this board.</b> Backing is what the vault holds, read from the chain. Market cap is what the market pays for the token. They are never added together — the ratio is the only honest way to put them in one sentence.</div>
@@ -188,7 +168,7 @@
 
 <!-- ═══════════════ 2 · VAULT PAGE ═══════════════ -->
 <section class="screen" id="s-vault">
-  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Vault #1</span></div>
+  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><span id="v-crumb">Vault</span></div>
   <div class="sec">
     <div class="thero">
       <img class="tstone" id="tk-img" src="/token/veonix.png" alt="">
@@ -199,7 +179,7 @@
         <div class="tags" id="tk-tags"></div>
       </div>
       <div class="tacts">
-        <a class="cta ghost" href="#/vault/1/send">Send a card</a>
+        <a class="cta ghost" id="v-send" href="#/vault/1/send">Send a card</a>
       </div>
     </div>
 
@@ -296,7 +276,7 @@
 
 <!-- ═══════════════ 3 · ITEM PAGE ═══════════════ -->
 <section class="screen" id="s-item">
-  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><a href="#/vault/1">Vault #1</a><span>›</span><span id="i-crumb"></span></div>
+  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><a id="i-crumb-vault" href="#/vault/1">Vault</a><span>›</span><span id="i-crumb"></span></div>
   <div class="ipage">
     <div style="display:flex;flex-direction:column;gap:12px">
       <div class="slab"><img id="i-img" alt=""></div>
@@ -316,7 +296,7 @@
         <h2 style="margin-top:8px" id="i-name"></h2>
       </div>
       <div class="door4">
-        <div class="d"><div><div class="k">Buy</div><b>Buy the token</b><p>Backed by everything inside — this one too.</p></div><a class="cta sm" href="#/vault/1">Buy the token</a></div>
+        <div class="d"><div><div class="k">Buy</div><b>Buy the token</b><p>Backed by everything inside — this one too.</p></div><a class="cta sm" id="i-buy" href="#/vault/1">Buy the token</a></div>
         <div class="d"><div><div class="k">Take it out</div><b>Take it out</b><p>Trade tokens worth the listed value + 15%.</p></div><div class="big"><span id="i-redeem-usd"></span><small id="i-redeem-tok">listed value + 15% · in tokens once trading opens</small></div></div>
         <div class="d"><div><div class="k">Games &amp; shops</div><b>Any app can buy it</b><p>At the listed price, through the API.</p></div><div class="big"><span id="i-exit"></span><small>listed price</small></div></div>
         <div class="d"><div><div class="k">Admitted</div><b>How it got here</b><p>Sent by the operator at launch.</p></div><span class="sig mono faint" style="font-size:11px" id="i-admit">—</span></div>
@@ -328,11 +308,11 @@
 
 <!-- ═══════════════ 3b · SEND A CARD · the Admit door ═══════════════ -->
 <section class="screen" id="s-send">
-  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><a href="#/vault/1">Vault #1</a><span>›</span><span>Send a card</span></div>
+  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><a id="sd-crumb-vault" href="#/vault/1">Vault</a><span>›</span><span>Send a card</span></div>
   <div class="sec">
     <div>
       <p class="eyebrow" id="sd-rules">Vault #1 takes graded cards from Collector Crypt</p>
-      <h2 style="margin-top:8px">Send a card, get $VEONIX</h2>
+      <h2 style="margin-top:8px">Send a card, get <span id="sd-sym">$VEONIX</span></h2>
       <p class="muted" style="margin-top:8px;max-width:62ch">Your card goes into the vault. You get tokens worth 80% of what it sells for, locked 12 months — bought on the curve as soon as the vault has the USDC. The same deal Onix would get.</p>
     </div>
     <div class="walletrow">
@@ -348,7 +328,7 @@
       <div><div class="lab">What it sells for</div><div class="cv" id="sd-real">—</div><div class="cs">× 0.89, measured</div></div>
       <div><div class="lab">You get</div><div class="cv v" id="sd-owed">—</div><div class="cs">in $VEONIX at the price when bought · locked 12 months</div></div>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta" id="sd-go" type="button" disabled>Pick a card</button><a class="cta ghost" href="#/vault/1">Back to the vault</a></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta" id="sd-go" type="button" disabled>Pick a card</button><a class="cta ghost" id="sd-back" href="#/vault/1">Back to the vault</a></div>
     <p class="faint" id="sd-msg" style="font-size:12.5px;min-height:16px"></p>
     <p class="faint" style="font-size:12.5px">Only what passes this vault's rules can be sent here. Anything else sent to the vault wallet directly does not count and is returned.</p>
   </div>
@@ -356,7 +336,7 @@
 
 <!-- ═══════════════ 4 · CREATE A VAULT ═══════════════ -->
 <section class="screen" id="s-create">
-  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Create a vault</span></div>
+  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><span>Create a vault</span></div>
   <div class="sec">
     <div class="hd">
       <div>
@@ -428,7 +408,7 @@
 
 <!-- ═══════════════ 5 · INTEGRATE ═══════════════ -->
 <section class="screen" id="s-integrate">
-  <div class="crumbs"><a href="#/app">Vaults</a><span>›</span><span>Integrate</span></div>
+  <div class="crumbs"><a href="#/">Vaults</a><span>›</span><span>Integrate</span></div>
   <div class="sec">
     <div>
       <p class="eyebrow">For gachas, games and shops · public API</p>

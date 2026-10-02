@@ -5,15 +5,18 @@
  */
 'use strict';
 
-function add(db, { id, mint, recipient, burnSig, createdAt }) {
-  db.prepare(`INSERT INTO vault_redemptions (id, mint, recipient, burn_sig, status, created_at, updated_at)
-              VALUES (?, ?, ?, ?, 'verifying', ?, ?)`).run(id, mint, recipient, burnSig, createdAt, createdAt);
+function add(db, { id, mint, recipient, burnSig, createdAt, vault = null }) {
+  db.prepare(`INSERT INTO vault_redemptions (id, vault, mint, recipient, burn_sig, status, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, 'verifying', ?, ?)`).run(id, vault, mint, recipient, burnSig, createdAt, createdAt);
   return get(db, id);
 }
 function get(db, id) { return db.prepare('SELECT * FROM vault_redemptions WHERE id = ?').get(id) || null; }
 function byBurnSig(db, sig) { return db.prepare('SELECT * FROM vault_redemptions WHERE burn_sig = ?').get(sig) || null; }
-function listPublic(db) {
-  return db.prepare('SELECT id, mint, recipient, burn_sig, status, tokens_burned, price_usd_at_burn, delivery_sig, created_at, updated_at FROM vault_redemptions ORDER BY created_at DESC').all();
+function listPublic(db, vault = null) {
+  const cols = 'id, mint, recipient, burn_sig, status, tokens_burned, price_usd_at_burn, delivery_sig, created_at, updated_at';
+  return vault
+    ? db.prepare(`SELECT ${cols} FROM vault_redemptions WHERE vault = ? ORDER BY created_at DESC`).all(vault)
+    : db.prepare(`SELECT ${cols} FROM vault_redemptions ORDER BY created_at DESC`).all();
 }
 function transition(db, id, from, to, { at, set = {} } = {}) {
   const cols = Object.keys(set);

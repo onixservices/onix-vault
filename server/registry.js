@@ -1,0 +1,59 @@
+/**
+ * server/registry.js — the vaults this server serves. One file, N vaults.
+ *
+ * `<data>/vaults.json` (private, on the server) lists them; without the file the single
+ * vault from the environment is served, exactly as before. Each entry carries what a
+ * vault IS: a wallet, the env var holding its key, its pool and mint once launched, its
+ * rules (a key into VAULT_RULES or an inline rule), and what the page prints.
+ *
+ *   [{ "id": "1", "name": "Vault #1", "operator": "Onix", "description": "…",
+ *      "wallet": "<pubkey>", "secretEnv": "VAULT_SECRET_KEY",
+ *      "pool": "<pool>", "baseMint": "<mint>", "graduationUsd": 3500,
+ *      "token": { "name": "Veonix", "symbol": "VEONIX", "image": "/token/veonix.png" },
+ *      "rules": "vault1" }]
+ *
+ * A second vault is a second entry. The key never leaves the server's .env.
+ */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const C = require('./config');
+const { VAULT_RULES } = require('./admissions');
+
+function fromEnv() {
+  return {
+    id: '1', name: 'Vault #1', operator: 'Onix', description: 'Graded trading cards in OmniVault, PWCC and PSA Vault',
+    wallet: C.VAULT_WALLET, secretEnv: 'VAULT_SECRET_KEY', pool: C.POOL || null, baseMint: C.BASE_MINT || null, graduationUsd: C.GRADUATION_USD,
+    token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' }, rules: 'vault1',
+  };
+}
+
+function normalize(v) {
+  const rules = typeof v.rules === 'string' ? VAULT_RULES[v.rules] : v.rules;
+  if (!rules) throw new Error(`vault ${v.id}: unknown rules "${v.rules}"`);
+  if (!v.wallet) throw new Error(`vault ${v.id}: no wallet`);
+  return { ...v, id: String(v.id), rules, custodians: v.custodians || rules.custodians, graduationUsd: v.graduationUsd ?? C.GRADUATION_USD, pool: v.pool || null, baseMint: v.baseMint || null };
+}
+
+function registryPath() { return process.env.ONIX_VAULTS_FILE || path.join(path.dirname(C.DB_PATH), 'vaults.json'); }
+
+/** @returns {Array<object>} the vaults, first = primary */
+function loadVaults() {
+  const p = registryPath();
+  if (fs.existsSync(p)) {
+    const list = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (!Array.isArray(list) || !list.length) throw new Error(`${p}: expected a non-empty array`);
+    return list.map(normalize);
+  }
+  if (!C.VAULT_WALLET) throw new Error('VAULT_WALLET not set and no vaults.json');
+  return [normalize(fromEnv())];
+}
+
+function findVault(id) {
+  const vaults = loadVaults();
+  const v = id ? vaults.find((x) => x.id === String(id) || x.wallet === id) : vaults[0];
+  if (!v) throw new Error(`no vault "${id}" in ${registryPath()}`);
+  return v;
+}
+
+module.exports = { loadVaults, findVault, registryPath, normalize };

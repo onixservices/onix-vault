@@ -2,8 +2,8 @@
 /**
  * launch-mainnet.js — Vault #1's token, for real. The runbook's §2, as code.
  *
- *   node --env-file=/opt/onixvault/.env scripts/launch-mainnet.js          # dry-run: curve, prices, balances; signs nothing
- *   node --env-file=/opt/onixvault/.env scripts/launch-mainnet.js --go     # createConfig → read back → createPool → read back
+ *   node --env-file=/opt/onixvault/.env scripts/launch-mainnet.js [--vault <id>]        # dry-run: curve, prices, balances; signs nothing
+ *   node --env-file=/opt/onixvault/.env scripts/launch-mainnet.js [--vault <id>] --go   # createConfig → read back → createPool → read back
  *
  * Runs ON THE SERVER as the vault user: the vault wallet (the server's own key, behind
  * server/signer.js) is payer, partner (fee claimer), leftover receiver and pool creator.
@@ -21,16 +21,21 @@ const path = require('path');
 const { Connection, Keypair, PublicKey } = require('@solana/web3.js');
 const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
 const C = require('../server/config');
-const signer = require('../server/signer');
+const signerMod = require('../server/signer');
+const { findVault } = require('../server/registry');
 const { buildParams, PENDING } = require('../src/curve/params');
 const { fetchAssetsByOwner } = require('../src/reader/das');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 
 const GO = process.argv.includes('--go');
-const TOKEN = { name: 'Veonix', symbol: 'VEONIX', uri: 'https://vault.onix.finance/token/veonix.json' };
-const GRADUATION_USD = C.GRADUATION_USD || 3500;
-const MIN_SOL = 0.08;
-const STATE = path.join(path.dirname(C.DB_PATH), 'launch.json');
+const vi = process.argv.indexOf('--vault');
+const DEF = findVault(vi >= 0 ? process.argv[vi + 1] : null);
+const signer = DEF.secretEnv === 'VAULT_SECRET_KEY' ? signerMod : signerMod.fromEnv(DEF.secretEnv);
+const TOKEN = { name: DEF.token.name, symbol: DEF.token.symbol, uri: `https://vault.onix.finance/token/${DEF.token.symbol.toLowerCase()}.json` };
+const GRADUATION_USD = DEF.graduationUsd || C.GRADUATION_USD || 3500;
+const MIN_SOL = 0.03;
+const STATE = path.join(path.dirname(C.DB_PATH), DEF.id === '1' ? 'launch.json' : `launch-${DEF.id}.json`);
+const MIN_BACKING_USD = DEF.id === '1' ? 50 : 5;
 const log = (...a) => console.log(...a);
 const usd = (n, d = 6) => Number(n).toLocaleString('en-US', { maximumFractionDigits: d });
 
@@ -50,16 +55,16 @@ async function send(conn, tx, extraSigners, label) {
 }
 
 async function main() {
-  if (!C.RPC_URL || !C.VAULT_WALLET) throw new Error('RPC_URL / VAULT_WALLET not configured');
-  if (!signer.configured()) throw new Error('vault signer not configured');
-  if (signer.publicKey() !== C.VAULT_WALLET) throw new Error('the configured key is not the vault wallet');
+  if (!C.RPC_URL) throw new Error('RPC_URL not configured');
+  if (!signer.configured()) throw new Error(`${DEF.secretEnv} not configured`);
+  if (signer.publicKey() !== DEF.wallet) throw new Error(`the key in ${DEF.secretEnv} is not the vault wallet ${DEF.wallet}`);
   const conn = new Connection(C.RPC_URL, 'confirmed');
   const client = sdk.DynamicBondingCurveClient.create(conn, 'confirmed');
-  const vault = new PublicKey(C.VAULT_WALLET);
+  const vault = new PublicKey(DEF.wallet);
   const quoteMint = new PublicKey(C.USDC_MINT);
   const state = loadState();
 
-  log(`ONIX.VAULT — ${GO ? 'LAUNCH (mainnet)' : 'launch dry-run'}\n`);
+  log(`ONIX.VAULT — ${GO ? 'LAUNCH (mainnet)' : 'launch dry-run'} · ${DEF.name} (vault ${DEF.id})\n`);
   log(`vault      ${vault.toBase58()}`);
   log(`quote      ${quoteMint.toBase58()} (USDC)`);
   const sol = (await conn.getBalance(vault)) / 1e9;
@@ -71,7 +76,7 @@ async function main() {
   const indexUsd = cards.reduce((s, c) => s + c.insuredUsd, 0);
   const realisableUsd = Math.round(indexUsd * REALISABLE_MULTIPLIER * 100) / 100;
   log(`backing    ${cards.length} items · index $${usd(indexUsd)} · realisable $${usd(realisableUsd)}`);
-  if (cards.length < 1 || realisableUsd < 50) throw new Error('not enough backing in the vault to open a curve on');
+  if (cards.length < 1 || realisableUsd < MIN_BACKING_USD) throw new Error('not enough backing in the vault to open a curve on');
 
   const params = buildParams({ ...PENDING, initialMarketCapUsd: realisableUsd, migrationMarketCapUsd: GRADUATION_USD });
   const curve = sdk.buildCurveWithMarketCap(params);
@@ -117,9 +122,8 @@ async function main() {
   const price = sdk.getPriceFromSqrtPrice(ps.sqrtPrice, dec.base, dec.quote);
   log(`   read back  price $${usd(price.toString(), 10)}  baseMint=${ps.baseMint.toBase58() === baseMint.toBase58() ? 'ok' : 'MISMATCH'}  migrated=${ps.isMigrated}`);
 
-  log('\nDONE. Put these in /opt/onixvault/.env and restart pm2-onixvault:');
-  log(`ONIX_VAULT_POOL=${pool.toBase58()}`);
-  log(`ONIX_VAULT_BASE_MINT=${baseMint.toBase58()}`);
+  log(`\nDONE. Put these in the registry entry of vault ${DEF.id} (data/vaults.json) — or, for vault 1 without a registry, in .env — and restart pm2-onixvault:`);
+  log(`"pool": "${pool.toBase58()}", "baseMint": "${baseMint.toBase58()}"`);
   log(`\nconfig ${config.toBase58()}`);
 }
 

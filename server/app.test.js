@@ -87,10 +87,28 @@ describe('routes — what the page reads', () => {
   });
 });
 
+describe('routes — two vaults, one server', () => {
+  test('each vault answers for its own wallet; the list has both; an unknown wallet is 404', async () => {
+    const V2 = Keypair.generate().publicKey.toBase58();
+    const mk = (wallet, name, idx) => ({ wallet, meta: { id: String(idx), name }, service: { listItems: async () => [{ mint: 'M' + idx }], listActivity: () => [], listRedemptions: () => [] }, stats: { read: async () => ({ items: { count: idx }, backing: { indexUsd: idx }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false });
+    const app2 = buildApp({ vaults: [mk(VAULT, 'Vault #1', 1), mk(V2, 'Test vault', 2)], readWallet, webDir: null });
+    const srv = await new Promise((r) => { const s2 = app2.listen(0, '127.0.0.1', () => r(s2)); });
+    const b = `http://127.0.0.1:${srv.address().port}`;
+    const g = async (p) => { const r = await fetch(b + p); return { status: r.status, body: await r.json() }; };
+    const list = await g('/v1/vaults'); assert.deepEqual(list.body.vaults.map((v) => v.name), ['Vault #1', 'Test vault']);
+    assert.equal((await g(`/v1/vaults/${V2}/stats`)).body.items.count, 2);
+    assert.equal((await g(`/v1/vaults/${VAULT}/items`)).body.items[0].mint, 'M1');
+    assert.equal((await g(`/v1/vaults/${V2}/items`)).body.items[0].mint, 'M2');
+    assert.equal((await g(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/items`)).status, 404);
+    const h = await g('/v1/health'); assert.equal(h.body.vaults.length, 2);
+    srv.close();
+  });
+});
+
 describe('routes', () => {
   test('health says what is configured and never a secret', async () => {
     const r = await j('/v1/health');
-    assert.equal(r.status, 200); assert.deepEqual(r.body, { ok: true, vaultWallet: VAULT, signerConfigured: false, itemsAgeMs: 5 });
+    assert.equal(r.status, 200); assert.equal(r.body.ok, true); assert.equal(r.body.vaultWallet, VAULT); assert.equal(r.body.signerConfigured, false); assert.equal(r.body.vaults.length, 1); assert.equal(r.body.vaults[0].vault, VAULT);
   });
   test('items for THIS vault; another :vault is 404', async () => {
     const ok = await j(`/v1/vaults/${VAULT}/items`);

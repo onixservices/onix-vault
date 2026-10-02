@@ -11,13 +11,19 @@
   var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var get = function (path) { return fetch(path).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; }); }); };
 
-  var VAULT = null, META = null, STATS = null, ITEMS = null, ITEMS_AT = 0;
+  var VAULTS = [], VAULT = null, META = null, STATS = null, ITEMS = null, ITEMS_AT = 0;
+  var SYM = function () { return '$' + ((META && META.token && META.token.symbol) || 'VEONIX'); };
+  var vpath = function (suffix) { return '#/vault/' + (META && META.id ? META.id : '1') + (suffix || ''); };
 
   // ── data ──
   function loadVaults() {
-    return get('/v1/vaults').then(function (b) {
-      var v = b.vaults[0]; VAULT = v.vault; META = v; STATS = v.stats; return v;
-    });
+    return get('/v1/vaults').then(function (b) { VAULTS = b.vaults; if (!META) selectVault(VAULTS[0].id); return VAULTS; });
+  }
+  function selectVault(id) {
+    var v = VAULTS.filter(function (x) { return String(x.id) === String(id) || x.vault === id; })[0] || VAULTS[0];
+    if (!v) return null;
+    if (VAULT !== v.vault) { ITEMS = null; ITEMS_AT = 0; }
+    VAULT = v.vault; META = v; STATS = v.stats; return v;
   }
   function loadItems(force) {
     if (ITEMS && !force && Date.now() - ITEMS_AT < 30000) return Promise.resolve(ITEMS);
@@ -26,41 +32,40 @@
   function loadStats() { return get('/v1/vaults/' + VAULT + '/stats').then(function (s) { STATS = s; return s; }); }
 
   // ── board ──
-  function renderBoard() {
-    var st = STATS, m = META;
-    $('h-name').textContent = m.name || 'Vault';
-    $('h-op').textContent = 'operated by ' + (m.operator || '—');
-    $('h-desc').textContent = m.description || (m.custodians || []).join(', ');
-    $('h-n').textContent = st ? st.items.count : '—';
-    $('h-back').textContent = st ? usd(st.backing.realisableUsd) : '—';
-    if (st && st.pool) {
-      $('h-mcap').textContent = usd(st.pool.mcapUsd);
-      $('h-ratio').textContent = st.pool.ratio != null ? st.pool.ratio.toFixed(2) + '×' : '—';
-      $('h-prog').style.width = Math.round((st.pool.graduationProgress || 0) * 100) + '%';
-      $('h-grad').textContent = Math.round((st.pool.graduationProgress || 0) * 100) + '% of the way to the open market';
-      $('b-pool').textContent = 'token: ' + (st.poolStatus === 'live' ? 'trading' : st.poolStatus);
-    } else {
-      $('h-mcap').textContent = '—'; $('h-ratio').textContent = '—'; $('h-prog').style.width = '0%';
-      $('h-grad').textContent = 'token ' + (st ? st.poolStatus : '—');
-      $('b-pool').textContent = 'token: ' + (st ? st.poolStatus : '—');
-    }
-    loadItems().then(function (items) {
-      $('strip').innerHTML = items.slice(0, 10).map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span></span>'; }).join('');
-      $('b-live').textContent = items.length + ' items · ' + ago(items.ageMs);
-    });
+  function tile(v) {
+    var st = v.stats, p = st && st.pool, sym = '$' + ((v.token && v.token.symbol) || 'TOKEN');
+    var pct = p ? Math.round((p.graduationProgress || 0) * 100) : 0;
+    return '<a class="vcard" href="#/vault/' + v.id + '"><div class="strip big" data-strip="' + v.vault + '"></div><div class="body">'
+      + '<div class="head"><b>' + esc(v.name) + '</b><span class="tag gold">operated by ' + esc(v.operator || '—') + '</span></div>'
+      + '<div class="kv"><div><span class="l">Backing</span><span class="x g">' + (st ? usd(st.backing.realisableUsd) : '—') + '</span></div><div><span class="l">Market cap</span><span class="x">' + (p ? usd(p.mcapUsd) : '—') + '</span></div><div><span class="l">Ratio</span><span class="x">' + (p && p.ratio != null ? p.ratio.toFixed(2) + '×' : '—') + '</span></div></div>'
+      + '<div class="prog"><i style="width:' + pct + '%"></i></div>'
+      + '<p class="faint" style="font-size:12.5px">' + (st ? st.items.count : '—') + ' items · ' + esc(v.description || (v.custodians || []).join(', ')) + ' · ' + (p ? pct + '% of the way to the open market' : 'token ' + (st ? st.poolStatus : '—')) + '</p>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap"><span class="cta sm">Buy ' + esc(sym) + '</span><span class="cta ghost sm">Send a card</span></div></div></a>';
   }
-
+  function renderBoard() {
+    $('board').innerHTML = VAULTS.map(tile).join('') + '<a class="vcard empty" href="#/create"><b>Your vault</b><p>Watches, wine, comics, cards. If a custodian you trust has put it on chain, it can back a token.</p><span class="cta sm">Create a vault</span></a>';
+    VAULTS.forEach(function (v) {
+      get('/v1/vaults/' + v.vault + '/items').then(function (b) {
+        var el = document.querySelector('[data-strip="' + v.vault + '"]'); if (!el) return;
+        el.innerHTML = b.items.slice(0, 10).map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span></span>'; }).join('');
+      });
+    });
+    var st0 = VAULTS[0] && VAULTS[0].stats;
+    $('b-live').textContent = VAULTS.length + ' vault' + (VAULTS.length === 1 ? '' : 's') + ' · read from chain';
+    $('b-pool').textContent = st0 && st0.pool ? 'token: trading' : 'token: ' + (st0 ? st0.poolStatus : '—');
+  }
   // ── vault page ──
   function renderVault() {
     loadStats().then(function (st) {
       $('v-eyebrow').textContent = (META.name || 'Vault') + ' · operated by ' + (META.operator || '—') + ' · wallet ' + short(VAULT);
+      $('v-crumb').textContent = META.name || 'Vault'; $('v-send').href = vpath('/send'); $('t-sym').textContent = SYM();
       $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count;
       var tk = META.token || {};
       if (tk.name) $('tk-name').textContent = tk.name; if (tk.symbol) $('tk-sym').textContent = '$' + tk.symbol; if (tk.image) $('tk-img').src = tk.image;
       $('tk-tags').innerHTML = st.pool
         ? '<span class="tag live">trading</span><a class="tag" href="https://solscan.io/token/' + st.pool.baseMint + '" target="_blank" rel="noopener">mint ' + short(st.pool.baseMint) + '</a><a class="tag" href="https://solscan.io/account/' + st.pool.address + '" target="_blank" rel="noopener">pool ' + short(st.pool.address) + '</a><span class="tag">10% of every trade feeds the vault</span>'
         : '<span class="tag">' + st.poolStatus + '</span>';
-      var g = st.pool && st.pool.graduationUsd ? st.pool.graduationUsd : 3500;
+      var g = st.pool && st.pool.graduationUsd ? st.pool.graduationUsd : (META.graduationUsd || 3500);
       $('m-grad').textContent = usd(g);
       if (st.pool) {
         var pr = Math.round((st.pool.graduationProgress || 0) * 100);
@@ -98,7 +103,7 @@
       var rows = b.activity;
       $('act-empty').style.display = rows.length ? 'none' : '';
       $('act-rows').innerHTML = rows.map(function (e) {
-        if (e.type === 'admit') { return '<div class="row"><span class="k">Admitted</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · sent by ' + short(e.from) + ' · ' + usd2(e.valueUsd) + ' listed → owed ' + usd2(e.owedUsd) + ' in $VEONIX, ' + (e.tokens === 'locked' ? 'locked' : 'tokens pending') + (e.status === 'pending' ? ' · verifying on chain' : '') + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a>' + (e.tokensSignature ? ' · <a href="https://solscan.io/tx/' + e.tokensSignature + '" target="_blank" rel="noopener">tokens</a>' : '') + '</span></div>'; }
+        if (e.type === 'admit') { return '<div class="row"><span class="k">Admitted</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · sent by ' + short(e.from) + ' · ' + usd2(e.valueUsd) + ' listed → owed ' + usd2(e.owedUsd) + ' in ' + SYM() + ', ' + (e.tokens === 'locked' ? 'locked' : 'tokens pending') + (e.status === 'pending' ? ' · verifying on chain' : '') + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a>' + (e.tokensSignature ? ' · <a href="https://solscan.io/tx/' + e.tokensSignature + '" target="_blank" rel="noopener">tokens</a>' : '') + '</span></div>'; }
         var k = e.type === 'gacha' ? 'Gacha' : 'Redeemed';
         var what = e.type === 'gacha' ? 'a gacha paid ' + usd2(e.priceUsd) + ' → delivered to ' + short(e.to) : 'tokens burned → ' + (e.status === 'delivered' ? 'delivered to ' : e.status + ' · ') + short(e.to);
         var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '')
@@ -128,7 +133,7 @@
     $('t-mcap').textContent = p ? usd(p.mcapUsd) : '—';
     $('t-fees2').textContent = p ? usd2(p.feesLifetimeUsd) : '—';
     $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? 'Buy' : 'Sell') : 'Connect wallet') : 'Opens when the token launches';
-    $('t-unit').textContent = T.side === 'buy' ? 'USDC' : '$VEONIX';
+    $('t-unit').textContent = T.side === 'buy' ? 'USDC' : SYM();
   }
   function quoteNow() {
     var v = parseFloat($('t-amount').value);
@@ -138,7 +143,7 @@
       .then(function (r) { return r.json(); })
       .then(function (q) {
         if (q.error) { $('t-quote').textContent = q.error; return; }
-        $('t-quote').textContent = 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' $VEONIX' : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
+        $('t-quote').textContent = 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
       }).catch(function (e) { $('t-quote').textContent = 'Could not quote: ' + e.message; });
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (b) {
@@ -189,6 +194,15 @@
   function renderItem(mint) {
     loadItems().then(function (items) {
       var c = items.filter(function (x) { return x.mint === mint; })[0];
+      if (!c && VAULTS.length > 1) {
+        return Promise.all(VAULTS.map(function (v) { return get('/v1/vaults/' + v.vault + '/items').then(function (b) { return { v: v, hit: b.items.filter(function (x) { return x.mint === mint; })[0] }; }); }))
+          .then(function (rs) { var r = rs.filter(function (x) { return x.hit; })[0]; if (r) { selectVault(r.v.id); ITEMS = null; return renderItem(mint); } return renderItemFound(null, mint); });
+      }
+      return renderItemFound(c, mint);
+    });
+  }
+  function renderItemFound(c, mint) {
+    {
       if (!c) { $('i-name').textContent = 'Not in the vault'; $('i-set').textContent = 'This mint is not in the vault wallet right now, or has no custodian value.'; $('i-img').removeAttribute('src'); return; }
       if (c.imageUrl) $('i-img').src = c.imageUrl; else $('i-img').removeAttribute('src');
       $('i-img').alt = c.name || '';
@@ -198,13 +212,14 @@
       $('i-cert').textContent = c.certNumber || '—'; $('i-vault').textContent = c.physicalVault || '—'; $('i-cust').textContent = c.custodian || '—';
       $('i-usd').textContent = usd2(c.custodianValueUsd); $('i-mint').textContent = c.mint;
       $('i-redeem-usd').textContent = usd2(c.redeemPriceUsd);
-      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' $VEONIX at today\'s price · listed value + 15%' : 'listed value + 15% · in tokens once trading opens';
+      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' ' + SYM() + ' at today\'s price · listed value + 15%' : 'listed value + 15% · in tokens once trading opens';
       $('i-exit').textContent = usd2(c.exitPriceUsd);
       var res = c.status === 'reserved';
       $('i-status').textContent = res ? 'Reserved' + (c.reservedUntil ? ' · ' + Math.max(0, Math.round((c.reservedUntil - Date.now()) / 60000)) + ' min' : '') : 'Available';
       $('i-status').className = 'x ' + (res ? 'w' : 'v');
       $('i-admit').innerHTML = '<a href="https://solscan.io/token/' + c.mint + '" target="_blank" rel="noopener">token on Solscan</a>';
-    });
+      $('i-crumb-vault').textContent = META.name || 'Vault'; $('i-crumb-vault').href = vpath(); $('i-buy').href = vpath();
+    }
   }
 
   // ── create ──
@@ -355,7 +370,7 @@
       .then(function (x) {
         return fetch('/v1/vaults/' + VAULT + '/admissions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mint: c.mint, owner: SD.wallet, signature: x.sig, valueUsd: x.b.valueUsd }) })
           .then(function (r) { return r.json(); }).then(function (rec) {
-            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + x.sig + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> · recorded, verifying on chain · you are owed ' + usd2(rec.owedUsd) + ' in $VEONIX, locked ' + rec.lockMonths + ' months. <a href="#/vault/1">See it in the vault →</a>';
+            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + x.sig + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> · recorded, verifying on chain · you are owed ' + usd2(rec.owedUsd) + ' in ' + SYM() + ', locked ' + rec.lockMonths + ' months. <a href="' + vpath() + '">See it in the vault →</a>';
             SD.pick = null; ITEMS = null; sdScan(SD.wallet);
           });
       })
@@ -368,8 +383,8 @@
   function route() {
     var h = location.hash || '#/', m, id = 'home';
     if (h.indexOf('#/app') === 0) id = 'home';
-    else if (h.indexOf('#/vault/1/send') === 0) { id = 'send'; if (META && META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); }
-    else if (h.indexOf('#/vault') === 0) { id = 'vault'; renderVault(); }
+    else if ((m = h.match(/^#\/vault\/([^\/]+)\/send$/))) { id = 'send'; selectVault(m[1]); $('sd-crumb-vault').textContent = META.name; $('sd-crumb-vault').href = vpath(); $('sd-back').href = vpath(); $('sd-sym').textContent = SYM(); if (META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); SD.items = { eligible: [], ineligible: [] }; SD.pick = null; sdRender(); }
+    else if ((m = h.match(/^#\/vault\/([^\/]+)/))) { id = 'vault'; selectVault(m[1]); renderVault(); }
     else if ((m = h.match(/^#\/item\/(.+)$/))) { id = 'item'; renderItem(m[1]); }
     else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); }
     else if (h.indexOf('#/integrate') === 0) id = 'integrate';
