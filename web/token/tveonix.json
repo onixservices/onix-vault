@@ -1,0 +1,8 @@
+{
+  "name": "Veonix Test",
+  "symbol": "TVEONIX",
+  "description": "A TEST vault of Onix.Vault: one graded card, a tiny curve, launched to graduate quickly and watch what happens after. Not Vault #1. https://vault.onix.finance",
+  "image": "https://vault.onix.finance/token/veonix.png",
+  "external_url": "https://vault.onix.finance",
+  "attributes": [ { "trait_type": "Vault", "value": "Test vault" }, { "trait_type": "Operator", "value": "Onix" }, { "trait_type": "Purpose", "value": "test — graduation and after" } ]
+}
