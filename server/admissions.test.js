@@ -34,23 +34,30 @@ describe('vault rules', () => {
   });
 });
 
-function make({ assets = [asset(MINT)], ownerOnChain = null } = {}) {
+function make({ assets = [asset(MINT)], ownerOnChain = null, usdc = 0 } = {}) {
   const db = getTestDb();
   const built = [];
+  const swaps = [];
+  const sent = [];
   const chain = {
     getAsset: async (id) => { const a = assets.find((x) => x.id === id); if (!a) return null; return ownerOnChain ? { ...a, ownership: { ...a.ownership, owner: ownerOnChain } } : a; },
     getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
     getSignatureStatuses: async () => [{ confirmationStatus: 'finalized', err: null }],
     simulateTransaction: async () => chain.sim || { err: null, logs: [] },
+    sendRawTransaction: async (b64) => { sent.push(b64); return 'SENT'; },
     sim: null,
   };
+  // the curve trader as the vault sees it: build() returns an unsigned tx with the vault as the single signer
+  const trader = { build: async ({ owner, side, amount }) => { swaps.push({ owner, side, amount }); const { SystemProgram, PublicKey } = require('@solana/web3.js'); const tx = new Transaction({ feePayer: new PublicKey(owner), recentBlockhash: Keypair.generate().publicKey.toBase58() }); tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(owner), toPubkey: new PublicKey(OWNER), lamports: 1 })); return { quote: { amountOut: amount * 1000 }, transaction: tx.serialize({ requireAllSignatures: false }).toString('base64') }; } };
+  const signer = require('./signer').fromKeypair(vaultKp);
   const adm = createAdmissions({
     db, chain, vaultWallet: VAULT, rules: VAULT_RULES.vault1,
     fetchAssets: async (rpc, owner) => assets.filter((a) => a.ownership.owner === owner),
     buildTransfer: async ({ mint, fromAddress, toAddress, recentBlockhash }) => { built.push({ mint, fromAddress, toAddress }); const { SystemProgram, PublicKey } = require('@solana/web3.js'); const tx = new Transaction({ feePayer: new PublicKey(fromAddress), recentBlockhash }); tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(fromAddress), toPubkey: new PublicKey(toAddress), lamports: 1 })); return tx.serialize({ requireAllSignatures: false }).toString('base64'); },
     now: () => 1_800_000_000_000, haircut: 0.89, admission: 0.8,
+    trader, signer, getUsdcBalance: async () => usdc,
   });
-  return { adm, db, built, chain };
+  return { adm, db, built, chain, swaps, sent };
 }
 const rejectsWith = async (p, code) => { try { await p; assert.fail('expected rejection'); } catch (e) { assert.equal(e.statusCode, code, e.message); } };
 
@@ -95,6 +102,43 @@ describe('admissions — record and verify', () => {
     assert.equal((await adm.verifyPending()).verified, 1);
     const list = adm.list();
     assert.equal(list[0].status, 'admitted'); assert.equal(list[0].tokens, 'pending'); assert.equal(list[0].signature, 'SIG1'); assert.equal(list[0].owedUsd, 28.48);
+  });
+  test('tokens: once admitted, the vault buys the owed USDC worth on the curve — only when it has the USDC; signed by the vault, locked 12 months', async () => {
+    const { adm, chain, swaps } = make({ usdc: 10 });
+    adm.record({ mint: MINT, owner: OWNER, signature: 'SIG1', valueUsd: 40 });
+    assert.deepEqual(await adm.settleTokens(), { checked: 0, bought: 0 }, 'nothing to buy while the admission is only pending');
+    chain.getAsset = async (id) => ({ ...asset(id), ownership: { owner: VAULT } });
+    await adm.verifyPending();
+    // $10 in the vault < $28.48 owed → waits, says so, builds nothing
+    assert.deepEqual(await adm.settleTokens(), { checked: 1, bought: 0 });
+    assert.equal(swaps.length, 0);
+    assert.equal(adm.list()[0].tokens, 'waiting');
+    assert.match(adm.list()[0].tokensNote, /needs \$28\.48 USDC and has \$10\.00/);
+  });
+  test('tokens: with the USDC there, the buy is built as the vault, signed, persisted then broadcast; the row carries signature, amount and unlock date', async () => {
+    const { adm, chain, swaps, sent } = make({ usdc: 100 });
+    adm.record({ mint: MINT, owner: OWNER, signature: 'SIG1', valueUsd: 40 });
+    chain.getAsset = async (id) => ({ ...asset(id), ownership: { owner: VAULT } });
+    await adm.verifyPending();
+    assert.deepEqual(await adm.settleTokens(), { checked: 1, bought: 1 });
+    assert.deepEqual(swaps, [{ owner: VAULT, side: 'buy', amount: 28.48 }]);
+    assert.equal(sent.length, 1);
+    const signed = Transaction.from(Buffer.from(sent[0], 'base64'));
+    assert.ok(signed.verifySignatures(), 'the vault signed what was broadcast');
+    const row = adm.list()[0];
+    assert.equal(row.tokens, 'locked'); assert.ok(row.tokensSignature); assert.equal(row.tokensAmount, 28480);
+    assert.equal(row.unlockAt, 1_800_000_000_000 + 12 * 30.4375 * 86_400_000);
+    assert.deepEqual(await adm.settleTokens(), { checked: 0, bought: 0 }, 'never bought twice');
+  });
+  test('tokens: a buy that fails to build (e.g. 402 from the curve pre-flight) leaves the row waiting with the reason, nothing signed', async () => {
+    const { adm, chain, sent } = make({ usdc: 100 });
+    adm.record({ mint: MINT, owner: OWNER, signature: 'SIG1', valueUsd: 40 });
+    chain.getAsset = async (id) => ({ ...asset(id), ownership: { owner: VAULT } });
+    await adm.verifyPending();
+    adm._trader.build = async () => { const e = new Error('the trade would fail on chain: slippage'); e.statusCode = 409; throw e; };
+    assert.deepEqual(await adm.settleTokens(), { checked: 1, bought: 0 });
+    assert.equal(sent.length, 0);
+    assert.equal(adm.list()[0].tokens, 'waiting'); assert.match(adm.list()[0].tokensNote, /slippage/);
   });
   test('the same signature twice is one admission (409)', () => {
     const { adm } = make();

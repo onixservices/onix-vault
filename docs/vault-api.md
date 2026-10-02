@@ -74,8 +74,12 @@ minimum. Three calls, the same shape as the gacha door:
 
 **What the sender is owed:** tokens worth `custodian value × 0.89 × 0.80`, **bought on the curve by the
 vault as soon as it has the USDC** (fees, gacha sales), locked for the vault's lock period (12 months).
-Nobody mints tokens — the supply is the curve's. If the vault has no USDC, the admission waits in the
-public list as `tokens pending`. Anything sent to the vault wallet outside this flow does not count and
+Nobody mints tokens — the supply is the curve's. The same 45 s sweep that verifies the item does the buy:
+build on the curve as the vault (pre-flight and simulation included) → sign → persist the signature →
+broadcast; the row then carries `tokensSignature`, `tokensAmount` and `unlockAt`. If the vault has less
+USDC than owed, the row waits as `tokens: waiting` with the two numbers in `tokensNote`
+("needs $17.09 USDC and has $0.00"); nothing is signed. Release after `unlockAt` is the vault's duty
+(operator step today; the sweep will do it). Anything sent to the vault wallet outside this flow does not count and
 is returned by the operator. Enforcement by an on-chain program (the transfer fails if the rule fails)
 is the roadmap; until then the UI cannot build what the rule refuses, and the count ignores it.
 

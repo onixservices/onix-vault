@@ -698,7 +698,7 @@
     "/v1/vaults/{vault}/admissions/build": {
       "post": {
         "summary": "Build the transfer of an eligible item from the owner to the vault — unsigned, single signer = owner",
-        "description": "Only an item the owner holds that passes the vault's rules can be built (404 / 422 otherwise). The sender is owed tokens worth value × realisable × 80%, bought on the curve when the vault has USDC and locked for `lockMonths`.",
+        "description": "Only an item the owner holds that passes the vault's rules can be built (404 / 422 otherwise). The sender is owed tokens worth value × realisable × 80%, bought on the curve BY THE VAULT once the item is verified on chain and the vault has the USDC (the sweep builds, signs and broadcasts; the admission then carries tokensSignature, tokensAmount, unlockAt). With less USDC than owed it waits as tokens: waiting, with the two numbers in tokensNote.",
         "parameters": [
           {
             "$ref": "#/components/parameters/vault"

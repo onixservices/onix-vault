@@ -57,6 +57,7 @@ const SCHEMA = `
     status TEXT NOT NULL,              -- pending (sent) | admitted (vault owns it) | rejected
     tokens_sig TEXT,                   -- the buy on the curve + lock, once the vault has USDC
     tokens_amount REAL,
+    unlock_at INTEGER,                 -- tokens_sig + lock_months; release is the vault's duty after this
     note TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -69,6 +70,7 @@ function migrate(db) {
   for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) {
     const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
     if (!cols.includes('vault')) db.exec(`ALTER TABLE ${t} ADD COLUMN vault TEXT`);
+    if (t === 'vault_admissions' && !cols.includes('unlock_at')) db.exec(`ALTER TABLE ${t} ADD COLUMN unlock_at INTEGER`);
   }
 }
 

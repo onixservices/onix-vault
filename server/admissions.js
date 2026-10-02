@@ -36,8 +36,12 @@ function itemPassesRules(asset, rules) {
 
 const r2 = (n) => Math.round(n * 100) / 100;
 
-function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTransfer, now = Date.now, haircut = REALISABLE_MULTIPLIER, admission = rules.admission ?? 0.8, rpcUrl = null }) {
+const MONTH_MS = 30.4375 * 86_400_000;
+const bs58enc = (bytes) => bs58.encode(bytes);
+
+function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTransfer, now = Date.now, haircut = REALISABLE_MULTIPLIER, admission = rules.admission ?? 0.8, rpcUrl = null, trader = null, signer = null, getUsdcBalance = null }) {
   const owed = (valueUsd) => r2(valueUsd * haircut * admission);
+  const self = { _trader: trader };
 
   async function eligible(owner) {
     try { new PublicKey(owner); } catch { throw err(400, 'not a wallet address'); }
@@ -96,15 +100,49 @@ function createAdmissions({ db, chain, vaultWallet, rules, fetchAssets, buildTra
     return { checked: rows.length, verified };
   }
 
+  /**
+   * The tokens the sender is owed: bought ON THE CURVE by the vault (never minted), with the
+   * vault's own USDC, once the chain says the item is in. Build (the trader pre-flights and
+   * simulates) → sign as the vault → persist the signature → broadcast. When the vault has
+   * less USDC than owed, the row says so and waits; nothing is signed.
+   */
+  async function settleTokens() {
+    const rows = db.prepare("SELECT * FROM vault_admissions WHERE status = 'admitted' AND tokens_sig IS NULL AND vault = ?").all(vaultWallet);
+    let bought = 0;
+    const wait = (id, note) => db.prepare('UPDATE vault_admissions SET note = ?, updated_at = ? WHERE id = ?').run(note, now(), id);
+    for (const r of rows) {
+      if (!self._trader || !signer || !signer.configured()) { wait(r.id, 'waiting: the vault cannot buy yet (no pool or no signer)'); continue; }
+      try {
+        const has = getUsdcBalance ? await getUsdcBalance() : null;
+        if (has != null && has < r.owed_usd) { wait(r.id, `waiting for vault USDC: needs $${r.owed_usd.toFixed(2)} USDC and has $${has.toFixed(2)}`); continue; }
+        const built = await self._trader.build({ owner: vaultWallet, side: 'buy', amount: r.owed_usd });
+        const tx = Transaction.from(Buffer.from(built.transaction, 'base64'));
+        signer.signTransaction(tx);
+        const sig = bs58enc(tx.signatures.find((s) => s.publicKey.toBase58() === vaultWallet).signature);
+        const signedB64 = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
+        const unlockAt = now() + r.lock_months * MONTH_MS;
+        db.prepare('UPDATE vault_admissions SET tokens_sig = ?, tokens_amount = ?, unlock_at = ?, note = NULL, updated_at = ? WHERE id = ? AND tokens_sig IS NULL')
+          .run(sig, built.quote.amountOut, unlockAt, now(), r.id);
+        try { await chain.sendRawTransaction(signedB64); }
+        catch (e) { console.warn(`[vault] broadcast of admission tokens ${r.id} failed (persisted; rebroadcast possible): ${e.message}`); }
+        bought += 1;
+      } catch (e) {
+        wait(r.id, `waiting: ${e.message}`);
+      }
+    }
+    return { checked: rows.length, bought };
+  }
+
   function view(r) {
     return { id: r.id, mint: r.mint, owner: r.owner, signature: r.signature, valueUsd: r.value_usd, owedUsd: r.owed_usd, lockMonths: r.lock_months,
-      status: r.status, tokens: r.tokens_sig ? 'locked' : 'pending', tokensSignature: r.tokens_sig || null, tokensAmount: r.tokens_amount ?? null, at: r.created_at, updatedAt: r.updated_at };
+      status: r.status, tokens: r.tokens_sig ? 'locked' : (r.note ? 'waiting' : 'pending'), tokensNote: r.note || null, tokensSignature: r.tokens_sig || null, tokensAmount: r.tokens_amount ?? null,
+      unlockAt: r.unlock_at ?? null, at: r.created_at, updatedAt: r.updated_at };
   }
   function list({ limit = 100 } = {}) {
     return db.prepare('SELECT * FROM vault_admissions WHERE vault = ? ORDER BY created_at DESC LIMIT ?').all(vaultWallet, limit).map(view);
   }
 
-  return { eligible, build, record, verifyPending, list, rules };
+  return Object.assign(self, { eligible, build, record, verifyPending, settleTokens, list, rules });
 }
 
 module.exports = { VAULT_RULES, itemPassesRules, createAdmissions };
