@@ -42,7 +42,7 @@ function main() {
     new (require('decimal.js'))(params.initialMarketCap),
     new (require('decimal.js'))(params.migrationMarketCap),
     new BN(params.lockedVesting.totalLockedVestingAmount).mul(new BN(10).pow(new BN(dec.base))),
-    new BN(0),
+    new BN(params.token.leftover || 0).mul(new BN(10).pow(new BN(dec.base))),
     supply,
   );
   const whole = (bn) => Number(bn.toString()) / 10 ** dec.base;

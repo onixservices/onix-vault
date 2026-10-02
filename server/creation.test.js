@@ -168,6 +168,15 @@ describe('Create door — deposited → config (Onix pays, custody is the fee cl
     await creator.deposited({ creationId: o.creationId });
     assert.equal(calls.filter((c) => c[0] === 'config').length, n, 'the config is paid once');
   });
+  test('a config the program would refuse (simulation) → 409 and Onix pays nothing', async () => {
+    const { creator, chain, deposit, sent } = make();
+    const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await deposit(o.depositTransactions);
+    const before = sent.length;
+    chain.sim = { err: { InstructionError: [0, { Custom: 6020 }] }, logs: ['Program log: AnchorError … Error Code: InvalidTokenSupply.'] };
+    await rejects(creator.deposited({ creationId: o.creationId }), 409);
+    assert.equal(sent.length, before, 'the config was never broadcast');
+  });
   test('custody without gas → 409 (no config spent)', async () => {
     const { creator, calls, world } = make();
     const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });

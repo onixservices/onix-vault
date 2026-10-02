@@ -195,6 +195,9 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
       const configKp = Keypair.generate();
       const ctx = await client.partner.createConfig({ ...curve, config: configKp.publicKey, feeClaimer: custodyPk, leftoverReceiver: custodyPk, quoteMint: quotePk, payer: partnerPk });
       ctx.feePayer = partnerPk; ctx.recentBlockhash = await chain.getLatestBlockhash();
+      // the program's own checks run here, before Onix pays anything (2 Oct 2026: InvalidTokenSupply cost a launch)
+      const csim = await chain.simulateTransaction(ctx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64'));
+      if (csim && csim.err) throw err(409, `the curve config would be refused by the program: ${JSON.stringify(csim.err)} · ${(csim.logs || []).filter((l) => /Error Code|log:/.test(l)).slice(-2).join(' | ')}`);
       ctx.partialSign(configKp); partner.signTransaction(ctx);
       const configSig = await chain.sendRawTransaction(ctx.serialize().toString('base64'));
       await chain.waitForSignature(configSig);

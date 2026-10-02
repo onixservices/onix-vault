@@ -33,6 +33,11 @@ const DECIDED = Object.freeze({
   migrationFeePercentage: 30,             // of the USDC raised, to the fee claimer (the vault's custody wallet) at graduation
   migratedPoolFeeBps: 100,                // the graduated DAMM v2 pool's fee (1%)
   antiSniper: Object.freeze({ startingFeeBps: 9900, numberOfPeriod: 6, totalDuration: 60 }), // 99% → 10% over the first 60 s
+  // headroom the program needs when a migration fee is set: the SDK sizes the curve to the exact supply and, for
+  // fees like 10% or 30%, lands a few lamports short of the program's minimum (InvalidTokenSupply, measured on
+  // mainnet 2 Oct 2026 with SDK 1.5.12 and 1.5.13). 0.1% of the supply as `leftover` (to the custody wallet at
+  // migration) makes every configuration pass; without a migration fee it was never needed.
+  leftoverPct: 0.1,
 });
 
 /**
@@ -49,7 +54,7 @@ function paramsFor({ backingUsd, gradMult = DECIDED.gradMultDefault, creatorFeeP
   return {
     view: { openingMcapUsd, graduationUsd, supply, creatorPct: DECIDED.creatorPct, curvePct: 100 - DECIDED.creatorPct, creatorTokens, creatorFeePct, gradMult, vestingMonths: DECIDED.vestingMonths, migrationFeePct: DECIDED.migrationFeePercentage, antiSniper: DECIDED.antiSniper },
     params: buildParams({
-      initialMarketCapUsd: openingMcapUsd, migrationMarketCapUsd: graduationUsd, totalTokenSupply: supply,
+      initialMarketCapUsd: openingMcapUsd, migrationMarketCapUsd: graduationUsd, totalTokenSupply: supply, leftover: Math.round(supply * DECIDED.leftoverPct / 100),
       creatorTradingFeePercentage: creatorFeePct, migrationFeePercentage: DECIDED.migrationFeePercentage, migratedPoolFeeBps: DECIDED.migratedPoolFeeBps,
       antiSniper: DECIDED.antiSniper,
       lockedVesting: {
@@ -70,7 +75,7 @@ function buildParams(p) {
       tokenQuoteDecimal: 6,
       tokenAuthorityOption: TokenAuthorityOption.Immutable,  // mint authority revoked: the supply is fixed
       totalTokenSupply: p.totalTokenSupply,
-      leftover: 0,
+      leftover: p.leftover || 0,
     },
     fee: {
       baseFeeParams: {

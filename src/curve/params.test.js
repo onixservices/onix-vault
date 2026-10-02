@@ -18,6 +18,7 @@ describe('curve params — decided shape', () => {
     assert.equal(params.fee.creatorTradingFeePercentage, 40);
     assert.equal(params.migration.migrationFee.feePercentage, 30);
     assert.equal(params.migration.migrationFee.creatorFeePercentage, 0);
+    assert.equal(params.token.leftover, 10_000, '0.1% headroom so the program accepts the migration fee');
   });
   test('anti-sniper: the fee scheduler starts at 99% and ends at the 10% base over 6 periods in 60 s', () => {
     const { params } = paramsFor({ backingUsd: 100 });
