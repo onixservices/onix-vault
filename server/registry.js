@@ -37,8 +37,8 @@ function normalize(v) {
 
 function registryPath() { return process.env.ONIX_VAULTS_FILE || path.join(path.dirname(C.DB_PATH), 'vaults.json'); }
 
-/** @returns {Array<object>} the vaults, first = primary */
-function loadVaults() {
+/** The operator's vaults: the file, or the single vault from the environment. */
+function loadFileVaults() {
   const p = registryPath();
   if (fs.existsSync(p)) {
     const list = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -46,8 +46,19 @@ function loadVaults() {
     // a closed vault stays in the file for the record (pool, mint, dates) and is not served
     return list.filter((v) => !v.closed).map(normalize);
   }
-  if (!C.VAULT_WALLET) throw new Error('VAULT_WALLET not set and no vaults.json');
+  if (!C.VAULT_WALLET) return [];
   return [normalize(fromEnv())];
+}
+
+/** Vaults opened through the Create door live in the DB; the creator's wallet is the vault, no key here. */
+function loadDbVaults(db) {
+  const { rowToDef } = require('./creation');
+  return db.prepare('SELECT * FROM vaults WHERE closed_at IS NULL ORDER BY created_at').all().map((r) => normalize(rowToDef(r)));
+}
+
+/** @returns {Array<object>} the vaults, operator's first */
+function loadVaults(db = null) {
+  return [...loadFileVaults(), ...(db ? loadDbVaults(db) : [])];
 }
 
 function findVault(id) {
@@ -57,4 +68,4 @@ function findVault(id) {
   return v;
 }
 
-module.exports = { loadVaults, findVault, registryPath, normalize };
+module.exports = { loadVaults, loadFileVaults, loadDbVaults, findVault, registryPath, normalize };

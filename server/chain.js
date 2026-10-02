@@ -28,5 +28,16 @@ module.exports = {
   getAsset: (id) => rpc('getAsset', { id }),
   getAccountInfoBase64: async (pubkey) => (await rpc('getAccountInfo', [pubkey, { encoding: 'base64' }])).value,
   getTokenSupplyUi: async (mint) => (await rpc('getTokenSupply', [mint])).value.uiAmount,
+  /** Poll until a signature is confirmed (or fails / times out). Used only for transactions this server sent. */
+  waitForSignature: async (sig, { timeoutMs = 60_000, everyMs = 1500 } = {}) => {
+    const t0 = Date.now();
+    for (;;) {
+      const [st] = (await rpc('getSignatureStatuses', [[sig], { searchTransactionHistory: true }])).value;
+      if (st && st.err) throw new Error(`transaction ${sig} failed on chain: ${JSON.stringify(st.err)}`);
+      if (st && (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized')) return st;
+      if (Date.now() - t0 > timeoutMs) throw new Error(`transaction ${sig} not confirmed after ${timeoutMs / 1000}s`);
+      await new Promise((r) => setTimeout(r, everyMs));
+    }
+  },
   rpc,
 };

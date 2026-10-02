@@ -22,6 +22,8 @@ const { createStatsReader } = require('./stats');
 const { createWalletReader } = require('./wallet');
 const { createCurveTrader, productionCurveDeps } = require('./curve');
 const { createAdmissions, VAULT_RULES } = require('./admissions');
+const { createVaultCreator } = require('./creation');
+const { normalize } = require('./registry');
 const { loadVaults } = require('./registry');
 const das = require('../src/reader/das');
 const { createTransferBuilder, productionDeps } = require('./transfer');
@@ -34,9 +36,11 @@ const { buildApp } = require('./app');
  * rehearsal swaps the items reader for a fixture and the signer for a throwaway keypair;
  * the delivery path is the production one).
  */
+const noSigner = { configured: () => false, publicKey: () => { throw new VaultError(503, 'this vault has no server-side key: its creator holds the items'); }, signTransaction: () => { throw new VaultError(503, 'this vault has no server-side key'); } };
+
 function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null, signer: signerOverride = null }) {
   const vaultWallet = def.wallet;
-  const signer = signerOverride || (def.secretEnv === 'VAULT_SECRET_KEY' ? defaultSigner : defaultSigner.fromEnv(def.secretEnv));
+  const signer = signerOverride || (!def.secretEnv ? noSigner : def.secretEnv === 'VAULT_SECRET_KEY' ? defaultSigner : defaultSigner.fromEnv(def.secretEnv));
   const readItems = readItemsOverride || createItemsReader({ rpcUrl: C.RPC_URL, vaultWallet, marketRefUrl: C.MARKET_REF_URL, cacheMs: C.ITEMS_CACHE_MS });
   const transfer = createTransferBuilder(productionDeps(chain));
   const bs58 = require('bs58');
@@ -79,19 +83,26 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
  * Builds the whole server from the registry (or, for a rehearsal, from the one vault
  * passed in with its pieces).
  */
-function createServer({ readItems = null, db: dbOverride = null, signer = null, vaultWallet = null, chain = defaultChain, vaults: defs = null } = {}) {
+function createServer({ readItems = null, db: dbOverride = null, signer = null, vaultWallet = null, chain = defaultChain, vaults: defs = null, creator: creatorOverride = null } = {}) {
   const db = dbOverride || getDb();
   const list = defs || (vaultWallet
     ? [{ id: '1', name: 'Vault #1', operator: 'Onix', wallet: vaultWallet, secretEnv: 'VAULT_SECRET_KEY', rules: VAULT_RULES.vault1, custodians: VAULT_RULES.vault1.custodians, pool: C.POOL || null, baseMint: C.BASE_MINT || null, graduationUsd: C.GRADUATION_USD, token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' } }]
-    : loadVaults());
+    : loadVaults(db));
   const bundles = list.map((def, i) => createVaultBundle(def, { db, chain, readItems: i === 0 ? readItems : null, signer: i === 0 ? signer : null }));
   // rows written before the `vault` column existed belong to the primary vault
   if (bundles.length) for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) db.prepare(`UPDATE ${t} SET vault = ? WHERE vault IS NULL`).run(bundles[0].wallet);
   const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
-  const app = buildApp({ vaults: bundles, readWallet });
+  // the Create door: Onix (the operator key) is the curve's partner — it pays for the config and claims the fee
+  const partner = signer || defaultSigner;
+  const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
+  const creator = creatorOverride || createVaultCreator({ db, chain, sdk: require('@meteora-ag/dynamic-bonding-curve-sdk'), getClient: curveDeps.getClient, partner, quoteMint: C.USDC_MINT,
+    fetchAssets: das.fetchAssetsByOwner, rpcUrl: C.RPC_URL, metadataBase: C.PUBLIC_URL, haircut: C.HAIRCUT, existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || '') });
+  // a vault created through the door mounts without a restart
+  const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
-  return { app, db, vaults: bundles, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
+  return { app, db, vaults: bundles, addVault, creator, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
 }
 
 function main() {

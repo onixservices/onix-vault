@@ -533,6 +533,9 @@
         }
       }
     },
+    "/v1/vaults/create/quote": { "get": { "summary": "What a wallet could open a vault on, and the curve it implies", "parameters": [{ "name": "wallet", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "items, indexUsd, realisableUsd, canCreate, why, curve{openingMcapUsd, graduationUsd, supply, creatorPct, reservePct, curvePct}, creatorTokensWorthUsd" } } } },
+    "/v1/vaults/create/build": { "post": { "summary": "Create the curve config (Onix pays and is the fee partner) and return the ONE createPool transaction the creator signs", "requestBody": { "content": { "application/json": { "schema": { "type": "object", "required": ["owner", "name", "symbol"], "properties": { "owner": { "type": "string" }, "name": { "type": "string", "maxLength": 32 }, "symbol": { "type": "string", "pattern": "^[A-Z0-9]{2,10}$" } } } } } }, "responses": { "200": { "description": "creationId, pool, baseMint, config, configSignature, curve, backing, transaction (base64, pre-signed by the mint key), message" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "422": { "$ref": "#/components/responses/Error" } } } },
+    "/v1/vaults/create/confirm": { "post": { "summary": "The pool is on chain → the vault is registered and served", "requestBody": { "content": { "application/json": { "schema": { "type": "object", "required": ["creationId"], "properties": { "creationId": { "type": "string" }, "signature": { "type": "string" } } } } } }, "responses": { "201": { "description": "vault summary" }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } } },
     "/v1/vaults/{vault}/trades/quote": {
       "post": {
         "summary": "Quote a buy (USDC → token) or sell (token → USDC) on the live pool",

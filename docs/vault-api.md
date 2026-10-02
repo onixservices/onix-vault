@@ -83,6 +83,19 @@ USDC than owed, the row waits as `tokens: waiting` with the two numbers in `toke
 is returned by the operator. Enforcement by an on-chain program (the transfer fails if the rule fails)
 is the roadmap; until then the UI cannot build what the rule refuses, and the count ignores it.
 
+### The Create door
+
+Anyone with eligible items in a wallet opens a vault **on that wallet**: the items never move, the
+creator's wallet is the vault, and the server holds no key for it (deliveries are therefore not
+automatic for such a vault — it lists, trades and admits; the operator's vaults deliver).
+
+| | |
+|---|---|
+| `GET /v1/vaults/create/quote?wallet=` | what the wallet holds that counts (registered custodian + value), backing, and the curve it implies: opens at **2× realisable**, graduates at **2.5× the opening cap**; supply **50% creator · 10% admission reserve · 40% curve** (the 60% sits in the DBC's `lockedVesting`, released to the creator at graduation) |
+| `POST /v1/vaults/create/build` `{ owner, name, symbol }` | Onix (the partner) creates and pays for the curve **config** and is its fee claimer; then returns the **one** transaction the creator signs — `createPool`, creator = payer, pre-signed by the throwaway mint key, simulated before it leaves (409 with the log if it would fail). Symbol: 2–10 `A–Z0–9`, unique. |
+| `POST /v1/vaults/create/confirm` `{ creationId, signature }` | the pool account exists on chain → the vault is registered (DB) and served immediately under `/v1/vaults/{creatorWallet}/…`; 409 while the pool is not visible yet |
+| `GET /token/{mint}.json` | token metadata for created vaults (name, symbol, default image) |
+
 ### The Buy door
 
 `POST /v1/vaults/{vault}/trades/quote` and `…/trades/build` — a Meteora DBC quote on the live pool and

@@ -340,67 +340,57 @@
   <div class="sec">
     <div class="hd">
       <div>
-        <p class="eyebrow">Three steps · the same path Vault #1 took</p>
+        <p class="eyebrow">Three steps · your wallet is the vault</p>
         <h2 style="margin-top:8px">Create a vault</h2>
       </div>
       <div class="steps">
-        <span class="step on" id="st1"><i>1</i>Pick items</span>
+        <span class="step on" id="st1"><i>1</i>Your items</span>
         <span class="step" id="st2"><i>2</i>Your token</span>
         <span class="step" id="st3"><i>3</i>Launch</span>
       </div>
     </div>
 
     <div id="c1" class="sec">
-      <p class="muted" style="font-size:14px">Items from a registered custodian (today: Collector Crypt) can go in. Anything else is shown with the reason.</p>
-      <div class="walletrow">
-        <span class="faint" style="font-size:13px">Your wallet, or paste an address</span>
-        <input id="c-addr" class="addr" placeholder="wallet address" spellcheck="false">
-        <button class="cta ghost sm" id="c-scan" type="button">Scan</button>
-      </div>
-      <p class="muted" id="c-summary" style="font-size:13.5px"></p>
+      <p class="muted" style="font-size:14px">The wallet you connect is the vault. Items from a registered custodian (today: Collector Crypt) count; they stay in your wallet. Anything else is shown with the reason.</p>
+      <p class="muted" id="c-summary" style="font-size:13.5px">Connect your wallet (top right) to see what it can open a vault on.</p>
       <div class="pick" id="pick"></div>
-      <div class="calc">
-        <div><div class="lab">Selected</div><div class="cv" id="c-sel">0</div><div class="cs">items going in</div></div>
+      <div class="calc" id="c-calc" style="display:none">
+        <div><div class="lab">Items</div><div class="cv" id="c-sel">0</div><div class="cs">from registered custodians</div></div>
         <div><div class="lab">Listed value</div><div class="cv" id="c-idx">$0</div><div class="cs">the custodian's insured value</div></div>
-        <div><div class="lab">What it sells for</div><div class="cv" id="c-real">$0</div><div class="cs">× 0.89 — the measured median of real sales</div></div>
-        <div><div class="lab">You receive</div><div class="cv v" id="c-get">$0</div><div class="cs">80% of that, in your vault's token, locked 12 months</div></div>
+        <div><div class="lab">Inside at launch</div><div class="cv g" id="c-real">$0</div><div class="cs">what the items sell for (× 0.89)</div></div>
+        <div><div class="lab">Your share, day one</div><div class="cv v" id="c-get">$0</div><div class="cs">50% of the token, worth what you put in</div></div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to2">Next: name your token</button><a class="cta ghost" href="#/app">Cancel</a></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to2" disabled>Next: name your token</button><a class="cta ghost" href="#/app">Cancel</a></div>
     </div>
 
     <div id="c2" class="sec" style="display:none">
       <div class="form">
-        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" placeholder="e.g. Vintage watches"></div>
-        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" placeholder="e.g. VWATCH"></div>
+        <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" maxlength="32" placeholder="e.g. Vintage watches"></div>
+        <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" maxlength="10" placeholder="e.g. VWATCH" style="text-transform:uppercase"></div>
         <div class="f"><label for="f-quote">Priced in</label><select id="f-quote"><option>USDC (dollars)</option></select></div>
       </div>
-      <details class="adv">
-        <summary>Advanced — the defaults are the ones Vault #1 uses</summary>
-        <div class="form" style="margin-top:12px">
-          <div class="f"><label for="f-grad">Trading opens to the whole market at</label><select id="f-grad"><option>3× what is inside (recommended)</option><option>5× what is inside</option><option>10× what is inside</option></select></div>
-          <div class="f"><label for="f-fee">Fee on every trade</label><select id="f-fee"><option>10% · half buys the next item · 30% buys tokens back · 20% operator</option></select></div>
-          <div class="f"><label for="f-prem">Take-out price</label><select id="f-prem"><option>listed value + 15%</option></select></div>
-          <div class="f"><label for="f-lock">Your tokens unlock after</label><select id="f-lock"><option>12 months</option></select></div>
-        </div>
-      </details>
+      <div class="terms">
+        <div><b>Opens at</b><span>2× what is inside — so your 50% is worth your items on day one</span></div>
+        <div><b>Opens to the whole market at</b><span>2.5× the opening cap</span></div>
+        <div><b>Token split</b><span>50% you · 10% reserved to pay items that come in later · 40% on the curve</span></div>
+        <div><b>Fee on every trade</b><span>10% — half buys the next item, 30% buys tokens back, 20% operator</span></div>
+        <div><b>Your tokens</b><span>released when trading opens to the whole market</span></div>
+      </div>
+      <p class="faint" id="c2-msg" style="font-size:12.5px;min-height:16px"></p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Next: review</button><button class="cta ghost" id="back1">Back</button></div>
     </div>
 
     <div id="c3" class="sec" style="display:none">
-      <div class="lock">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        <div>
-          <b style="font-size:17px">Vaults are created by Onix for now.</b>
-          <p class="muted" style="margin-top:6px">Tell us what you hold and who custodies it. If the custodian is one we can verify, we open your vault with you.</p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px"><a class="cta" href="https://x.com/OnixCards" target="_blank" rel="noopener">Talk to us on X</a><button class="cta ghost" id="back2">Back</button></div>
-        </div>
-      </div>
       <div class="calc" id="r-calc">
-        <div><div class="lab">Items</div><div class="cv" id="r-sel">0</div><div class="cs">from registered custodians</div></div>
-        <div><div class="lab">Inside at launch</div><div class="cv g" id="r-real">$0</div><div class="cs">what the items sell for, day one</div></div>
+        <div><div class="lab">Vault</div><div class="cv" id="r-name">—</div><div class="cs" id="r-sym">$—</div></div>
+        <div><div class="lab">Inside at launch</div><div class="cv g" id="r-real">$0</div><div class="cs" id="r-sel">0 items</div></div>
+        <div><div class="lab">Opens at</div><div class="cv" id="r-open">$0</div><div class="cs">market cap on day one</div></div>
         <div><div class="lab">Open market at</div><div class="cv" id="r-grad">$0</div><div class="cs">when trading opens to everyone</div></div>
-        <div><div class="lab">You receive</div><div class="cv v" id="r-get">$0</div><div class="cs">in tokens, locked 12 m</div></div>
+        <div><div class="lab">Your share</div><div class="cv v" id="r-get">$0</div><div class="cs">50% of the token, released at that point</div></div>
       </div>
+      <p class="muted" style="font-size:13.5px">Launching creates the token and its curve on Solana. You sign one transaction in your wallet (≈0.03 SOL network cost). Onix sets up the curve first and is its fee partner. This cannot be undone: the token exists from here on.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta big" id="c-launch" type="button">Launch vault</button><button class="cta ghost" id="back2">Back</button></div>
+      <p class="faint" id="c-msg" style="font-size:12.5px;min-height:16px"></p>
     </div>
   </div>
 </section>

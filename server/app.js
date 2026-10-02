@@ -11,6 +11,9 @@
  *   POST /v1/vaults/:vault/reservations (+ /:id/settle, GET /:id)
  *   POST /v1/vaults/:vault/redemptions
  *   GET  /v1/wallets/:wallet/eligible-items              any registered custodian, any vault
+ *   GET  /v1/vaults/create/quote?wallet=                  what a wallet could open a vault on
+ *   POST /v1/vaults/create/build | create/confirm          the Create door (creator signs ONE tx)
+ *   GET  /token/:mint.json                                 token metadata for created vaults
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
  * are added. `x-api-key` is optional: it identifies the integrator for limits; it never
@@ -29,18 +32,18 @@ const { VaultError } = require('./vaultService');
  * Legacy single-vault args (service, stats, admissions, trader, vaultWallet, vaultMeta, signerConfigured, itemsAge) still work.
  */
 function buildApp(deps) {
-  const { readWallet, webDir = path.join(__dirname, '..', 'web') } = deps;
+  const { readWallet, creator = null, addVault = null, db = null, webDir = path.join(__dirname, '..', 'web') } = deps;
   const vaults = deps.vaults || (!deps.vaultWallet ? [] : [{
     wallet: deps.vaultWallet, meta: deps.vaultMeta || {}, service: deps.service, stats: deps.stats || null, admissions: deps.admissions || null,
     trader: deps.trader || null, itemsAge: deps.itemsAge || (() => null), signerConfigured: deps.signerConfigured || (() => false),
   }]);
-  const byWallet = new Map(vaults.map((v) => [v.wallet, v]));
 
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '64kb' }));
 
-  const pick = (req, res, next) => { const v = byWallet.get(req.params.vault); if (!v) return next(new VaultError(404, 'unknown vault')); req.vb = v; next(); };
+  // resolved per request: a vault created through the door is in `vaults` the moment it is confirmed
+  const pick = (req, res, next) => { const v = vaults.find((x) => x.wallet === req.params.vault); if (!v) return next(new VaultError(404, 'unknown vault')); req.vb = v; next(); };
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   const need = (x, what) => { if (!x) throw new VaultError(503, `${what} not configured for this vault`); return x; };
   const summary = async (v) => ({ vault: v.wallet, ...v.meta, rules: v.admissions ? v.admissions.rules : null, stats: v.stats ? await v.stats.read() : null });
@@ -51,6 +54,26 @@ function buildApp(deps) {
   app.get('/v1/vaults', wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), vaults: await Promise.all(vaults.map(summary)) });
   }));
+  // ── the Create door: the creator's wallet IS the vault; Onix is the curve's partner ──
+  const needCreator = () => { if (!creator) throw new VaultError(503, 'vault creation not configured'); return creator; };
+  app.get('/v1/vaults/create/quote', wrap(async (req, res) => {
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || '') })) });
+  }));
+  app.post('/v1/vaults/create/build', wrap(async (req, res) => {
+    const { owner, name, symbol } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().build({ owner, name, symbol })) });
+  }));
+  app.post('/v1/vaults/create/confirm', wrap(async (req, res) => {
+    const { creationId, signature } = req.body || {};
+    const def = await needCreator().confirm({ creationId, signature });
+    const b = addVault ? addVault(def) : null;
+    res.status(201).json({ readAt: new Date().toISOString(), vault: b ? await summary(b) : def });
+  }));
+  app.get('/token/:mint.json', (req, res, next) => {
+    const r = db ? db.prepare('SELECT * FROM vaults WHERE base_mint = ?').get(req.params.mint) : null;
+    if (!r) return next();
+    res.json({ name: r.token_name, symbol: r.token_symbol, description: `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${req.protocol}://${req.get('host')}/token/default.png` });
+  });
   app.get('/v1/vaults/:vault/stats', pick, wrap(async (req, res) => {
     const st = need(req.vb.stats, 'stats');
     res.json({ ...(await st.read({ fresh: req.query.fresh === '1' })), ageMs: st.ageMs() });

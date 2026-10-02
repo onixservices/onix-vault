@@ -21,6 +21,7 @@ module.exports = Object.freeze({
   // "secret assigned to variable" pattern never matches real code — the hook stays strict.
   SIGNER_SECRET: env('VAULT_SECRET_KEY'),
   USDC_MINT: env('USDC_MINT', 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'),
+  PUBLIC_URL: env('ONIX_VAULT_PUBLIC_URL', 'https://vault.onix.finance'),
   MEMO_PROGRAM_ID: 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr',
 
   // the published rules — the same numbers the proof page shows

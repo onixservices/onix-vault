@@ -133,7 +133,8 @@
     W.addr = a; T.wallet = a; SD.wallet = a;
     $('w-connect').textContent = a ? short(a) : 'Connect wallet';
     $('w-connect').classList.toggle('on', !!a);
-    if (a) { $('sd-addr').value = a; $('c-addr').value = a; }
+    if (a) { $('sd-addr').value = a; }
+    if ($('s-create').classList.contains('on')) { if (a) scan(a); else { CQ = null; $('c-summary').textContent = 'Connect your wallet (top right) to see what it can open a vault on.'; renderPick(); } }
     if (STATS) tradePanel(STATS);
     loadBalances();
     if (a && $('s-send').classList.contains('on')) sdScan(a); else sdRender();
@@ -271,47 +272,78 @@
     }
   }
 
-  // ── create ──
-  var sel = {}, eligible = [], ineligible = [];
+  // ── create: the connected wallet is the vault ──
+  var CQ = null, CR = { busy: false };
   function renderPick() {
-    $('pick').innerHTML = eligible.map(function (c) {
+    var q = CQ;
+    $('pick').innerHTML = !q ? '' : q.items.map(function (c) {
       var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
-      return '<button type="button" class="pk' + (sel[c.mint] ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + esc([c.gradingCompany, c.grade].filter(Boolean).join(' ')) + ' · ' + usd(c.custodianValueUsd) + '</span></div></button>';
-    }).join('') + ineligible.map(function (x) {
-      var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
-      return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>not eligible</span></div></div>';
+      return '<div class="pk sel">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + usd(c.custodianValueUsd) + '</span></div></div>';
     }).join('');
-    var n = 0, i = 0; eligible.forEach(function (c) { if (sel[c.mint]) { n++; i += c.custodianValueUsd; } });
-    var h = STATS ? STATS.backing.multiplier : 0.89, adm = STATS && STATS.band ? STATS.band.admission : 0.8;
-    var r = i * h, g = r * adm;
-    $('c-sel').textContent = n; $('c-idx').textContent = usd(i); $('c-real').textContent = usd(r); $('c-get').textContent = usd(g);
-    $('r-sel').textContent = n; $('r-real').textContent = usd(r); $('r-get').textContent = usd(g); $('r-grad').textContent = usd(r * 3);
-    $('r-calc').style.display = n ? '' : 'none';
+    $('c-calc').style.display = q ? '' : 'none';
+    if (q) { $('c-sel').textContent = q.items.length; $('c-idx').textContent = usd(q.indexUsd); $('c-real').textContent = usd(q.realisableUsd); $('c-get').textContent = usd(q.creatorTokensWorthUsd); }
+    $('to2').disabled = !(q && q.canCreate);
   }
   function scan(addr) {
-    $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…';
-    sel = {}; eligible = []; ineligible = []; renderPick();
-    get('/v1/wallets/' + encodeURIComponent(addr) + '/eligible-items').then(function (b) {
-      eligible = b.eligible; ineligible = b.ineligible;
-      $('c-summary').textContent = b.total + ' tokens in ' + short(addr) + ' · ' + eligible.length + ' eligible · ' + ineligible.length + ' not (each says why)';
-      eligible.slice(0, 3).forEach(function (c) { sel[c.mint] = true; });
+    $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…'; CQ = null; renderPick();
+    get('/v1/vaults/create/quote?wallet=' + encodeURIComponent(addr)).then(function (q) {
+      CQ = q;
+      $('c-summary').textContent = q.canCreate ? q.items.length + ' item' + (q.items.length === 1 ? '' : 's') + ' in ' + short(addr) + ' can back a vault' : 'Nothing in ' + short(addr) + ' can back a vault yet — ' + q.why;
       renderPick();
     }).catch(function (e) { $('c-summary').textContent = 'Could not read that wallet: ' + e.message; });
   }
-  $('pick').addEventListener('click', function (e) {
-    var b = e.target.closest('button.pk'); if (!b) return;
-    sel[b.dataset.mint] = !sel[b.dataset.mint]; renderPick();
-  });
-  $('c-scan').addEventListener('click', function () { var a = $('c-addr').value.trim(); if (a) scan(a); });
-  $('c-addr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var a = $('c-addr').value.trim(); if (a) scan(a); } });
   function step(n) {
     [1, 2, 3].forEach(function (k) { $('c' + k).style.display = k === n ? '' : 'none'; var s = $('st' + k); s.className = 'step' + (k === n ? ' on' : k < n ? ' done' : ''); });
     window.scrollTo({ top: 0 });
   }
-  $('to2').addEventListener('click', function () { step(2); });
-  $('to3').addEventListener('click', function () { step(3); });
+  function review() {
+    var name = $('f-name').value.trim(), sym = $('f-sym').value.trim().toUpperCase();
+    if (!name || !/^[A-Z0-9]{2,10}$/.test(sym)) { $('c2-msg').textContent = 'A name (up to 32 characters) and a symbol of 2–10 letters or digits.'; return false; }
+    $('c2-msg').textContent = '';
+    $('r-name').textContent = name; $('r-sym').textContent = '$' + sym; $('r-real').textContent = usd(CQ.realisableUsd); $('r-sel').textContent = CQ.items.length + ' item' + (CQ.items.length === 1 ? '' : 's');
+    $('r-open').textContent = usd(CQ.curve.openingMcapUsd); $('r-grad').textContent = usd(CQ.curve.graduationUsd); $('r-get').textContent = usd(CQ.creatorTokensWorthUsd);
+    return true;
+  }
+  $('to2').addEventListener('click', function () { if (CQ && CQ.canCreate) step(2); });
+  $('to3').addEventListener('click', function () { if (review()) step(3); });
   $('back1').addEventListener('click', function () { step(1); });
   $('back2').addEventListener('click', function () { step(2); });
+  $('f-sym').addEventListener('input', function () { this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+  $('c-launch').addEventListener('click', function () {
+    if (CR.busy || !CQ || !W.addr) return;
+    var name = $('f-name').value.trim(), sym = $('f-sym').value.trim().toUpperCase();
+    var w = provider(); if (!w) { $('c-msg').textContent = 'No Solana wallet found in this browser.'; return; }
+    CR.busy = true; $('c-launch').disabled = true; $('c-msg').textContent = 'Setting up the curve (Onix signs this part)…';
+    var creationId = null;
+    fetch('/v1/vaults/create/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ owner: W.addr, name: name, symbol: sym }) })
+      .then(function (r) { return r.json(); })
+      .then(function (b) {
+        if (b.error) throw new Error(b.error);
+        creationId = b.creationId;
+        $('c-msg').textContent = 'Sign the launch in your wallet…';
+        return signAndSend(w, b.transaction);
+      })
+      .then(function (sig) {
+        $('c-msg').textContent = 'Launched: ' + short(sig) + ' · confirming on chain…';
+        var tries = 0;
+        return (function confirmLoop() {
+          tries++;
+          return fetch('/v1/vaults/create/confirm', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ creationId: creationId, signature: sig }) })
+            .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+            .then(function (x) {
+              if (x.status === 201) return x.body.vault;
+              if (x.status === 409 && tries < 20) return new Promise(function (res) { setTimeout(res, 3000); }).then(confirmLoop);
+              throw new Error(x.body.error || 'could not confirm');
+            });
+        })();
+      })
+      .then(function (v) {
+        $('c-msg').textContent = 'Your vault is live.';
+        return loadVaults().then(function () { location.hash = '#/vault/' + v.id; });
+      })
+      .catch(function (e) { $('c-msg').textContent = (e && e.message) || String(e); })
+      .then(function () { CR.busy = false; $('c-launch').disabled = false; });
+  });
   renderPick();
 
   // ── How it works: the simulation panel (an example vault; the real one is above) ──
@@ -424,7 +456,7 @@
     else if ((m = h.match(/^#\/vault\/([^\/]+)\/send$/))) { id = 'send'; selectVault(m[1]); $('sd-crumb-vault').textContent = META.name; $('sd-crumb-vault').href = vpath(); $('sd-back').href = vpath(); $('sd-sym').textContent = SYM(); if (META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); SD.items = { eligible: [], ineligible: [] }; SD.pick = null; sdRender(); }
     else if ((m = h.match(/^#\/vault\/([^\/]+)/))) { id = 'vault'; selectVault(m[1]); renderVault(); }
     else if ((m = h.match(/^#\/item\/(.+)$/))) { id = 'item'; renderItem(m[1]); }
-    else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); }
+    else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); if (W.addr) scan(W.addr); }
     else if (h.indexOf('#/integrate') === 0) id = 'integrate';
     else if (h.indexOf('#/how') === 0) id = 'how';
     if (id === 'home') renderBoard();

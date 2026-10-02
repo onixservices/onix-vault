@@ -63,6 +63,25 @@ const SCHEMA = `
     updated_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_adm_status ON vault_admissions (status);
+
+  -- vaults opened through the Create door (the file registry holds the operator's)
+  CREATE TABLE IF NOT EXISTS vaults (
+    id TEXT PRIMARY KEY,               -- the symbol, lower-case
+    name TEXT NOT NULL,
+    operator TEXT NOT NULL,            -- short form of the creator wallet
+    wallet TEXT NOT NULL UNIQUE,       -- the creator's wallet: it IS the vault
+    pool TEXT NOT NULL UNIQUE,
+    base_mint TEXT NOT NULL UNIQUE,
+    config TEXT NOT NULL,
+    graduation_usd REAL NOT NULL,
+    token_name TEXT NOT NULL,
+    token_symbol TEXT NOT NULL UNIQUE,
+    rules TEXT NOT NULL,               -- key into VAULT_RULES
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    launch_sig TEXT,
+    closed_at INTEGER
+  );
 `;
 
 /** Columns added after the first deploy: add them if an older file lacks them. */
