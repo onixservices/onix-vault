@@ -114,6 +114,9 @@ describe('Create door — submit (the creator signed; the mint key completes; br
     const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
     const tx = Transaction.from(Buffer.from(out.transaction, 'base64'));
     tx.partialSign(ownerKp);
+    // what a wallet hands back: the same instructions, possibly recompiled — rebuild from instructions to mimic that
+    const re = new Transaction({ feePayer: tx.feePayer, recentBlockhash: tx.recentBlockhash }); tx.instructions.forEach((ix) => re.add(ix)); re.partialSign(ownerKp);
+    assert.equal(re.serializeMessage().toString('base64'), tx.serializeMessage().toString('base64'), 'same content serialises the same here');
     const r = await creator.submit({ creationId: out.creationId, signedTransaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') });
     assert.equal(r.signature, 'SIG2'); assert.equal(sent.length, 2);
     assert.ok(Transaction.from(Buffer.from(sent[1], 'base64')).verifySignatures(), 'broadcast fully signed: creator + mint');

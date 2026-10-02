@@ -59,6 +59,11 @@ function checkCreatorPlusMint(tx, creator, mint, { creatorSigned = false, mintSi
   return null;
 }
 
+/** The content of a transaction, independent of how a library ordered the account table. */
+function instructionsOf(tx) {
+  return JSON.stringify({ feePayer: tx.feePayer?.toBase58(), ixs: tx.instructions.map((ix) => ({ p: ix.programId.toBase58(), k: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), d: Buffer.from(ix.data).toString('base64') })) });
+}
+
 function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fetchAssets, rpcUrl = null, metadataBase, rules = VAULT_RULES.vault1, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [] }) {
   const pending = new Map(); // creationId → { owner, name, symbol, config, baseMintKp, pool, at }
 
@@ -122,7 +127,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     const sim = await chain.simulateTransaction(bytes.toString('base64'));
     if (sim && sim.err) throw err(409, `the launch would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
     const pool = sdk.deriveDbcPoolAddress(quotePk, baseMintKp.publicKey, configKp.publicKey).toBase58();
-    pending.set(id, { owner, name, symbol, mints, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), baseMintKp, message: compiled.serializeMessage().toString('base64'), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
+    pending.set(id, { owner, name, symbol, mints, config: configKp.publicKey.toBase58(), baseMint: baseMintKp.publicKey.toBase58(), baseMintKp, content: instructionsOf(compiled), pool, graduationUsd: view.graduationUsd, items: b.items.length, backingUsd: b.realisableUsd, at: now() });
     return { creationId: id, pool, baseMint: baseMintKp.publicKey.toBase58(), config: configKp.publicKey.toBase58(), configSignature: configSig, curve: view, backing: { items: b.items.length, indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
   }
 
@@ -134,7 +139,8 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     const p = pending.get(creationId);
     if (!p) throw err(404, 'unknown or expired creation — build again');
     let tx; try { tx = Transaction.from(Buffer.from(String(signedTransaction || ''), 'base64')); } catch { throw err(400, 'signedTransaction must be a base64 transaction'); }
-    if (tx.serializeMessage().toString('base64') !== p.message) throw err(409, 'the signed transaction is not the one that was built');
+    // the wallet's library may re-order the account table when it hands the signed tx back; what must match is the content
+    if (instructionsOf(tx) !== p.content) { console.warn('[create] signed tx differs from the built one · built:', p.content, '· got:', instructionsOf(tx)); throw err(409, 'the signed transaction is not the one that was built'); }
     const fail = checkCreatorPlusMint(tx, p.owner, p.baseMint, { creatorSigned: true, mintSigned: false });
     if (fail) throw err(409, `signed transaction does not pass assertions: ${fail.assertion} (${fail.message})`);
     tx.partialSign(p.baseMintKp);
