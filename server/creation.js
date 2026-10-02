@@ -59,9 +59,16 @@ function checkCreatorPlusMint(tx, creator, mint, { creatorSigned = false, mintSi
   return null;
 }
 
-/** The content of a transaction, independent of how a library ordered the account table. */
+/**
+ * Programs a wallet is allowed to ADD around our instruction when it hands the signed tx back.
+ * Measured on 2 Oct 2026: Phantom prepends two ComputeBudget instructions (priority fee) and
+ * appends a Lighthouse assertion (its own guard). Neither can change what our instruction does.
+ */
+const WALLET_WRAPPER_PROGRAMS = new Set(['ComputeBudget111111111111111111111111111111', 'L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95']);
+
+/** The content of a transaction — fee payer + OUR instructions — independent of account-table order and of wallet wrappers. */
 function instructionsOf(tx) {
-  return JSON.stringify({ feePayer: tx.feePayer?.toBase58(), ixs: tx.instructions.map((ix) => ({ p: ix.programId.toBase58(), k: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), d: Buffer.from(ix.data).toString('base64') })) });
+  return JSON.stringify({ feePayer: tx.feePayer?.toBase58(), ixs: tx.instructions.filter((ix) => !WALLET_WRAPPER_PROGRAMS.has(ix.programId.toBase58())).map((ix) => ({ p: ix.programId.toBase58(), k: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), d: Buffer.from(ix.data).toString('base64') })) });
 }
 
 function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fetchAssets, rpcUrl = null, metadataBase, rules = VAULT_RULES.vault1, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [] }) {
@@ -177,4 +184,4 @@ function rowToDef(r, db = null) {
     pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
 }
 
-module.exports = { createVaultCreator, curveParamsFor, checkCreatorPlusMint, rowToDef, SPLIT, LIMITS };
+module.exports = { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, SPLIT, LIMITS, WALLET_WRAPPER_PROGRAMS };

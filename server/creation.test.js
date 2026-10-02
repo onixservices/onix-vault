@@ -2,7 +2,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { Keypair, Transaction, SystemProgram, PublicKey } = require('@solana/web3.js');
 const { getTestDb } = require('./db');
-const { createVaultCreator, curveParamsFor, checkCreatorPlusMint, rowToDef, SPLIT } = require('./creation');
+const { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, SPLIT } = require('./creation');
 const { fromKeypair } = require('./signer');
 const { KNOWN_CUSTODIANS } = require('../src/reader/backing');
 const sdkReal = require('@meteora-ag/dynamic-bonding-curve-sdk');
@@ -120,6 +120,27 @@ describe('Create door — submit (the creator signed; the mint key completes; br
     const r = await creator.submit({ creationId: out.creationId, signedTransaction: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') });
     assert.equal(r.signature, 'SIG2'); assert.equal(sent.length, 2);
     assert.ok(Transaction.from(Buffer.from(sent[1], 'base64')).verifySignatures(), 'broadcast fully signed: creator + mint');
+  });
+  test('what Phantom hands back (2 Oct 2026): ComputeBudget in front, our instruction, Lighthouse at the end → accepted; our instruction changed → refused', async () => {
+    const { creator, sent } = make();
+    const out = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    const built = Transaction.from(Buffer.from(out.transaction, 'base64'));
+    const { TransactionInstruction } = require('@solana/web3.js');
+    const wrap = (ours) => {
+      const t = new Transaction({ feePayer: built.feePayer, recentBlockhash: built.recentBlockhash });
+      t.add(new TransactionInstruction({ programId: new PublicKey('ComputeBudget111111111111111111111111111111'), keys: [], data: Buffer.from([2, 1, 0, 0, 0]) }));
+      t.add(new TransactionInstruction({ programId: new PublicKey('ComputeBudget111111111111111111111111111111'), keys: [], data: Buffer.from([3, 1, 0, 0, 0, 0, 0, 0, 0]) }));
+      ours.forEach((ix) => t.add(ix));
+      t.add(new TransactionInstruction({ programId: new PublicKey('L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95'), keys: [{ pubkey: ownerKp.publicKey, isSigner: false, isWritable: false }], data: Buffer.from([1]) }));
+      t.partialSign(ownerKp); return t;
+    };
+    assert.equal(instructionsOf(wrap(built.instructions)), instructionsOf(built), 'wrappers are ignored');
+    const r = await creator.submit({ creationId: out.creationId, signedTransaction: wrap(built.instructions).serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') });
+    assert.ok(r.signature); assert.equal(sent.length, 2);
+    // the same wrappers around a DIFFERENT instruction is not ours
+    const out2 = await creator.build({ owner: OWNER, name: 'My Cards', symbol: 'MYD', mints: ['a'] });
+    const tampered = built.instructions.map((ix) => new TransactionInstruction({ programId: ix.programId, keys: ix.keys, data: Buffer.concat([Buffer.from(ix.data), Buffer.from([9])]) }));
+    await rejects(creator.submit({ creationId: out2.creationId, signedTransaction: wrap(tampered).serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') }), 409);
   });
   test('a different message, or one the creator did not sign, is refused and nothing is sent', async () => {
     const { creator, sent } = make();
