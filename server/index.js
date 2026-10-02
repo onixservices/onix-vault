@@ -114,7 +114,7 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
     existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null) });
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
-  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db });
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, keyringConfigured: keyring.configured });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
   return { app, db, vaults: bundles, addVault, creator, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
