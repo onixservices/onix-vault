@@ -60,8 +60,8 @@ function buildApp(deps) {
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || '') })) });
   }));
   app.post('/v1/vaults/create/build', wrap(async (req, res) => {
-    const { owner, name, symbol } = req.body || {};
-    res.json({ readAt: new Date().toISOString(), ...(await needCreator().build({ owner, name, symbol })) });
+    const { owner, name, symbol, mints } = req.body || {};
+    res.json({ readAt: new Date().toISOString(), ...(await needCreator().build({ owner, name, symbol, mints })) });
   }));
   app.post('/v1/vaults/create/confirm', wrap(async (req, res) => {
     const { creationId, signature } = req.body || {};

@@ -50,6 +50,21 @@ describe('routes — what the page reads', () => {
     assert.equal(ac.status, 200); assert.ok(ac.body.activity.some((e) => e.type === 'gacha'));
     assert.equal((await j(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/stats`)).status, 404);
   });
+  test('the Create door routes carry the whole body (owner, name, symbol, mints) and mount the confirmed vault', async () => {
+    const got = [];
+    const creator = { quote: async (a) => ({ wallet: a.owner, canCreate: true }), build: async (a) => { got.push(a); return { creationId: 'C1', transaction: 'TX' }; }, confirm: async (a) => { got.push(a); return { id: 'myc', name: 'My', wallet: 'W9', secretEnv: null, pool: 'P', baseMint: 'M', rules: 'vault1', token: { symbol: 'MYC' } }; } };
+    const mounted = [];
+    const app3 = buildApp({ vaults: [], readWallet, creator, addVault: (def) => { mounted.push(def); const b = { wallet: def.wallet, meta: { id: def.id, name: def.name, token: def.token }, service: { listItems: async () => [], listActivity: () => [], listRedemptions: () => [] }, stats: { read: async () => ({ pool: null }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false }; app3.locals.v = b; return b; }, webDir: null });
+    const s3 = await new Promise((r) => { const x = app3.listen(0, '127.0.0.1', () => r(x)); });
+    const b3 = 'http://127.0.0.1:' + s3.address().port;
+    const post = async (p, body) => { const r = await fetch(b3 + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
+    const q = await fetch(b3 + '/v1/vaults/create/quote?wallet=W9'); assert.equal((await q.json()).wallet, 'W9');
+    const b = await post('/v1/vaults/create/build', { owner: 'W9', name: 'My', symbol: 'MYC', mints: ['a', 'b'] });
+    assert.equal(b.status, 200); assert.deepEqual(got[0], { owner: 'W9', name: 'My', symbol: 'MYC', mints: ['a', 'b'] });
+    const c = await post('/v1/vaults/create/confirm', { creationId: 'C1', signature: 'S' });
+    assert.equal(c.status, 201); assert.equal(c.body.vault.vault, 'W9'); assert.equal(mounted.length, 1);
+    s3.close();
+  });
   test('zero vaults is a served state: /v1/vaults is empty, health is ok, any vault path is 404', async () => {
     const app0 = buildApp({ vaults: [], readWallet, webDir: null });
     const s0 = await new Promise((r) => { const x = app0.listen(0, '127.0.0.1', () => r(x)); });
