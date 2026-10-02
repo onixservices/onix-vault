@@ -17,7 +17,7 @@
 
   // ── data ──
   function loadVaults() {
-    return get('/v1/vaults').then(function (b) { VAULTS = b.vaults; if (!META) selectVault(VAULTS[0].id); return VAULTS; });
+    return get('/v1/vaults').then(function (b) { VAULTS = b.vaults; if (!META && VAULTS.length) selectVault(VAULTS[0].id); return VAULTS; });
   }
   function selectVault(id) {
     var v = VAULTS.filter(function (x) { return String(x.id) === String(id) || x.vault === id; })[0] || VAULTS[0];
@@ -62,8 +62,8 @@
       });
     });
     var st0 = VAULTS[0] && VAULTS[0].stats;
-    $('b-live').textContent = VAULTS.length + ' vault' + (VAULTS.length === 1 ? '' : 's') + ' · read from chain';
-    $('b-pool').textContent = st0 && st0.pool ? 'token: trading' : 'token: ' + (st0 ? st0.poolStatus : '—');
+    $('b-live').textContent = VAULTS.length ? VAULTS.length + ' vault' + (VAULTS.length === 1 ? '' : 's') + ' · read from chain' : 'no vaults yet';
+    $('b-pool').textContent = st0 && st0.pool ? 'token: trading' : st0 ? 'token: ' + st0.poolStatus : 'create the first one';
   }
   // ── vault page ──
   function renderVault() {

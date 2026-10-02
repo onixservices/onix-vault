@@ -50,6 +50,16 @@ describe('routes — what the page reads', () => {
     assert.equal(ac.status, 200); assert.ok(ac.body.activity.some((e) => e.type === 'gacha'));
     assert.equal((await j(`/v1/vaults/${Keypair.generate().publicKey.toBase58()}/stats`)).status, 404);
   });
+  test('zero vaults is a served state: /v1/vaults is empty, health is ok, any vault path is 404', async () => {
+    const app0 = buildApp({ vaults: [], readWallet, webDir: null });
+    const s0 = await new Promise((r) => { const x = app0.listen(0, '127.0.0.1', () => r(x)); });
+    const b0 = 'http://127.0.0.1:' + s0.address().port;
+    const jj = async (p) => { const r = await fetch(b0 + p); return { status: r.status, body: await r.json() }; };
+    assert.deepEqual((await jj('/v1/vaults')).body.vaults, []);
+    assert.equal((await jj('/v1/health')).body.ok, true);
+    assert.equal((await jj('/v1/vaults/' + VAULT + '/stats')).status, 404);
+    s0.close();
+  });
   test('GET /v1/vaults/:vault/trades/balances?wallet= — the two balances the panel shows', async () => {
     const b = await j('/v1/vaults/' + VAULT + '/trades/balances?wallet=W1');
     assert.equal(b.status, 200); assert.equal(b.body.usdc, 116.64); assert.equal(b.body.token, 3314184.21); assert.equal(b.body.wallet, 'W1');

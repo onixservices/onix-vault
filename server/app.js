@@ -30,10 +30,10 @@ const { VaultError } = require('./vaultService');
  */
 function buildApp(deps) {
   const { readWallet, webDir = path.join(__dirname, '..', 'web') } = deps;
-  const vaults = deps.vaults || [{
+  const vaults = deps.vaults || (!deps.vaultWallet ? [] : [{
     wallet: deps.vaultWallet, meta: deps.vaultMeta || {}, service: deps.service, stats: deps.stats || null, admissions: deps.admissions || null,
     trader: deps.trader || null, itemsAge: deps.itemsAge || (() => null), signerConfigured: deps.signerConfigured || (() => false),
-  }];
+  }]);
   const byWallet = new Map(vaults.map((v) => [v.wallet, v]));
 
   const app = express();
@@ -45,7 +45,7 @@ function buildApp(deps) {
   const need = (x, what) => { if (!x) throw new VaultError(503, `${what} not configured for this vault`); return x; };
   const summary = async (v) => ({ vault: v.wallet, ...v.meta, rules: v.admissions ? v.admissions.rules : null, stats: v.stats ? await v.stats.read() : null });
 
-  app.get('/v1/health', (req, res) => res.json({ ok: true, vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() }));
+  app.get('/v1/health', (req, res) => res.json({ ok: true, vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), ...(vaults[0] ? { vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() } : {}) }));
 
   // ── what the page reads (no RPC key ever reaches the browser) ──
   app.get('/v1/vaults', wrap(async (req, res) => {

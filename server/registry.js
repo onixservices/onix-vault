@@ -42,8 +42,9 @@ function loadVaults() {
   const p = registryPath();
   if (fs.existsSync(p)) {
     const list = JSON.parse(fs.readFileSync(p, 'utf8'));
-    if (!Array.isArray(list) || !list.length) throw new Error(`${p}: expected a non-empty array`);
-    return list.map(normalize);
+    if (!Array.isArray(list)) throw new Error(`${p}: expected an array`);
+    // a closed vault stays in the file for the record (pool, mint, dates) and is not served
+    return list.filter((v) => !v.closed).map(normalize);
   }
   if (!C.VAULT_WALLET) throw new Error('VAULT_WALLET not set and no vaults.json');
   return [normalize(fromEnv())];

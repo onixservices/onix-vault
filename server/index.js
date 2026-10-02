@@ -86,11 +86,12 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
     : loadVaults());
   const bundles = list.map((def, i) => createVaultBundle(def, { db, chain, readItems: i === 0 ? readItems : null, signer: i === 0 ? signer : null }));
   // rows written before the `vault` column existed belong to the primary vault
-  for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) db.prepare(`UPDATE ${t} SET vault = ? WHERE vault IS NULL`).run(bundles[0].wallet);
+  if (bundles.length) for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) db.prepare(`UPDATE ${t} SET vault = ? WHERE vault IS NULL`).run(bundles[0].wallet);
   const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
   const app = buildApp({ vaults: bundles, readWallet });
-  const primary = bundles[0];
-  return { app, db, vaults: bundles, service: primary.service, admissions: primary.admissions };
+  // zero vaults is a valid state (before the first one is created, or after all are closed)
+  const primary = bundles[0] || null;
+  return { app, db, vaults: bundles, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
 }
 
 function main() {
