@@ -70,7 +70,7 @@
     loadStats().then(function (st) {
       $('v-eyebrow').textContent = (META.name || 'Vault') + ' · operated by ' + (META.operator || '—') + ' · wallet ' + short(VAULT);
       $('v-crumb').textContent = META.name || 'Vault'; $('v-send').href = vpath('/send'); $('v-send').style.display = (W.addr && META.creator && W.addr === META.creator) ? '' : 'none'; $('t-sym').textContent = SYM();
-      $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count;
+      $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count; $('v-what').textContent = (st.items.count === 1 ? 'graded card' : 'graded cards') + (META.rulesText ? ' · ' + META.rulesText.replace(/ from .*$/, '').toLowerCase() : '');
       var tk = META.token || {};
       if (tk.name) $('tk-name').textContent = tk.name; if (tk.symbol) $('tk-sym').textContent = '$' + tk.symbol; if (tk.image) $('tk-img').src = tk.image;
       $('tk-tags').innerHTML = st.pool
