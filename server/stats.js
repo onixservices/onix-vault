@@ -48,7 +48,7 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
           graduationProgress: thresholdUsd ? Math.min(1, raisedUsd / thresholdUsd) : graduationUsd ? Math.min(1, mcapUsd / graduationUsd) : null,
           raisedUsd, graduationUsdc: thresholdUsd,
           openingMcapUsd: config.openingMcapUsd ?? null,
-          locked: lockedTokens != null ? { tokens: lockedTokens, pct: Math.round(lockedTokens / supply * 1000) / 10, creatorPct: config.creatorPct ?? null, reservePct: config.reservePct ?? null, releasesAt: 'graduation' } : null,
+          locked: lockedTokens != null ? { tokens: lockedTokens, pct: Math.round(lockedTokens / supply * 1000) / 10, creatorPct: config.creatorPct ?? null, releasesAt: 'graduation', vestingMonths: config.vestingMonths ?? null } : null,
           partnerFeeClaimableUsd: Number(p.partnerQuoteFee) / 10 ** quoteDecimals,
           feesLifetimeUsd: Number(p.totalTradingQuoteFee) / 10 ** quoteDecimals,
           isMigrated: p.isMigrated,

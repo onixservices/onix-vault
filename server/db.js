@@ -49,15 +49,15 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     vault TEXT,
     mint TEXT NOT NULL,
-    owner TEXT NOT NULL,               -- who sent the item (and is owed tokens)
-    signature TEXT NOT NULL UNIQUE,    -- the transfer the sender signed
+    owner TEXT NOT NULL,               -- the creator who sent the item
+    signature TEXT NOT NULL UNIQUE,    -- the transfer the creator signed
     value_usd REAL NOT NULL,           -- custodian value at admission
-    owed_usd REAL NOT NULL,            -- value × realisable × admission (80%)
-    lock_months INTEGER NOT NULL,
-    status TEXT NOT NULL,              -- pending (sent) | admitted (vault owns it) | rejected
-    tokens_sig TEXT,                   -- the buy on the curve + lock, once the vault has USDC
+    owed_usd REAL,                     -- (legacy, 1 Oct) nothing is owed per item since 2 Oct
+    lock_months INTEGER,
+    status TEXT NOT NULL,              -- pending (sent) | admitted (custody owns it) | rejected
+    tokens_sig TEXT,                   -- (legacy)
     tokens_amount REAL,
-    unlock_at INTEGER,                 -- tokens_sig + lock_months; release is the vault's duty after this
+    unlock_at INTEGER,
     note TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL

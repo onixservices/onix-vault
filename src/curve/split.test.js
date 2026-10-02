@@ -1,27 +1,31 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { splitOfTrade, PROTOCOL_FEE_PERCENT, OPERATOR_SPLIT } = require('./split');
+const { splitOfTrade, PROTOCOL_FEE_PERCENT, PARTNER_SPLIT } = require('./split');
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} ≠ ${b}`);
 
-test('a 10% fee: 2% of the trade is the protocol\'s, 8% is ours, split 4 / 2.4 / 1.6', () => {
-  const s = splitOfTrade(1000);
+test('a 10% fee with the creator at 40%: 2% protocol · 3.2% creator (on chain) · 4.8% partner = 3.2% vault treasury + 1.6% Onix', () => {
+  const s = splitOfTrade(1000, 40);
   close(s.feePct, 10);
   close(s.protocolPct, 2);
-  close(s.oursPct, 8);
-  close(s.buyCardPct, 4);
-  close(s.buybackPct, 2.4);
-  close(s.operatorPct, 1.6);
+  close(s.afterProtocolPct, 8);
+  close(s.creatorPct, 3.2);
+  close(s.partnerPct, 4.8);
+  close(s.treasuryPct, 3.2);
+  close(s.onixPct, 1.6);
 });
 
 test('the destinations add back up to the whole fee — nothing is lost or invented', () => {
-  const s = splitOfTrade(1000);
-  close(s.protocolPct + s.buyCardPct + s.buybackPct + s.operatorPct, s.feePct);
+  for (const c of [20, 30, 40, 50]) {
+    const s = splitOfTrade(1000, c);
+    close(s.protocolPct + s.creatorPct + s.treasuryPct + s.onixPct, s.feePct);
+  }
 });
 
-test('our published split sums to 100', () => {
-  assert.equal(OPERATOR_SPLIT.buyCard + OPERATOR_SPLIT.buyback + OPERATOR_SPLIT.operator, 100);
-  assert.throws(() => splitOfTrade(1000, { buyCard: 50, buyback: 30, operator: 30 }));
+test('the partner split sums to 100 and bad inputs are refused', () => {
+  close(PARTNER_SPLIT.treasury + PARTNER_SPLIT.onix, 100);
+  assert.throws(() => splitOfTrade(1000, 40, { treasury: 50, onix: 30 }));
+  assert.throws(() => splitOfTrade(1000, 120));
 });
 
 test('our local PROTOCOL_FEE_PERCENT matches the SDK\'s — so the arithmetic cannot drift from the program', () => {

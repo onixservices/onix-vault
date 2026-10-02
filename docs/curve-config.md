@@ -1,12 +1,37 @@
 # The bonding curve configuration
 
-> Every parameter of Vault #1's Meteora DBC config, and **why that value and not another**.
-> Written 21 September 2026, before the config exists, because **a DBC config is effectively
-> irreversible once a pool is open** — changing it means launching a different token.
->
-> Grounded in the `@meteora-ag/dynamic-bonding-curve-sdk` parameter reference. Values marked
-> **TO VERIFY** have not yet been confirmed against the program on mainnet and **must not be
-> treated as settled**.
+> Every parameter of an Onix.Vault Meteora DBC config, and **why that value and not another**.
+> A DBC config is effectively irreversible once a pool is open — changing it means launching a
+> different token. The first two pools (1 Oct 2026) were closed and relaunched on the shape below.
+
+## ✅ DECIDED 2 October 2026 — the shape every vault gets (`src/curve/params.js` → `DECIDED`, `paramsFor`)
+
+| parameter | value | why |
+|---|---|---|
+| `totalTokenSupply` | 10,000,000 (6 dp) | a figure a person reads off the page; same decimals as USDC |
+| **creator allocation** (`lockedVesting`) | **50% of supply**, cliff at migration, then **linear over 6 months** | the creator put the items in; the DBC releases its vesting only at migration, so this is the one place the creator's share can live. 6 months of vesting after that is what buyers look for (Jupiter Studio vests creator allocations; a one-shot release reads as a rug) |
+| `initialMarketCap` | **2 × realisable backing** | so the creator's 50% is worth the items on day one ("you put $100 of cards in, you hold $100 of the token"); buyers see the 2.0× ratio on the page, with the backing beside it |
+| `migrationMarketCap` | **gradMult × opening cap**, gradMult ∈ {2, 2.5, 3} chosen by the creator (default 2.5) | plausible to reach; the page shows "USDC raised ÷ threshold", the curve's own condition |
+| `creatorTradingFeePercentage` | **40** (creator's choice 20–50) | the creator is paid **on chain, from the first trade**: 3.2% of volume at 40. Clanker pays 40%, Jupiter Studio 50%, Believe 50% — a launchpad that pays its creators nothing has no creators |
+| base fee | **10%** flat (`FeeSchedulerLinear`, ending = base) | the fee IS the product: it funds the vault's next items |
+| **anti-sniper** (`feeSchedulerParam`) | **99% → 10% over the first 60 s, 6 steps** | measured 2 Oct: a bot bought our pool 5 s after creation and sold 90 s later. At 10% it lost $1.13; with this schedule it would have paid ~$5.80 — to the creator. Jupiter Studio does the same |
+| `migrationFee.feePercentage` | **30**, `creatorFeePercentage` 0 | 30% of the USDC raised goes to the fee claimer — **the vault's custody wallet** — at graduation, to buy items; the other 70% is permanently locked liquidity. SV151 raised $160k to buy packs; we do it at graduation, by config |
+| `collectFeeMode` | QuoteToken | fees arrive in USDC, ready to buy items |
+| `tokenAuthorityOption` | Immutable | mint authority revoked: the supply is fixed, scanners see it |
+| `migrationOption` | DAMM v2, `migratedPoolFeeBps` 100 | 1% on the graduated pool; `partnerPermanentLockedLiquidityPercentage` 100: nothing walks out |
+| `feeClaimer` / `leftoverReceiver` | the vault's **custody wallet** (one per vault) | the vault's treasury is its own wallet on chain; Onix's share is taken when fees are claimed (published split: treasury 2/3 · Onix 1/3 of the partner side) |
+| `poolCreator` / `payer` of `createPool` | the **creator's** wallet | the creator receives the vesting and the on-chain creator fee; nobody else can |
+| `payer` of `createConfig` | Onix | rent for the config; only after the creator has deposited items (see creation.js) |
+
+Where a dollar of a trade goes (`src/curve/split.js`): protocol 2% · creator 3.2% · vault treasury 3.2% · Onix 1.6% (of the trade, at the 10% base fee and 40% creator share).
+
+What is **not** here any more: an admission reserve (nobody but the creator adds items since 2 Oct), a time-lock outside the DBC (there is no token outside the pool before migration — the 30 Sep plan below was unworkable), a flat fee from second zero (snipers).
+
+Run `node src/curve/dry-run.js <backingUsd> [gradMult] [creatorFeePct]` to see the implied prices, the USDC needed to graduate and the supply split for any backing.
+
+---
+
+## History — how we got here (kept for the record; superseded where it contradicts the table above)
 
 ## How the curve is expressed
 

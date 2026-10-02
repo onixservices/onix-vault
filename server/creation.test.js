@@ -2,7 +2,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { Keypair, Transaction, SystemProgram, PublicKey } = require('@solana/web3.js');
 const { getTestDb } = require('./db');
-const { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, SPLIT } = require('./creation');
+const { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, DECIDED } = require('./creation');
 const { fromKeypair } = require('./signer');
 const { KNOWN_CUSTODIANS } = require('../src/reader/backing');
 const sdkReal = require('@meteora-ag/dynamic-bonding-curve-sdk');
@@ -18,11 +18,11 @@ const asset = (id, insured = '40', collection = CC) => ({ id, ownership: { owner
   content: { links: { image: 'https://x/' + id + '.jpg' }, metadata: { name: 'Card ' + id, attributes: [{ trait_type: 'Insured Value', value: insured }, { trait_type: 'Category', value: 'Pokemon' }] } } });
 
 describe('curve params for a backing', () => {
-  test('opens at 2× realisable, graduates at 2.5× that; 60% of supply locked for the creator (50 + 10 reserve); the SDK validates it', () => {
+  test('opens at 2× realisable, graduates at 2.5× that; 50% of supply vests to the creator; no reserve; the SDK validates it', () => {
     const { params, view } = curveParamsFor(100);
     assert.equal(view.openingMcapUsd, 200); assert.equal(view.graduationUsd, 500);
-    assert.equal(view.creatorPct, 50); assert.equal(view.reservePct, 10); assert.equal(view.curvePct, 40);
-    assert.equal(params.lockedVesting.totalLockedVestingAmount, 6_000_000);
+    assert.equal(view.creatorPct, 50); assert.equal(view.curvePct, 50); assert.equal(DECIDED.creatorPct, 50);
+    assert.equal(params.lockedVesting.totalLockedVestingAmount, 5_000_000);
     const cfg = sdkReal.buildCurveWithMarketCap(params);
     assert.doesNotThrow(() => sdkReal.validateConfigParameters({ ...cfg, leftoverReceiver: PublicKey.unique() }));
   });

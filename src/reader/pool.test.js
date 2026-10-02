@@ -68,8 +68,8 @@ test('decodeVirtualPool refuses bytes that are not a pool', () => {
 
 test('priceFromSqrtPrice agrees with the SDK on the dry-run start price', () => {
   const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
-  const { buildParams } = require('../curve/params');
-  const cfg = sdk.buildCurveWithMarketCap(buildParams());
+  const { paramsFor } = require('../curve/params');
+  const cfg = sdk.buildCurveWithMarketCap(paramsFor({ backingUsd: 154 }).params);
   const ours = priceFromSqrtPrice(BigInt(cfg.sqrtStartPrice.toString()), 6, 6);
   const theirs = Number(sdk.getPriceFromSqrtPrice(cfg.sqrtStartPrice, 6, 6).toString());
   assert.ok(Math.abs(ours - theirs) / theirs < 1e-9, `${ours} vs ${theirs}`);

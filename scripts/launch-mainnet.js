@@ -23,7 +23,7 @@ const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
 const C = require('../server/config');
 const signerMod = require('../server/signer');
 const { findVault } = require('../server/registry');
-const { buildParams, PENDING } = require('../src/curve/params');
+const { paramsFor } = require('../src/curve/params');
 const { fetchAssetsByOwner } = require('../src/reader/das');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 
@@ -78,7 +78,8 @@ async function main() {
   log(`backing    ${cards.length} items · index $${usd(indexUsd)} · realisable $${usd(realisableUsd)}`);
   if (cards.length < 1 || realisableUsd < MIN_BACKING_USD) throw new Error('not enough backing in the vault to open a curve on');
 
-  const params = buildParams({ ...PENDING, initialMarketCapUsd: realisableUsd, migrationMarketCapUsd: GRADUATION_USD });
+  // superseded by scripts/create-vault.js (custody + creator); kept runnable for the decided shape
+  const { params } = paramsFor({ backingUsd: realisableUsd });
   const curve = sdk.buildCurveWithMarketCap(params);
   const dec = { base: params.token.tokenBaseDecimal, quote: params.token.tokenQuoteDecimal };
   const startPrice = sdk.getPriceFromSqrtPrice(curve.sqrtStartPrice, dec.base, dec.quote);

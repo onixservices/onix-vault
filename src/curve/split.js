@@ -2,6 +2,11 @@
  * split.js — where each dollar of a trade goes. Pure arithmetic, single source of truth.
  *
  * The page, the docs and the dry run all read THIS, so the numbers can never drift apart.
+ *
+ *   trade ─┬─ protocol (Meteora): PROTOCOL_FEE_PERCENT of the fee, taken by the program
+ *          └─ the rest ─┬─ creator: creatorTradingFeePercentage, paid ON CHAIN to the pool creator
+ *                       └─ partner (fee claimer = the vault's custody wallet) ─┬─ vault treasury (buys items)
+ *                                                                              └─ Onix
  */
 
 /**
@@ -12,29 +17,31 @@
  */
 const PROTOCOL_FEE_PERCENT = 20;
 
-/** Our published split of what reaches us. Must sum to 100. */
-const OPERATOR_SPLIT = { buyCard: 50, buyback: 30, operator: 20 };
+/** Of what the partner claims: the vault's treasury vs Onix. Must sum to 100. */
+const PARTNER_SPLIT = { treasury: 2 / 3 * 100, onix: 1 / 3 * 100 };
 
 /**
- * @param {number} feeBps  the pool's trading fee in basis points (1000 = 10%)
- * @returns each destination as a percentage OF THE TRADE, plus the protocol's cut.
+ * @param {number} feeBps        the pool's base trading fee in basis points (1000 = 10%)
+ * @param {number} creatorPct    creatorTradingFeePercentage of the config (0–100)
+ * @returns each destination as a percentage OF THE TRADE.
  */
-function splitOfTrade(feeBps, split = OPERATOR_SPLIT) {
-  const sum = split.buyCard + split.buyback + split.operator;
-  if (sum !== 100) throw new Error(`split must sum to 100, got ${sum}`);
+function splitOfTrade(feeBps, creatorPct = 40, partner = PARTNER_SPLIT) {
+  if (Math.abs(partner.treasury + partner.onix - 100) > 1e-9) throw new Error('partner split must sum to 100');
+  if (!(creatorPct >= 0 && creatorPct <= 100)) throw new Error('creatorPct must be 0–100');
   const feePct = feeBps / 100;
   const protocolPct = feePct * PROTOCOL_FEE_PERCENT / 100;
-  const oursPct = feePct - protocolPct;
+  const afterProtocolPct = feePct - protocolPct;
+  const creatorTradePct = afterProtocolPct * creatorPct / 100;
+  const partnerPct = afterProtocolPct - creatorTradePct;
   return {
-    feePct,
-    protocolPct,
-    oursPct,
-    buyCardPct: oursPct * split.buyCard / 100,
-    buybackPct: oursPct * split.buyback / 100,
-    operatorPct: oursPct * split.operator / 100,
+    feePct, protocolPct, afterProtocolPct,
+    creatorPct: creatorTradePct,
+    partnerPct,
+    treasuryPct: partnerPct * partner.treasury / 100,
+    onixPct: partnerPct * partner.onix / 100,
   };
 }
 
-const api = { PROTOCOL_FEE_PERCENT, OPERATOR_SPLIT, splitOfTrade };
+const api = { PROTOCOL_FEE_PERCENT, PARTNER_SPLIT, splitOfTrade };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else if (typeof window !== 'undefined') window.OnixVaultSplit = api;

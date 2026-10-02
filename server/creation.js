@@ -11,35 +11,27 @@
  *                                    the mint key adds its signature → broadcast
  *   confirm({ creationId })          the chain says the pool exists → the vault is registered
  *
- * Supply split (see docs/curve-config.md): the creator's allocation and the admission reserve
- * sit in the DBC's lockedVesting (released to the creator at graduation); the rest is the
- * curve. The curve opens at OPEN_MULT × realisable backing, so the creator's share is worth
- * the items on day one, and graduates at GRAD_MULT × the opening cap.
+ * Supply split (src/curve/params.js, decided 2 Oct 2026): 50% to the creator in the DBC's
+ * lockedVesting (released at graduation, linear over 6 months), 50% on the curve. The curve
+ * opens at 2× realisable backing, so the creator's half is worth the items on day one, and
+ * graduates at gradMult × the opening cap. Only the creator adds items; there is no reserve.
  */
 'use strict';
 const crypto = require('crypto');
 const { PublicKey, Keypair, Transaction } = require('@solana/web3.js');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
-const { buildParams, PENDING } = require('../src/curve/params');
+const { paramsFor, DECIDED } = require('../src/curve/params');
 const { itemPassesRules, VAULT_RULES } = require('./admissions');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
 const r2 = (n) => Math.round(n * 100) / 100;
 
-/** The split every created vault gets. Changing it is a product decision, not a request field. */
-const SPLIT = Object.freeze({ creatorPct: 50, reservePct: 10, openMult: 2, gradMult: 2.5, supply: 10_000_000 });
 const LIMITS = Object.freeze({ nameMax: 32, symbolMax: 10, minItems: 1, minBackingUsd: 5 });
 
-/** The curve params for a backing. Pure; the SDK validates the result. */
-function curveParamsFor(backingUsd, split = SPLIT) {
-  const open = r2(backingUsd * split.openMult), grad = r2(open * split.gradMult);
-  const locked = Math.round(split.supply * (split.creatorPct + split.reservePct) / 100);
-  return {
-    params: buildParams({ ...PENDING, initialMarketCapUsd: open, migrationMarketCapUsd: grad, totalTokenSupply: split.supply,
-      lockedVesting: { totalLockedVestingAmount: locked, numberOfVestingPeriod: 1, cliffUnlockAmount: 0, totalVestingDuration: 1, cliffDurationFromMigrationTime: 0 } }),
-    view: { openingMcapUsd: open, graduationUsd: grad, supply: split.supply, creatorPct: split.creatorPct, reservePct: split.reservePct, curvePct: 100 - split.creatorPct - split.reservePct },
-  };
+/** The curve for a backing — the decided shape (src/curve/params.js) with the creator's two choices. */
+function curveParamsFor(backingUsd, { gradMult, creatorFeePct } = {}) {
+  return paramsFor({ backingUsd, ...(gradMult ? { gradMult } : {}), ...(creatorFeePct ? { creatorFeePct } : {}) });
 }
 
 /**
@@ -95,7 +87,8 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
     const b = await backingOf(owner);
     const can = b.items.length >= LIMITS.minItems && b.realisableUsd >= LIMITS.minBackingUsd;
-    const { view } = curveParamsFor(b.realisableUsd);
+    // an empty wallet still gets a quote (nothing to open on); the curve preview needs a positive backing
+    const { view } = curveParamsFor(Math.max(b.realisableUsd, LIMITS.minBackingUsd));
     return { wallet: owner, ...b, canCreate: can, why: can ? null : `needs at least ${LIMITS.minItems} eligible item worth $${LIMITS.minBackingUsd}+`, curve: view, creatorTokensWorthUsd: r2(view.openingMcapUsd * view.creatorPct / 100) };
   }
 
@@ -174,14 +167,14 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, quoteMint, fet
     return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(vaultId), db);
   }
 
-  return { quote, build, submit, confirm, SPLIT, LIMITS, _pending: pending };
+  return { quote, build, submit, confirm, DECIDED, LIMITS, _pending: pending };
 }
 
 /** A DB row → a registry entry (the same shape vaults.json uses). `manifest` reads the declared items live. */
 function rowToDef(r, db = null) {
   const manifest = db ? () => db.prepare('SELECT mint FROM vault_items WHERE vault = ?').all(r.wallet).map((x) => x.mint) : null;
   return { id: r.id, manifest, name: r.name, operator: r.operator, description: `${r.token_name} · created by ${r.operator}`, wallet: r.wallet, secretEnv: null,
-    pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, creatorPct: SPLIT.creatorPct, reservePct: SPLIT.reservePct, openingMcapUsd: r.graduation_usd / SPLIT.gradMult, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
+    pool: r.pool, baseMint: r.base_mint, graduationUsd: r.graduation_usd, creatorPct: DECIDED.creatorPct, openingMcapUsd: Math.round(r.graduation_usd / (r.grad_mult || DECIDED.gradMultDefault) * 100) / 100, token: { name: r.token_name, symbol: r.token_symbol, image: '/token/default.png' }, rules: r.rules, createdBy: r.created_by, createdAt: r.created_at };
 }
 
-module.exports = { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, SPLIT, LIMITS, WALLET_WRAPPER_PROGRAMS };
+module.exports = { createVaultCreator, curveParamsFor, checkCreatorPlusMint, instructionsOf, rowToDef, DECIDED, LIMITS, WALLET_WRAPPER_PROGRAMS };

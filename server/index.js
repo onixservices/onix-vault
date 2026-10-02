@@ -79,12 +79,12 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     const tokens = (Number(lv.cliffUnlockAmount.toString()) + Number(lv.amountPerPeriod.toString()) * Number(lv.numberOfPeriod.toString())) / 10 ** C.BASE_DECIMALS;
     return { migrationQuoteThresholdUsd: Number(cfg.migrationQuoteThreshold.toString()) / 10 ** C.QUOTE_DECIMALS, lockedVestingTokens: tokens };
   };
-  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, reservePct: def.reservePct ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig });
+  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig });
   const trader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
-  const admissions = createAdmissions({ db, chain, vaultWallet, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
-    trader, signer, getUsdcBalance: () => curveDeps.getBalanceUi(vaultWallet, C.USDC_MINT),
+  // only the creator adds items (2 Oct 2026); a file-registry vault names its creator, else nobody can
+  const admissions = createAdmissions({ db, chain, vaultWallet, creator: def.creator || null, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
     onAdmitted: def.manifest ? (mint) => db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)').run(vaultWallet, mint, 'admission', Date.now()) : null });
-  const meta = { id: def.id, name: def.name, operator: def.operator, custodians: def.custodians, description: def.description, token: def.token, graduationUsd: def.graduationUsd };
+  const meta = { id: def.id, name: def.name, operator: def.operator, creator: def.creator || null, custodians: def.custodians, description: def.description, token: def.token, graduationUsd: def.graduationUsd };
   return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
 }
 
@@ -121,7 +121,7 @@ function main() {
     console.log(`[vault] Onix.Vault server on 127.0.0.1:${C.PORT} · ${vaults.length} vault(s)`);
   });
   setInterval(() => { for (const v of vaults) { try { v.service.sweepExpired(); } catch (e) { console.warn(`[vault ${v.meta.id}] sweep failed`, e.message); } } }, 60_000).unref();
-  setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); return v.admissions.settleTokens(); }).then((r) => { if (r && r.bought) console.log(`[vault ${v.meta.id}] ${r.bought} admission(s): tokens bought on the curve and locked`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
+  setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }
 
 if (require.main === module) main();

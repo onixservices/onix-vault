@@ -64,13 +64,13 @@ describe('stats — with a pool', () => {
     const bytes = poolBytes({ sqrtPrice: sqrt });
     const b = Buffer.from(bytes, 'base64'); b.writeBigUInt64LE(5_346_709n, POOL_LAYOUT.quoteReserve);
     const chain = { getAccountInfoBase64: async () => ({ data: [b.toString('base64')] }), getTokenSupplyUi: async () => 10_000_000 };
-    const stats = createStatsReader({ readItems: async () => items, chain, config: { haircut: 0.89, graduationUsd: 106.8, pool: 'POOL', baseMint: 'MINT', creatorPct: 50, reservePct: 10, openingMcapUsd: 42.72 }, now: () => 1,
+    const stats = createStatsReader({ readItems: async () => items, chain, config: { haircut: 0.89, graduationUsd: 106.8, pool: 'POOL', baseMint: 'MINT', creatorPct: 50, vestingMonths: 6, openingMcapUsd: 42.72 }, now: () => 1,
       readConfig: async () => ({ migrationQuoteThresholdUsd: 16.550833, lockedVestingTokens: 6_000_000 }) });
     const s = await stats.read();
     assert.ok(Math.abs(s.pool.raisedUsd - 5.346709) < 1e-9);
     assert.equal(s.pool.graduationUsdc, 16.550833);
     assert.ok(Math.abs(s.pool.graduationProgress - 5.346709 / 16.550833) < 1e-9, 'progress follows the USDC, not the mcap');
-    assert.deepEqual(s.pool.locked, { tokens: 6_000_000, pct: 60, creatorPct: 50, reservePct: 10, releasesAt: 'graduation' });
+    assert.deepEqual(s.pool.locked, { tokens: 6_000_000, pct: 60, creatorPct: 50, releasesAt: 'graduation', vestingMonths: 6 });
     assert.equal(s.pool.openingMcapUsd, 42.72);
   });
   test('pool configured but unreadable → pool null, status says so, backing still served (never a 500 for the page)', async () => {

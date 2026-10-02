@@ -84,7 +84,7 @@ function buildApp(deps) {
   }));
   app.get('/v1/vaults/:vault/activity', pick, wrap(async (req, res) => {
     const doors = req.vb.service.listActivity({ limit: 50 });
-    const admits = req.vb.admissions ? req.vb.admissions.list({ limit: 50 }).map((a) => ({ type: 'admit', at: a.at, mint: a.mint, from: a.owner, status: a.status, tokens: a.tokens, tokensNote: a.tokensNote, tokensAmount: a.tokensAmount, unlockAt: a.unlockAt, owedUsd: a.owedUsd, valueUsd: a.valueUsd, signature: a.signature, tokensSignature: a.tokensSignature })) : [];
+    const admits = req.vb.admissions ? req.vb.admissions.list({ limit: 50 }).map((a) => ({ type: 'admit', at: a.at, mint: a.mint, from: a.owner, status: a.status, valueUsd: a.valueUsd, signature: a.signature })) : [];
     res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits].sort((x, y) => y.at - x.at).slice(0, 50) });
   }));
   app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {

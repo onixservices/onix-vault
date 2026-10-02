@@ -89,7 +89,7 @@
         if (lk) {
           var cre = lk.creatorPct != null ? Math.round(p.supply * lk.creatorPct / 100) : lk.tokens;
           $('m-share-t').textContent = (mine ? 'Your share: ' : 'Creator\'s share: ') + cre.toLocaleString('en-US') + ' ' + SYM() + (lk.creatorPct != null ? ' (' + lk.creatorPct + '%)' : '');
-          $('m-share-s').textContent = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · released when trading opens to the whole market' + (lk.reservePct ? ' · plus ' + lk.reservePct + '% reserved to pay items that come in' : '');
+          $('m-share-s').textContent = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · released when trading opens to the whole market' + (lk.vestingMonths ? ', then over ' + lk.vestingMonths + ' months' : '');
         }
       } else { $('m-pct').textContent = '—'; $('m-prog').style.width = '0%'; $('m-raised').textContent = '—'; $('m-left').textContent = '—'; $('m-mcap').textContent = '—'; $('m-open').textContent = ''; $('m-fees').textContent = '—'; $('m-share').style.display = 'none'; }
       $('v-idx').textContent = st.backing.indexUsd.toLocaleString('en-US'); $('v-mult').textContent = st.backing.multiplier;
@@ -122,7 +122,7 @@
       var rows = b.activity;
       $('act-empty').style.display = rows.length ? 'none' : '';
       $('act-rows').innerHTML = rows.map(function (e) {
-        if (e.type === 'admit') { return '<div class="row"><span class="k">Admitted</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · sent by ' + short(e.from) + ' · ' + usd2(e.valueUsd) + ' listed → ' + (e.tokens === 'locked' ? Math.round(e.tokensAmount).toLocaleString('en-US') + ' ' + SYM() + ' bought on the curve for ' + usd2(e.owedUsd) + ', locked until ' + new Date(e.unlockAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'owed ' + usd2(e.owedUsd) + ' in ' + SYM() + (e.status === 'pending' ? ' · verifying on chain' : e.tokens === 'waiting' ? ' · ' + e.tokensNote : ' · buying on the curve')) + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a>' + (e.tokensSignature ? ' · <a href="https://solscan.io/tx/' + e.tokensSignature + '" target="_blank" rel="noopener">tokens</a>' : '') + '</span></div>'; }
+        if (e.type === 'admit') { return '<div class="row"><span class="k">Added</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · by the creator · ' + usd2(e.valueUsd) + ' listed' + (e.status === 'pending' ? ' · verifying on chain' : ' · in the vault') + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a></span></div>'; }
         var k = e.type === 'gacha' ? 'Gacha' : 'Redeemed';
         var what = e.type === 'gacha' ? 'a gacha paid ' + usd2(e.priceUsd) + ' → delivered to ' + short(e.to) : 'tokens burned → ' + (e.status === 'delivered' ? 'delivered to ' : e.status + ' · ') + short(e.to);
         var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '')
