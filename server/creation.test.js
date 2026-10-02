@@ -56,7 +56,7 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
       // a "transfer" moves the card in our world; a SOL transfer credits the custody wallet
       const tx = Transaction.from(Buffer.from(b64, 'base64'));
       for (const ix of tx.instructions) {
-        if (ix.programId.equals(SystemProgram.programId) && ix.data.length === 12) { const to = ix.keys[1].pubkey.toBase58(); world.sol[to] = (world.sol[to] || 0) + Number(ix.data.readBigUInt64LE(4)); }
+        if (ix.programId.equals(SystemProgram.programId) && ix.data.length === 12) { const from = ix.keys[0].pubkey.toBase58(), to = ix.keys[1].pubkey.toBase58(), n = Number(ix.data.readBigUInt64LE(4)); world.sol[to] = (world.sol[to] || 0) + n; world.sol[from] = (world.sol[from] || 0) - n; }
         if (ix.programId.toBase58() === 'Fake1111111111111111111111111111111111111111') { const [mint, toPadded] = Buffer.from(ix.data).toString('utf8').split('>'); const to = toPadded.replace(/#+$/, ''); const a = world.assets.find((x) => x.id === mint); if (a) a.ownership = { owner: to }; }
       }
       return 'SIG' + sent.length;
@@ -237,8 +237,9 @@ describe('Create door — abandon and sweep (custody returns the items)', () => 
     assert.equal(w.world.assets.filter((a) => a.ownership.owner === o.custodyWallet).length, 2);
     await rejects(w.creator.abandon({ creationId: o.creationId, owner: Keypair.generate().publicKey.toBase58() }), 403);
     const r = await w.creator.abandon({ creationId: o.creationId, owner: OWNER });
-    assert.equal(r.returned.length, 2);
+    assert.equal(r.returned.filter((x) => x.mint).length, 2); assert.equal(r.returned.filter((x) => x.sol).length, 1);
     assert.equal(w.world.assets.filter((a) => a.ownership.owner === OWNER).length, 2, 'both cards are back with the creator');
+    assert.ok(r.solReturned > 0.019, 'the gas goes back too'); assert.ok((w.world.sol[o.custodyWallet] || 0) <= 5000, 'custody is drained but for one fee');
     assert.ok(Transaction.from(Buffer.from(w.sent[w.sent.length - 1], 'base64')).verifySignatures(), 'signed by custody');
     assert.equal(w.db.prepare('SELECT status FROM vault_creations WHERE id = ?').get(o.creationId).status, 'abandoned');
     const o2 = await w.creator.open({ owner: OWNER, name: 'Again', symbol: 'AGN', mints: ['a'] });
@@ -262,7 +263,7 @@ describe('Create door — abandon and sweep (custody returns the items)', () => 
     await w.deposit(o.depositTransactions);
     w.db.prepare('UPDATE vault_creations SET expires_at = ? WHERE id = ?').run(1, o.creationId);
     const out = await w.creator.sweep();
-    assert.equal(out.length, 1); assert.equal(out[0].returned.length, 1);
+    assert.equal(out.length, 1); assert.equal(out[0].returned.filter((x) => x.mint).length, 1);
     assert.equal(w.world.assets.find((a) => a.id === 'a').ownership.owner, OWNER);
   });
 });

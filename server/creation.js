@@ -35,7 +35,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LIMITS = Object.freeze({
   nameMax: 32, symbolMax: 10, descriptionMax: 200, minItems: 1, minBackingUsd: 5,
-  gasSol: 0.03,                 // what the creator sends the custody wallet for its future transactions
+  gasSol: 0.02,                 // what the creator sends the custody wallet for its future transactions (deliveries, fee claims)
   txMaxBytes: 1232,
   creationTtlMs: 2 * 60 * 60 * 1000,
   maxOpenPerHour: 10,           // global: every launch costs Onix the config rent
@@ -282,9 +282,22 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
       const sig = await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64'));
       returned.push({ mint: a.id, signature: sig });
     }
+    // and the gas the creator sent: everything the custody wallet holds, minus one fee, goes back too
+    let solReturned = 0;
+    try {
+      const bal = await chain.getBalanceLamports(c.custody_wallet);
+      const amount = bal - 5000;
+      if (amount > 0) {
+        const tx = new Transaction({ feePayer: new PublicKey(c.custody_wallet), recentBlockhash: await chain.getLatestBlockhash() });
+        tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(c.custody_wallet), toPubkey: new PublicKey(c.owner), lamports: amount }));
+        signer.signTransaction(tx);
+        returned.push({ sol: amount / LAMPORTS_PER_SOL, signature: await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64')) });
+        solReturned = amount / LAMPORTS_PER_SOL;
+      }
+    } catch (e) { console.warn(`[create] abandon ${c.id}: could not return the gas: ${e.message}`); }
     db.prepare("UPDATE vault_creations SET status = 'abandoned', updated_at = ? WHERE id = ?").run(now(), c.id);
     pending.delete(creationId);
-    return { creationId, returned };
+    return { creationId, returned, solReturned };
   }
 
   /** Expired creations are abandoned (items returned). Called by the server's sweep. */
