@@ -237,15 +237,8 @@
   </div>
 
   <div id="tab-proof" class="sec" style="display:none">
-    <div class="prov">
-      <div class="r"><span class="k">Custody</span><span>The items live in <span class="mono" id="p-wallet"></span>, a wallet derived for this vault. Read it on Solscan: every item below must be there. Only the vault's doors (Play, the gacha API) move items out, and only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
-      <div class="r"><span class="k">Creator</span><span><span class="mono" id="p-creator"></span> chose the rules, holds 50% of the supply in Jupiter Lock (released over 6 months from graduation) and is paid <b id="p-fee">40%</b> of every trade fee on chain. The creator cannot take an item out any other way than everyone else.</span></div>
-      <div class="r"><span class="k">The items</span><span>Read from the custody wallet with the DAS API, filtered by the manifest (what the creator declared and the chain confirms), cached for seconds, age shown. Grade, certificate and physical vault come from the asset's own metadata.</span></div>
-      <div class="r"><span class="k">Index · 0.89×</span><span>The <b>Insured Value</b> the custodian wrote on chain is the index. Cards sell for less: <b>0.89× is the measured median</b> across our own sales, and backing is shown after that haircut.</span></div>
-      <div class="r"><span class="k">Curve → pool</span><span><b id="p-pool"></b> Opens at 2× backing; graduates at the creator's multiple; the USDC raised moves to a Meteora DAMM v2 pool with the token, locked for good; 30% of it goes to this vault's treasury. The first 60 s charge 99%→10% so bots cannot front-run the creator.</span></div>
-      <div class="r"><span class="k">Rules</span><span id="p-rules"></span></div>
-      <div class="r"><span class="k">What we never do</span><span><b>Count the money people paid for the token as if it were in the vault.</b> That money sits in the pool, not in custody. Two pockets, two numbers, never one total.</span></div>
-    </div>
+    <div class="kvs" id="proof-kv"></div>
+    <p class="faint" style="font-size:12.5px">Items are read from the custody wallet with the DAS API and counted only if the creator declared them (the manifest). Insured value is the custodian's index; backing is shown after the measured 0.89× haircut. Money paid for the token sits in the pool, never counted as backing. <a href="#/how">How it works →</a></p>
     <div class="band">
       <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Market cap over backing</b><span class="faint" style="font-size:12.5px">the ratio, pinned where it is today</span></div>
       <div class="rail">

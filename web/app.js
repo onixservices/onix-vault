@@ -79,7 +79,7 @@
     $('vh-desc').textContent = META.description || '';
     $('v-eyebrow').textContent = 'created by ' + (META.operator || '—') + ' · custody ' + short(VAULT) + (META.rulesText ? ' · ' + META.rulesText : '');
     $('v-send').href = vpath('/send'); $('v-send').style.display = mine() ? '' : 'none';
-    $('p-wallet').textContent = VAULT; $('p-creator').textContent = META.creator || '—'; $('p-fee').textContent = (META.creatorFeePct || 40) + '%'; $('p-rules').textContent = META.rulesText || '—';
+    renderProof(null);
     loadStats().then(function (st) {
       if (T.wallet && st.pool && (BAL.wallet !== T.wallet || BAL.usdc == null)) loadBalances();
       var p = st.pool, live = p && st.poolStatus === 'migrated', b = st.backing;
@@ -110,7 +110,7 @@
       $('vh-mature').style.display = p && !live ? '' : 'none';
       var pin = $('v-pin'), r = p ? p.ratio : null;
       if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; } else pin.style.display = 'none';
-      $('p-pool').textContent = p ? 'Curve ' + p.address + ' · mint ' + p.baseMint + (p.damm ? ' · pool ' + p.damm.address : '') + '.' : 'No pool yet: ' + st.poolStatus + '.';
+      renderProof(st);
       $('tab-play-btn').classList.toggle('lock', !live); $('tab-play-n').textContent = live ? '' : 'locked';
       tradePanel(st); renderExplain(st);
     });
@@ -133,6 +133,21 @@
         return '<div class="row"><span class="k">' + k + '</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · ' + what + '</span><span class="sig">' + sigs + '</span></div>';
       }).join('');
     });
+  }
+  // the Proof tab: every address a reader needs, each a link to the chain; the prose lives in How it works
+  function renderProof(st) {
+    var p = st && st.pool, lk = p && p.locked, A = function (a) { return a ? '<a href="https://solscan.io/account/' + esc(a) + '" target="_blank" rel="noopener">' + esc(a) + '</a>' : '—'; };
+    var rows = [
+      ['Custody wallet', A(VAULT) + ' <span class="faint">· the items live here; only Play and the gacha API move them out</span>'],
+      ['Creator', A(META.creator) + ' <span class="faint">· chose the rules · 50% of the supply locked · ' + (META.creatorFeePct || 40) + '% of every trade fee on chain</span>'],
+      ['Token mint', p ? '<a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">' + esc(p.baseMint) + '</a>' : '—'],
+      ['Curve (Meteora DBC)', p ? A(p.address) + (st.poolStatus === 'migrated' ? ' <span class="faint">· graduated</span>' : '') : '<span class="faint">' + esc(st ? st.poolStatus : '—') + '</span>'],
+      ['Pool (DAMM v2)', p && p.damm ? A(p.damm.address) + ' <span class="faint">· liquidity locked for good · 1% fee</span>' : '<span class="faint">after graduation</span>'],
+      ['Creator lock', lk && lk.locker ? '<a href="https://solscan.io/account/' + esc(lk.locker.escrow) + '" target="_blank" rel="noopener">' + esc(lk.locker.escrow) + '</a> <span class="faint">· ' + esc(lk.locker.program) + ' · ' + (lk.vestingMonths || 6) + ' months from graduation</span>' : lk ? '<span class="faint">' + lk.tokens.toLocaleString('en-US') + ' tokens, released at graduation</span>' : '—'],
+      ['Curve config', 'creator fee ' + (META.creatorFeePct || 40) + '% · anti-sniper 99%→10% over 60 s · migration fee 30% → treasury · opens at 2× backing · graduates at ' + (META.gradMult || 2.5) + '×'],
+      ['Rules', esc(META.rulesText || '—')],
+    ];
+    $('proof-kv').innerHTML = rows.map(function (r) { return '<div><span>' + r[0] + '</span><b>' + r[1] + '</b></div>'; }).join('');
   }
   var BANDS_DEF = [{ id: 'b1', label: 'under $25', min: 0, max: 25 }, { id: 'b2', label: '$25 – $60', min: 25, max: 60 }, { id: 'b3', label: '$60 – $150', min: 60, max: 150 }, { id: 'b4', label: '$150 and up', min: 150, max: Infinity }];
   function bandOf(v) { for (var i = 0; i < BANDS_DEF.length; i++) if (v >= BANDS_DEF[i].min && v < BANDS_DEF[i].max) return BANDS_DEF[i].id; return 'b4'; }
