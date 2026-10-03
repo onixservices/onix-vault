@@ -168,6 +168,23 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_purchases_vault_status ON vault_purchases (vault, status);
 
+  -- the trading fees reaching the treasury (server/feeclaim.js): curve partner fee (split with Onix in the same tx) + pool LP fee
+  CREATE TABLE IF NOT EXISTS vault_fee_claims (
+    id TEXT PRIMARY KEY,
+    vault TEXT NOT NULL,
+    curve_units INTEGER NOT NULL,
+    pool_units INTEGER NOT NULL,
+    onix_units INTEGER NOT NULL,
+    treasury_units INTEGER NOT NULL,
+    tx_b64 TEXT NOT NULL,
+    sig TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,              -- sent | landed | failed
+    fail_reason TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_fee_claims_vault_status ON vault_fee_claims (vault, status);
+
   -- what a created vault declares as backing (at creation, then each verified admission)
   CREATE TABLE IF NOT EXISTS vault_items (
     vault TEXT NOT NULL,

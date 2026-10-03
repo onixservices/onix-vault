@@ -50,4 +50,6 @@ module.exports = Object.freeze({
   // host share of its own fee to it — the trader pays nothing extra. The same wallet the onix.finance swap collects into.
   REFERRAL_USDC_ACCOUNT: env('ONIX_VAULT_REFERRAL_USDC_ACCOUNT', 'B3CHwKZjyX9nJV8CrSNZMMyLGp9n4mhahVy4Y4en4Gep'),
   SWAP_URL: env('ONIX_VAULT_SWAP_URL', 'https://onix.finance'),
+  // Onix's share of the curve's partner fee (1/3, src/curve/split.js) goes here, in the same transaction as the claim
+  ONIX_REVENUE_USDC_ACCOUNT: env('ONIX_VAULT_ONIX_REVENUE_USDC_ACCOUNT', 'B3CHwKZjyX9nJV8CrSNZMMyLGp9n4mhahVy4Y4en4Gep'),
 });
