@@ -55,24 +55,33 @@ describe('restock — the decision is pure', () => {
   });
 });
 
-function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], sponsored = false, simErr = null, inCustody = [] } = {}) {
+const { AccountLayout } = require('@solana/spl-token');
+const tokenAccount = (units) => { const b = Buffer.alloc(AccountLayout.span); b.writeBigUInt64LE(BigInt(units), 64); return [b.toString('base64'), 'base64']; };
+const ccKp = Keypair.generate();
+
+function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], sponsored = false, simErr = null, inCustody = [], cosigned = false, debitUsd = null } = {}) {
   const db = getTestDb();
   const sent = [];
   const chain = {
     simulateTransaction: async () => ({ err: simErr, logs: simErr ? ['Program log: Error: nope'] : [] }),
+    getTokenAccountAmount: async () => usdc * 1e6,
+    // the treasury after the simulated buy: falls by the listing price unless the test says otherwise
+    simulateWithAccounts: async () => ({ err: simErr, logs: simErr ? ['Program log: Error: nope'] : [], accounts: [{ data: tokenAccount(Math.round((usdc - (debitUsd ?? chain.lastPrice)) * 1e6)) }] }), lastPrice: 0,
     sendRawTransaction: async (b64) => { sent.push(b64); return 'sig'; },
     getSignatureStatuses: async (sigs) => sigs.map((s) => chain.statuses[s] || null), statuses: {},
   };
   const owners = {};
   const otherKp = Keypair.generate();
-  const buildBuyTx = async ({ mint, wallet }) => {
+  const buildBuyTx = async ({ mint, wallet, priceUsd }) => {
+    chain.lastPrice = priceUsd;
     const tx = new Transaction({ feePayer: new PublicKey(wallet), recentBlockhash: Keypair.generate().publicKey.toBase58() });
     tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(wallet), toPubkey: Keypair.generate().publicKey, lamports: 1 }));
     if (sponsored) { tx.add(SystemProgram.transfer({ fromPubkey: otherKp.publicKey, toPubkey: new PublicKey(wallet), lamports: 1 })); tx.partialSign(otherKp); }
+    if (cosigned) { tx.add(SystemProgram.transfer({ fromPubkey: ccKp.publicKey, toPubkey: ccKp.publicKey, lamports: 0 })); tx.partialSign(ccKp); }
     return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
   };
   let t = 1_800_000_000_000;
-  const rs = createRestock({ db, chain, vaultWallet: CUSTODY, signer: fromKeypair(custodyKp), rules: RULES, readItems: async () => inCustody.map((m) => ({ mint: m })),
+  const rs = createRestock({ db, chain, vaultWallet: CUSTODY, signer: fromKeypair(custodyKp), rules: RULES, cosigners: [ccKp.publicKey.toBase58()], readItems: async () => inCustody.map((m) => ({ mint: m })),
     fetchListings: async ({ page }) => (page === 1 ? { filterNFtCard: listings } : { filterNFtCard: [] }), buildBuyTx, getUsdcBalance: async () => usdc, ownerOf: async (m) => owners[m] || null, now: () => t, log: { warn: () => {} } });
   return { rs, db, chain, sent, owners, tick: (ms) => { t += ms; } };
 }
@@ -103,8 +112,18 @@ describe('restock — execute and confirm', () => {
     const again = await w.rs.plan();
     assert.equal(again.pick, null); assert.match(again.why, /one an hour/);
   });
-  test('a sponsored (pre-signed, two-signer) buy from the venue is refused; a buy that fails simulation is refused; neither is signed', async () => {
-    await assert.rejects(make({ sponsored: true }).rs.execute({ go: true }), (e) => e.statusCode === 409 && /assertions/.test(e.message));
+  test("the venue's known co-signer, already signed, is accepted and the buy goes through; the debit is measured", async () => {
+    const w = make({ cosigned: true });
+    const x = await w.rs.execute({ go: true });
+    assert.equal(x.bought.mint, 'b'); assert.equal(x.debitUsd, 15);
+    assert.ok(Transaction.from(Buffer.from(w.db.prepare('SELECT tx_b64 FROM vault_purchases').get().tx_b64, 'base64')).verifySignatures(), 'custody + the venue, both signed');
+  });
+  test('a simulated debit above the listing price, or none at all, is refused and nothing is signed', async () => {
+    await assert.rejects(make({ debitUsd: 25 }).rs.execute({ go: true }), (e) => e.statusCode === 409 && /debits \$25, the listing says \$15/.test(e.message));
+    await assert.rejects(make({ debitUsd: 0 }).rs.execute({ go: true }), (e) => e.statusCode === 409 && /does not debit/.test(e.message));
+  });
+  test('an UNKNOWN extra signer (a sponsored variant) is refused; a buy that fails simulation is refused; neither is signed', async () => {
+    await assert.rejects(make({ sponsored: true }).rs.execute({ go: true }), (e) => e.statusCode === 409 && /not a known co-signer/.test(e.message));
     await assert.rejects(make({ simErr: { InstructionError: [0, 'x'] } }).rs.execute({ go: true }), (e) => e.statusCode === 409 && /fail on chain/.test(e.message));
   });
   test('confirm: finalized + the chain shows custody owns it → manifest + landed; an error → failed; unknown for long → failed; otherwise pending (rebroadcast)', async () => {

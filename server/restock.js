@@ -20,7 +20,13 @@
 'use strict';
 const crypto = require('crypto');
 const { Transaction } = require('@solana/web3.js');
-const { checkSingleSignerUnsigned } = require('./txAssertions');
+const { checkBuyerWithKnownCosigners } = require('./txAssertions');
+const { AccountLayout, getAssociatedTokenAddressSync } = require('@solana/spl-token');
+const { PublicKey } = require('@solana/web3.js');
+
+const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
+// Collector Crypt co-signs its marketplace buys (read-only attestation on a noop instruction); a list, not a switch
+const CC_BUY_COSIGNERS = Object.freeze(['cc3novbXuNSe292qKH2gGhxToaWjuBvJbA7zQf8NVxi']);
 const { categoryOf, gradeOf } = require('./rules');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
@@ -106,7 +112,8 @@ function decide({ budgetUsd, rules: entryRules, listings, exclude = new Set(), l
  * @param {function} deps.getUsdcBalance  async (wallet) => number (ui)
  * @param {function} deps.ownerOf         async (mint) => owner wallet (DAS) or null
  */
-function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, getSolBalance = null, ownerOf, now = Date.now, limits = RESTOCK, log = console }) {
+function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, getSolBalance = null, ownerOf, now = Date.now, limits = RESTOCK, log = console, cosigners = CC_BUY_COSIGNERS, usdcMint = USDC_MINT }) {
+  const usdcAta = getAssociatedTokenAddressSync(new PublicKey(usdcMint), new PublicKey(vaultWallet), true).toBase58();
   const br = buyRules(rules);
   const categoriesParam = br.category && br.category !== 'mixed' ? { pokemon: 'Pokemon', 'one-piece': 'One Piece', sports: 'Sports' }[br.category] : undefined;
 
@@ -144,11 +151,19 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
     if (signer.publicKey() !== vaultWallet) throw err(503, 'signer is not the custody wallet');
     const b64 = await buildBuyTx({ mint: pick.mint, wallet: vaultWallet, priceUsd: pick.priceUsd });
     const tx = Transaction.from(Buffer.from(b64, 'base64'));
-    const fail = checkSingleSignerUnsigned(tx, vaultWallet);
+    const fail = checkBuyerWithKnownCosigners(tx, vaultWallet, cosigners);
     if (fail) throw err(409, `the venue's buy transaction does not pass assertions: ${fail.assertion} (${fail.message})`);
-    const sim = await chain.simulateTransaction(b64);
+    // the money, measured: the custody's USDC before, and after the simulated transaction — it must fall by the price, never more
+    const preUnits = await chain.getTokenAccountAmount(usdcAta);
+    const sim = await chain.simulateWithAccounts(b64, [usdcAta]);
     if (sim && sim.err) throw err(409, `the buy would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
-    if (!go) return { ...p, bought: null, dry: true, simulated: true };
+    const acc = sim && sim.accounts && sim.accounts[0];
+    let postUnits = null; try { postUnits = acc && acc.data ? Number(AccountLayout.decode(Buffer.from(acc.data[0], 'base64')).amount) : null; } catch { postUnits = null; }
+    if (postUnits == null) throw err(409, 'could not read the treasury after the simulated buy — nothing signed blind');
+    const debitUsd = r2((preUnits - postUnits) / 1e6);
+    if (!(debitUsd > 0)) throw err(409, `the simulated buy does not debit the treasury ($${debitUsd}) — refused`);
+    if (debitUsd > pick.priceUsd + 0.02) throw err(409, `the simulated buy debits $${debitUsd}, the listing says $${pick.priceUsd} — refused`);
+    if (!go) return { ...p, bought: null, dry: true, simulated: true, debitUsd };
     signer.signTransaction(tx);
     const bs58 = require('bs58'); const encode = bs58.encode || bs58.default.encode;
     const sig = encode(tx.signatures.find((s) => s.publicKey.toBase58() === vaultWallet).signature);
@@ -159,7 +174,7 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
                 VALUES (?, ?, ?, ?, ?, ?, 'cc', ?, ?, ?, 'sent', ?, ?)`).run(id, vaultWallet, pick.mint, pick.name, pick.priceUsd, pick.insuredUsd, pick.seller, signedB64, sig, t, t);
     try { await chain.sendRawTransaction(signedB64); }
     catch (e) { log.warn(`[restock ${vaultWallet.slice(0, 6)}] broadcast failed (persisted; rebroadcast on confirm): ${e.message}`); }
-    return { ...p, bought: { id, mint: pick.mint, name: pick.name, priceUsd: pick.priceUsd, insuredUsd: pick.insuredUsd, signature: sig } };
+    return { ...p, debitUsd, bought: { id, mint: pick.mint, name: pick.name, priceUsd: pick.priceUsd, insuredUsd: pick.insuredUsd, signature: sig } };
   }
 
   /** Sent purchases: finalized and the chain shows the item in custody → the manifest; failed or lost → failed. */
@@ -216,4 +231,4 @@ function productionRestockDeps({ ccApiBase = 'https://api.collectorcrypt.com', r
   };
 }
 
-module.exports = { createRestock, decide, buyRules, listingView, listingPassesRules, productionRestockDeps, RESTOCK };
+module.exports = { createRestock, decide, buyRules, listingView, listingPassesRules, productionRestockDeps, RESTOCK, CC_BUY_COSIGNERS };

@@ -25,6 +25,9 @@ module.exports = {
   sendRawTransaction: (b64) => rpc('sendTransaction', [b64, { encoding: 'base64', preflightCommitment: 'confirmed' }]),
   /** Deliverability check BEFORE signing: `sigVerify:false` so an unsigned tx simulates; the blockhash is replaced. */
   simulateTransaction: async (b64) => (await rpc('simulateTransaction', [b64, { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }])).value,
+  // the same, plus the accounts' state AFTER the transaction (to measure what it would really debit)
+  simulateWithAccounts: async (b64, addresses) => (await rpc('simulateTransaction', [b64, { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed', accounts: { encoding: 'base64', addresses } }])).value,
+  getTokenAccountAmount: async (address) => { const r = await rpc('getTokenAccountBalance', [address, { commitment: 'confirmed' }]); return Number(r.value.amount); },
   getAsset: (id) => rpc('getAsset', { id }),
   getAccountInfoBase64: async (pubkey) => (await rpc('getAccountInfo', [pubkey, { encoding: 'base64' }])).value,
   getTokenSupplyUi: async (mint) => (await rpc('getTokenSupply', [mint])).value.uiAmount,
