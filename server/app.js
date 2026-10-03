@@ -19,6 +19,7 @@
  *   GET  /token/:mint.json · /token/:mint.png · /token/:mint-banner.png   token metadata and images
  *   GET  /v1/vaults/:vault/play                            bands, prices, odds
  *   POST /v1/vaults/:vault/plays · /plays/:id/submit · GET /plays/:id · GET /plays   the Play door
+ *   GET  /v1/vaults/:vault/purchases                       what the treasury bought (server/restock.js)
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
  * are added. `x-api-key` is optional: it identifies the integrator for limits; it never
@@ -128,7 +129,8 @@ function buildApp(deps) {
     const doors = req.vb.service.listActivity({ limit: 50 });
     const admits = req.vb.admissions ? req.vb.admissions.list({ limit: 50 }).map((a) => ({ type: 'admit', at: a.at, mint: a.mint, from: a.owner, status: a.status, valueUsd: a.valueUsd, signature: a.signature })) : [];
     const plays = req.vb.play ? req.vb.play.list({ limit: 50 }).map((p) => ({ type: 'play', at: p.at, playId: p.playId, band: p.band, currency: p.currency, price: p.price, unit: p.unit, mint: p.mint, to: p.player, status: p.status, paymentSignature: p.paymentSignature, deliverySignature: p.deliverySignature })) : [];
-    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays].sort((x, y) => y.at - x.at).slice(0, 50) });
+    const bought = req.vb.restock ? req.vb.restock.list({ limit: 50 }).map((b) => ({ type: 'bought', at: b.at, mint: b.mint, name: b.name, priceUsd: b.priceUsd, insuredUsd: b.insuredUsd, status: b.status, signature: b.signature })) : [];
+    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays, ...bought].sort((x, y) => y.at - x.at).slice(0, 50) });
   }));
   app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {
     if (!readWallet) throw new VaultError(503, 'wallet reader not configured');
@@ -178,6 +180,8 @@ function buildApp(deps) {
   }));
   app.get('/v1/vaults/:vault/plays/:id', pick, wrap(async (req, res) => { res.json(playOf(req).get(req.params.id)); }));
   app.get('/v1/vaults/:vault/plays', pick, wrap(async (req, res) => { res.json({ readAt: new Date().toISOString(), plays: playOf(req).list() }); }));
+
+  app.get('/v1/vaults/:vault/purchases', pick, wrap(async (req, res) => { res.json({ readAt: new Date().toISOString(), purchases: need(req.vb.restock, 'restock').list() }); }));
 
   // ── items, the gacha door, redemptions ──
   app.get('/v1/vaults/:vault/items', pick, wrap(async (req, res) => {

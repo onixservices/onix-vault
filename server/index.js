@@ -26,6 +26,7 @@ const { createAdmissions, VAULT_RULES } = require('./admissions');
 const { describeRules } = require('./rules');
 const { createVaultCreator } = require('./creation');
 const { createPlay } = require('./play');
+const { createRestock, productionRestockDeps } = require('./restock');
 const { createUploads } = require('./uploads');
 const { createRateLimiter } = require('./ratelimit');
 const reservationsRepo = require('./reservationsRepo');
@@ -121,7 +122,9 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     rulesText: describeRules(def.rules), gradMult: def.gradMult ?? null, creatorFeePct: def.creatorFeePct ?? null, custody: def.custodyIndex != null ? 'derived' : def.secretEnv ? 'operator' : 'none' };
   play = createPlay({ db, chain, vaultWallet, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, readItems, readStats: () => stats.read(), deliver,
     isMintBusy: (mint) => Boolean(reservationsRepo.liveForMint(db, mint, Date.now())), usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID });
-  return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, play, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
+  // the treasury → next item loop: needs the custody key and the vault's rules; runs by sweep only when enabled, by script always
+  const restock = createRestock({ db, chain, vaultWallet, signer, rules: def.rules, readItems, ...productionRestockDeps({ ccApiBase: C.CC_API_BASE, rpcUrl: C.RPC_URL, chain }) });
+  return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, play, restock, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
 }
 
 /**
@@ -167,6 +170,9 @@ function main() {
   setInterval(() => { creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
   // images nobody attached to a vault or a live creation within an hour are removed
   setInterval(() => { try { const keep = [...db.prepare('SELECT image, banner FROM vaults').all(), ...db.prepare("SELECT image, banner FROM vault_creations WHERE status IN ('opened','deposited')").all()].flatMap((r) => [r.image, r.banner]).filter(Boolean); const r = uploads.sweep({ keep }); if (r.removed) console.log(`[uploads] ${r.removed} orphan image(s) removed`); } catch (e) { console.warn('[uploads] sweep failed', e.message); } }, 15 * 60_000).unref();
+  // purchases sent by the script or the sweep are confirmed against the chain; the buying itself only when enabled
+  setInterval(() => { for (const v of vaults) if (v.restock) v.restock.confirm().then((r) => { if (r.landed || r.failed) console.log(`[vault ${v.meta.id}] restock: ${r.landed} landed · ${r.failed} failed · ${r.pending} pending`); }).catch((e) => console.warn(`[vault ${v.meta.id}] restock confirm failed`, e.message)); }, 2 * 60_000).unref();
+  if (C.RESTOCK_ENABLED) setInterval(async () => { for (const v of vaults) { try { const st = await v.stats.read(); if (!st.pool || st.poolStatus !== 'migrated' || !v.signerConfigured()) continue; const r = await v.restock.execute({ go: true }); if (r.bought) console.log(`[vault ${v.meta.id}] restock BOUGHT ${r.bought.name} for $${r.bought.priceUsd} (index $${r.bought.insuredUsd}) · ${r.bought.signature}`); } catch (e) { console.warn(`[vault ${v.meta.id}] restock failed`, e.message); } } }, 15 * 60_000).unref();
   setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }
 

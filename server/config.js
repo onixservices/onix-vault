@@ -43,4 +43,7 @@ module.exports = Object.freeze({
   BASE_DECIMALS: parseInt(env('ONIX_VAULT_BASE_DECIMALS', '6'), 10),
   QUOTE_DECIMALS: parseInt(env('ONIX_VAULT_QUOTE_DECIMALS', '6'), 10),
   HAIRCUT: parseFloat(env('ONIX_VAULT_HAIRCUT', '0.89')),
+  // the treasury buying the next item (server/restock.js): off unless the operator turns it on; the script works regardless
+  RESTOCK_ENABLED: env('ONIX_VAULT_RESTOCK') === '1',
+  CC_API_BASE: env('ONIX_VAULT_CC_API_BASE', 'https://api.collectorcrypt.com'),
 });

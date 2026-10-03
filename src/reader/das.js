@@ -41,4 +41,9 @@ async function fetchTokenSupply(rpcUrl, mint) {
   return Number.isFinite(ui) ? ui : null;
 }
 
-module.exports = { fetchAssetsByOwner, fetchTokenSupply };
+/** One asset by mint (DAS getAsset): null when the index does not know it. */
+async function fetchAsset(rpcUrl, mint) {
+  try { return await rpc(rpcUrl, 'getAsset', { id: mint }); } catch (e) { if (/not found/i.test(e.message)) return null; throw e; }
+}
+
+module.exports = { fetchAssetsByOwner, fetchTokenSupply, fetchAsset };

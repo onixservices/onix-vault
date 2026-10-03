@@ -148,6 +148,26 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_plays_vault_status ON vault_plays (vault, status);
 
+  -- the treasury buying the next item (server/restock.js): one row per purchase, persisted before broadcast
+  CREATE TABLE IF NOT EXISTS vault_purchases (
+    id TEXT PRIMARY KEY,
+    vault TEXT NOT NULL,
+    mint TEXT NOT NULL,
+    name TEXT,
+    price_usd REAL NOT NULL,
+    insured_usd REAL,
+    venue TEXT NOT NULL,
+    seller TEXT,
+    tx_b64 TEXT NOT NULL,
+    sig TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,              -- sent | landed | failed
+    fail_reason TEXT,
+    landed_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_purchases_vault_status ON vault_purchases (vault, status);
+
   -- what a created vault declares as backing (at creation, then each verified admission)
   CREATE TABLE IF NOT EXISTS vault_items (
     vault TEXT NOT NULL,
