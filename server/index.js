@@ -141,6 +141,8 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
   const partner = signer || defaultSigner;
   const uploads = createUploads({ dir: C.UPLOADS_DIR });
   const uploadLimiter = createRateLimiter({ capacity: 20, perMs: 3_600_000 });
+  const fences = { create: createRateLimiter({ capacity: 6, perMs: 3_600_000 }), play: createRateLimiter({ capacity: 30, perMs: 3_600_000 }), build: createRateLimiter({ capacity: 120, perMs: 3_600_000 }) };
+  const limits = Object.fromEntries(Object.entries(fences).map(([k, rl]) => [k, (ip) => rl.take(ip)]));
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
   const transferForCreation = createTransferBuilder(productionDeps(chain));
   const creator = creatorOverride || createVaultCreator({ db, chain, sdk: require('@meteora-ag/dynamic-bonding-curve-sdk'), getClient: curveDeps.getClient, partner, keyring, quoteMint: C.USDC_MINT,
@@ -148,7 +150,7 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
     existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null), uploads });
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
-  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), keyringConfigured: keyring.configured });
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, keyringConfigured: keyring.configured });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
   return { app, db, vaults: bundles, addVault, creator, uploads, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };

@@ -139,6 +139,18 @@ describe('routes — what the page reads', () => {
     const meta = await (await fetch(bU + '/token/MINT1.json')).json(); assert.match(meta.image, /\/token\/MINT1\.png$/); assert.equal(meta.banner, undefined); assert.match(meta.external_url, /#\/vault\/t$/);
     sU.close();
   });
+  test('fences: a limiter that denies turns the costly routes into 429 and leaves reads alone', async () => {
+    const appF = buildApp({ service, stats, readWallet, trader, admissions, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => 0, vaultMeta: {}, webDir: null, limits: { play: () => false, build: () => false, create: () => false } });
+    const sF = await new Promise((r) => { const x = appF.listen(0, '127.0.0.1', () => r(x)); });
+    const bF = 'http://127.0.0.1:' + sF.address().port;
+    const jp = async (p, body) => { const r = await fetch(bF + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return r.status; };
+    assert.equal(await jp('/v1/vaults/' + VAULT + '/trades/build', { owner: 'o', side: 'buy', amount: 1 }), 429);
+    assert.equal(await jp('/v1/vaults/' + VAULT + '/plays', { band: 'b1' }), 429);
+    assert.equal(await jp('/v1/vaults/' + VAULT + '/reservations', { mint: 'M' }), 429);
+    assert.equal(await jp('/v1/vaults/' + VAULT + '/trades/quote', { side: 'buy', amount: 1 }), 200);
+    assert.equal((await fetch(bF + '/v1/vaults/' + VAULT + '/items')).status, 200);
+    sF.close();
+  });
   test('GET /v1/vaults/:vault/trades/balances?wallet= — the two balances the panel shows', async () => {
     const b = await j('/v1/vaults/' + VAULT + '/trades/balances?wallet=W1');
     assert.equal(b.status, 200); assert.equal(b.body.usdc, 116.64); assert.equal(b.body.token, 3314184.21); assert.equal(b.body.wallet, 'W1');

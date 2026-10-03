@@ -39,6 +39,9 @@ const { VaultError } = require('./vaultService');
 function buildApp(deps) {
   const { readWallet, creator = null, addVault = null, db = null, uploads = null, webDir = path.join(__dirname, '..', 'web') } = deps;
   const uploadLimiter = deps.uploadLimiter || null;   // (ip) => boolean allowed
+  // first fences per address on the routes that cost something (the real limits live in the services)
+  const limits = deps.limits || {};
+  const fence = (name) => (req, res, next) => { const f = limits[name]; if (f && !f(req.ip)) return next(new VaultError(429, `too many ${name} requests from this address — try again in a while`)); next(); };
   const keyringConfigured = deps.keyringConfigured || (() => false);
   const vaults = deps.vaults || (!deps.vaultWallet ? [] : [{
     wallet: deps.vaultWallet, meta: deps.vaultMeta || {}, service: deps.service, stats: deps.stats || null, admissions: deps.admissions || null,
@@ -47,6 +50,7 @@ function buildApp(deps) {
 
   const app = express();
   app.disable('x-powered-by');
+  app.set('trust proxy', 'loopback');   // Caddy on the same box sets X-Forwarded-For; req.ip is the client
   app.use(express.json({ limit: '64kb' }));
 
   // resolved per request: a vault created through the door is in `vaults` the moment it is confirmed
@@ -67,7 +71,7 @@ function buildApp(deps) {
     let rules = {}; if (req.query.rules) { try { rules = JSON.parse(String(req.query.rules)); } catch { throw new VaultError(400, 'rules must be JSON'); } }
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || ''), rules })) });
   }));
-  app.post('/v1/vaults/create/open', wrap(async (req, res) => {
+  app.post('/v1/vaults/create/open', fence('create'), wrap(async (req, res) => {
     const { owner, name, symbol, mints, rules, description, links, imageId, bannerId } = req.body || {};
     res.status(201).json({ readAt: new Date().toISOString(), ...(await needCreator().open({ owner, name, symbol, mints, rules, description, links, imageId, bannerId })) });
   }));
@@ -135,7 +139,7 @@ function buildApp(deps) {
   app.get('/v1/vaults/:vault/eligible-items', pick, wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), ...(await need(req.vb.admissions, 'admissions').eligible(String(req.query.wallet || ''))) });
   }));
-  app.post('/v1/vaults/:vault/admissions/build', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/admissions/build', pick, fence('build'), wrap(async (req, res) => {
     const { owner, mint } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await need(req.vb.admissions, 'admissions').build({ owner, mint })) });
   }));
@@ -157,7 +161,7 @@ function buildApp(deps) {
   app.get('/v1/vaults/:vault/trades/balances', pick, wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), wallet: String(req.query.wallet || ''), ...(await trader(req).balances(String(req.query.wallet || ''))) });
   }));
-  app.post('/v1/vaults/:vault/trades/build', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/trades/build', pick, fence('build'), wrap(async (req, res) => {
     const { owner, side, amount, slippageBps } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await trader(req).build({ owner, side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
   }));
@@ -165,7 +169,7 @@ function buildApp(deps) {
   // ── the Play door ──
   const playOf = (req) => need(req.vb.play, 'play');
   app.get('/v1/vaults/:vault/play', pick, wrap(async (req, res) => { const b = await playOf(req).bands(); res.json({ ...b, tokenSymbol: req.vb.meta.token ? req.vb.meta.token.symbol : null }); }));
-  app.post('/v1/vaults/:vault/plays', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/plays', pick, fence('play'), wrap(async (req, res) => {
     const { band, player, currency, clientSeed } = req.body || {};
     res.status(201).json({ readAt: new Date().toISOString(), ...(await playOf(req).start({ band, player, currency, clientSeed })) });
   }));
@@ -181,7 +185,7 @@ function buildApp(deps) {
     const items = await req.vb.service.listItems();
     res.json({ readAt: new Date().toISOString(), itemsAgeMs: req.vb.itemsAge(), items });
   }));
-  app.post('/v1/vaults/:vault/reservations', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/reservations', pick, fence('build'), wrap(async (req, res) => {
     const { mint, integrator, winner } = req.body || {};
     res.status(201).json(await req.vb.service.reserve({ mint, integrator, winner, idempotencyKey: req.get('Idempotency-Key') || null }));
   }));
