@@ -100,6 +100,25 @@ while the curve is filling, nothing leaves custody.
 The gacha API (`reservations` → payment → `settle`) is the same door for integrators: Onix.Cards' gacha is
 the first one, through the public client in `examples/`.
 
+## The treasury loop — automatic (3 October 2026)
+
+Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOCK=1`):
+
+1. **Fees → treasury** (`server/feeclaim.js`). One transaction signed by the custody claims the curve's partner fee —
+   2/3 stays in the treasury, 1/3 is transferred to Onix's revenue account **in the same transaction** — and, once the
+   vault graduated, the 1% fee of the DAMM v2 pool accrued on the custody's locked LP position (the custody is the
+   position's owner: the migration gives the partner's locked LP to the config's fee claimer). Both balances are measured
+   in the simulation before signing; anything that moves them differently is refused. Minimum $1 per round.
+2. **Treasury → next item** (`server/restock.js`), graduated vaults only. The cheapest graded card relative to its
+   custodian index on Collector Crypt that passes **this vault's rules** (the entry rule, or the creator's own restock
+   rule), at or below the index, under $150, one purchase an hour. The venue's transaction is asserted (the custody pays;
+   only Collector Crypt's known co-signer may come already signed), the USDC debit is measured in the simulation, it is
+   signed by the custody key, persisted, sent, and confirmed against the chain before the item joins the manifest.
+3. A round that does nothing says why in the log, once per change of reason.
+
+The first automatic purchase: a Weedle PSA 9 for $15 (index $18), 3 Oct 2026 — and the Magnemite the treasury bought
+an hour earlier was won in Onix.Cards' vault machine minutes later, paid to the vault through the public API.
+
 ## `web/` — the page
 
 The board shows the vaults in two shelves, *Live* and *Maturing*. **Each vault is its own mini-site**:

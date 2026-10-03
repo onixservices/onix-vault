@@ -22,7 +22,11 @@ Meteora            2% of volume (fixed by the program)
 Onix               1.6% of volume on the curve  + the config rent it fronts, back from the same leg
 ```
 
-Of a 10% trade fee: 2% Meteora · 3.2% creator · 3.2% vault treasury · 1.6% Onix (`src/curve/split.js`).
+Of a 10% trade fee: 2% Meteora · 3.2% creator · 3.2% vault treasury · 1.6% Onix (`src/curve/split.js`). Claimed
+automatically every 15 minutes, Onix's third in the same transaction as the vault's two (`server/feeclaim.js`); every
+swap the page builds also names Onix.Finance as Meteora's referral (the host share of Meteora's own fee — the trader
+pays nothing extra). After graduation the pool's 1% fee accrues on the vault's locked LP position and goes 100% to the
+treasury.
 After graduation the pool charges 1% to its (permanently locked) liquidity, and the vault earns through Play.
 
 Three further lines are **not** operator fees; all of them raise backing per token, which is the asset

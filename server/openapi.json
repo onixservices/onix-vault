@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Onix.Vault API",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing."
   },
   "servers": [
@@ -1521,6 +1521,58 @@
         "responses": {
           "200": {
             "description": "admissions + the vault's rules"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/fee-claims": {
+      "get": {
+        "summary": "Trading fees claimed into the treasury (curve partner fee split 2/3 treasury · 1/3 Onix in the same tx; pool LP fee 100% treasury)",
+        "tags": [
+          "Treasury"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "claims[]: curveUsd, poolUsd, onixUsd, treasuryUsd, status, signature, at"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/purchases": {
+      "get": {
+        "summary": "Items the treasury bought (the restock bot, under the vault's rules)",
+        "tags": [
+          "Treasury"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "purchases[]: mint, name, priceUsd, insuredUsd, venue, status, signature, at"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
           }
         }
       }

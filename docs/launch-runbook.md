@@ -149,10 +149,12 @@ play `52202e96`, delivery `5Tjw3g…`).
 
 ## 3. After launch — the loop
 
-- the creator's 40% of every fee is claimed by the creator (`claimCreatorTradingFee`); the partner's
-  share by the operator key (`scripts/claim-fees.js`) and split treasury / Onix (`src/curve/split.js`)
-- USDC in custody (migration fee, Play) buys the next item that passes the rules — an operator-run step
-  today, every purchase a public transaction into custody
+- the creator's 40% of every fee is claimed by the creator (`claimCreatorTradingFee`, lock.jup.ag for the vested half)
+- **automatic, every 15 min (`ONIX_VAULT_RESTOCK=1`):** the partner's curve fee and the pool's LP fee are claimed into
+  custody (Onix's third transferred in the same tx), then the treasury buys the next item that passes the vault's rules.
+  By hand, the same code: `node scripts/restock.js --vault <id> [--go | --confirm]`. Custody needs ≥ 0.05 SOL (creation
+  sends it) — below that Collector Crypt hands a sponsored transaction the treasury refuses
+- abuse rehearsal before any release: `node scripts/abuse-rehearsal.js` (21 attacks through the public routes, nothing signed)
 - the page reads custody and the pool every load; there is no cache to go stale silently
 - **items leave custody only through Play or the gacha API**, at the published price. There is no third way out.
 

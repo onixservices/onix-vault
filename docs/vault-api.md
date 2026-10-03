@@ -114,6 +114,15 @@ band's snapshot sorted by mint.
 A USDC play leaves the money in custody (the treasury buys the next item). A token play burns supply. An item
 drawn by a play is never sold to an integrator underneath it, and vice versa.
 
+### The treasury, in public
+
+| | |
+|---|---|
+| `GET /v1/vaults/{vault}/fee-claims` | every trading-fee claim into the treasury: curve partner fee, pool LP fee, Onix's third, the signature |
+| `GET /v1/vaults/{vault}/purchases` | every item the treasury bought: name, price, index, status (`sent` · `landed` · `failed`), the signature |
+
+Both also appear on `/activity`. `stats.treasury.usdc` is the USDC in custody right now (never part of backing).
+
 ### The Buy door
 
 `POST /v1/vaults/{vault}/trades/quote` and `…/trades/build` — a quote and the swap for the **user's** wallet to
