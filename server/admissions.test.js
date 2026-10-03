@@ -45,6 +45,9 @@ describe('vault rules', () => {
     assert.deepEqual(validateRules({ restock: { category: 'sports', maxValueUsd: 100 } }).restock, { category: 'sports', maxValueUsd: 100 });
     assert.equal(describeRules(r), 'Pokémon cards graded 9+ worth $25+ from Collector Crypt');
     assert.equal(describeRules(validateRules({})), 'Graded cards from Collector Crypt');
+    // the creator's own restock rule is part of the published line
+    assert.equal(describeRules(validateRules({ restock: { category: 'one-piece', minValueUsd: 25, maxValueUsd: 100, minGrade: 9 } })), 'Graded cards from Collector Crypt · the treasury buys One Piece graded 9+ $25–$100');
+    assert.equal(describeRules(validateRules({ restock: { maxValueUsd: 50 } })), 'Graded cards from Collector Crypt · the treasury buys any graded card up to $50');
     assert.ok(RULE_OPTIONS.gradMult.includes(2.5));
   });
 });

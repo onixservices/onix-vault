@@ -94,7 +94,13 @@ function describeRules(rules) {
   const parts = [cat];
   if (rules.minGrade && rules.minGrade !== 'any') parts.push(`graded ${rules.minGrade}+`);
   if (rules.minValueUsd) parts.push(`worth $${rules.minValueUsd}+`);
-  return `${parts.join(' ')} from ${rules.custodians.join(', ')}`;
+  const line = `${parts.join(' ')} from ${rules.custodians.join(', ')}`;
+  const rs = rules.restock;
+  if (!rs || rs === 'sameAsEntry') return line;
+  const rcat = { mixed: 'any graded card', pokemon: 'Pokémon', 'one-piece': 'One Piece', sports: 'sports', other: 'graded cards' }[rs.category || rules.category] || 'graded cards';
+  const band = rs.minValueUsd && rs.maxValueUsd ? ` $${rs.minValueUsd}–$${rs.maxValueUsd}` : rs.maxValueUsd ? ` up to $${rs.maxValueUsd}` : rs.minValueUsd ? ` $${rs.minValueUsd}+` : '';
+  const g = rs.minGrade && rs.minGrade !== 'any' ? ` graded ${rs.minGrade}+` : '';
+  return `${line} · the treasury buys ${rcat}${g}${band}`;
 }
 
 module.exports = { RULE_OPTIONS, DEFAULT_RULES, validateRules, itemPassesRules, describeRules, categoryOf, gradeOf };

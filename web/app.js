@@ -437,7 +437,16 @@
 
   // ── create: items → token + rules → launch (deposits to custody, then the launch) ──
   var CQ = null, CR = { busy: false, creationId: null }, CSEL = {}, CQ_PICK = { n: 0 };
-  function rulesFromForm() { return { category: $('f-cat').value, minValueUsd: Number($('f-minv').value), minGrade: $('f-grade').value === 'any' ? 'any' : Number($('f-grade').value), creatorFeePct: Number($('f-fee').value), gradMult: Number($('f-grad').value) }; }
+  function rulesFromForm() {
+    var r = { category: $('f-cat').value, minValueUsd: Number($('f-minv').value), minGrade: $('f-grade').value === 'any' ? 'any' : Number($('f-grade').value), creatorFeePct: Number($('f-fee').value), gradMult: Number($('f-grad').value) };
+    // what the treasury buys with the fees: the entry rule, or the creator's own (category, value band, grade)
+    if ($('f-rs').value === 'custom') {
+      r.restock = { category: $('f-rs-cat').value, minValueUsd: Number($('f-rs-min').value), minGrade: $('f-rs-grade').value === 'any' ? 'any' : Number($('f-rs-grade').value) };
+      if ($('f-rs-max').value) r.restock.maxValueUsd = Number($('f-rs-max').value);
+    } else r.restock = 'sameAsEntry';
+    return r;
+  }
+  $('f-rs').addEventListener('change', function () { $('f-rs-custom').hidden = this.value !== 'custom'; });
   function renderPick() {
     var q = CQ;
     $('pick').innerHTML = !q ? '' : q.items.map(function (c) {

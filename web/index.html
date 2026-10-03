@@ -365,6 +365,13 @@
         <div class="f"><label for="f-grade">Minimum grade</label><select id="f-grade"><option value="any">Any</option><option value="8">8+</option><option value="9">9+</option><option value="10">10 only</option></select></div>
         <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40% (3.2% of every trade)</option><option value="50">50%</option></select></div>
         <div class="f"><label for="f-grad">Opens to the whole market at</label><select id="f-grad"><option value="2">2× the opening cap</option><option value="2.5" selected>2.5× the opening cap</option><option value="3">3× the opening cap</option></select></div>
+        <div class="f"><label for="f-rs">What the treasury buys next</label><select id="f-rs"><option value="same" selected>The same as what this vault takes</option><option value="custom">Its own rule…</option></select></div>
+      </div>
+      <div class="form" id="f-rs-custom" hidden>
+        <div class="f"><label for="f-rs-cat">Restock · category</label><select id="f-rs-cat"><option value="mixed">Any graded card</option><option value="pokemon">Pokémon</option><option value="one-piece">One Piece</option><option value="sports">Sports</option></select></div>
+        <div class="f"><label for="f-rs-min">Restock · minimum value</label><select id="f-rs-min"><option value="0">Any</option><option value="10">$10+</option><option value="25">$25+</option><option value="50">$50+</option><option value="100">$100+</option></select></div>
+        <div class="f"><label for="f-rs-max">Restock · maximum value</label><select id="f-rs-max"><option value="">No ceiling</option><option value="25">up to $25</option><option value="50">up to $50</option><option value="100" selected>up to $100</option><option value="250">up to $250</option><option value="500">up to $500</option></select></div>
+        <div class="f"><label for="f-rs-grade">Restock · minimum grade</label><select id="f-rs-grade"><option value="any">Any</option><option value="8">8+</option><option value="9">9+</option><option value="10">10 only</option></select></div>
       </div>
       <details class="deal"><summary>The deal, in five lines</summary><div class="terms">
         <div><b>Opens at</b><span>2× what is inside — your 50% is worth your items on day one</span></div>
