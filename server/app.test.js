@@ -112,6 +112,33 @@ describe('routes — what the page reads', () => {
     assert.equal((await jj('/v1/vaults/' + VAULT + '/stats')).status, 404);
     s0.close();
   });
+  test('uploads: raw bytes in → 201 with the id; preview served with a fixed type and nosniff; SVG 415; the vault\'s image and banner under /token/; the metadata points at them', async () => {
+    const { createUploads } = require('./uploads');
+    const { getTestDb } = require('./db');
+    const fs = require('fs'), os = require('os'), path = require('path');
+    const uploads = createUploads({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'vault-up-')) });
+    const db = getTestDb();
+    let allowed = true;
+    const appU = buildApp({ vaults: [], readWallet, db, uploads, uploadLimiter: () => allowed, webDir: null });
+    const sU = await new Promise((r) => { const x = appU.listen(0, '127.0.0.1', () => r(x)); });
+    const bU = 'http://127.0.0.1:' + sU.address().port;
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(300, 7)]);
+    const up = await fetch(bU + '/v1/vaults/create/upload', { method: 'POST', headers: { 'content-type': 'image/png' }, body: png });
+    assert.equal(up.status, 201); const u = await up.json(); assert.match(u.uploadId, /\.png$/); assert.equal(u.type, 'image/png'); assert.equal(u.bytes, 308);
+    const pv = await fetch(bU + u.url); assert.equal(pv.status, 200); assert.equal(pv.headers.get('content-type'), 'image/png'); assert.equal(pv.headers.get('x-content-type-options'), 'nosniff'); assert.equal((await pv.arrayBuffer()).byteLength, 308);
+    const svg = await fetch(bU + '/v1/vaults/create/upload', { method: 'POST', headers: { 'content-type': 'image/svg+xml' }, body: '<svg xmlns="http://www.w3.org/2000/svg">' + ' '.repeat(100) + '</svg>' });
+    assert.equal(svg.status, 415);
+    // a lying content-type does not help: the bytes decide
+    const lie = await fetch(bU + '/v1/vaults/create/upload', { method: 'POST', headers: { 'content-type': 'image/png' }, body: Buffer.alloc(200, 0x41) }); assert.equal(lie.status, 415);
+    allowed = false; assert.equal((await fetch(bU + '/v1/vaults/create/upload', { method: 'POST', body: png })).status, 429); allowed = true;
+    assert.equal((await fetch(bU + '/v1/vaults/create/uploads/../../etc/passwd')).status, 404);
+    // a vault row with the image → /token/<mint>.png serves it; banner absent → 404; metadata carries the image
+    db.prepare(`INSERT INTO vaults (id, name, operator, wallet, pool, base_mint, config, graduation_usd, token_name, token_symbol, rules, created_by, created_at, image) VALUES ('t','T','o','W','P','MINT1','C',1,'T','T','custom','x',1,?)`).run(u.uploadId);
+    const im = await fetch(bU + '/token/MINT1.png'); assert.equal(im.status, 200); assert.equal(im.headers.get('content-type'), 'image/png');
+    assert.equal((await fetch(bU + '/token/MINT1-banner.png')).status, 404);
+    const meta = await (await fetch(bU + '/token/MINT1.json')).json(); assert.match(meta.image, /\/token\/MINT1\.png$/); assert.equal(meta.banner, undefined); assert.match(meta.external_url, /#\/vault\/t$/);
+    sU.close();
+  });
   test('GET /v1/vaults/:vault/trades/balances?wallet= — the two balances the panel shows', async () => {
     const b = await j('/v1/vaults/' + VAULT + '/trades/balances?wallet=W1');
     assert.equal(b.status, 200); assert.equal(b.body.usdc, 116.64); assert.equal(b.body.token, 3314184.21); assert.equal(b.body.wallet, 'W1');

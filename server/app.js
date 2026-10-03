@@ -14,7 +14,9 @@
  *   GET  /v1/vaults/create/quote?wallet=                  what a wallet could open a vault on
  *   POST /v1/vaults/create/open | deposited | submit | confirm | abandon   the Create door (custody + launch)
  *   GET  /v1/vaults/create/:creationId
- *   GET  /token/:mint.json                                 token metadata for created vaults
+ *   POST /v1/vaults/create/upload                          coin image / banner (raw bytes, ≤1 MB, png/jpg/webp by magic bytes)
+ *   GET  /v1/vaults/create/uploads/:id                     preview of an upload before launch
+ *   GET  /token/:mint.json · /token/:mint.png · /token/:mint-banner.png   token metadata and images
  *   GET  /v1/vaults/:vault/play                            bands, prices, odds
  *   POST /v1/vaults/:vault/plays · /plays/:id/submit · GET /plays/:id · GET /plays   the Play door
  *
@@ -35,7 +37,8 @@ const { VaultError } = require('./vaultService');
  * Legacy single-vault args (service, stats, admissions, trader, vaultWallet, vaultMeta, signerConfigured, itemsAge) still work.
  */
 function buildApp(deps) {
-  const { readWallet, creator = null, addVault = null, db = null, webDir = path.join(__dirname, '..', 'web') } = deps;
+  const { readWallet, creator = null, addVault = null, db = null, uploads = null, webDir = path.join(__dirname, '..', 'web') } = deps;
+  const uploadLimiter = deps.uploadLimiter || null;   // (ip) => boolean allowed
   const keyringConfigured = deps.keyringConfigured || (() => false);
   const vaults = deps.vaults || (!deps.vaultWallet ? [] : [{
     wallet: deps.vaultWallet, meta: deps.vaultMeta || {}, service: deps.service, stats: deps.stats || null, admissions: deps.admissions || null,
@@ -68,6 +71,22 @@ function buildApp(deps) {
     const { owner, name, symbol, mints, rules, description, links, imageId, bannerId } = req.body || {};
     res.status(201).json({ readAt: new Date().toISOString(), ...(await needCreator().open({ owner, name, symbol, mints, rules, description, links, imageId, bannerId })) });
   }));
+  // images: raw bytes in, typed by content; served with a fixed type and nosniff so a browser never guesses
+  const sendUpload = (res, id) => {
+    const p = uploads && uploads.pathOf(id);
+    if (!p) return res.status(404).json({ error: 'no such image', code: 404 });
+    res.setHeader('Content-Type', uploads.typeOf(id)); res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.sendFile(p);
+  };
+  app.post('/v1/vaults/create/upload', express.raw({ type: () => true, limit: '1100kb' }), wrap(async (req, res) => {
+    if (!uploads) throw new VaultError(503, 'image uploads are not configured');
+    if (uploadLimiter && !uploadLimiter(req.ip)) throw new VaultError(429, 'too many uploads from this address — try again in a while');
+    const r = uploads.store(req.body);
+    res.status(201).json({ readAt: new Date().toISOString(), ...r, url: `/v1/vaults/create/uploads/${r.uploadId}` });
+  }));
+  app.get('/v1/vaults/create/uploads/:id', (req, res) => sendUpload(res, req.params.id));
+  app.get('/token/:mint-banner.png', (req, res, next) => { const r = db ? db.prepare('SELECT banner FROM vaults WHERE base_mint = ?').get(req.params.mint) : null; if (!r || !r.banner) return next(); sendUpload(res, r.banner); });
+  app.get('/token/:mint.png', (req, res, next) => { const r = db ? db.prepare('SELECT image FROM vaults WHERE base_mint = ?').get(req.params.mint) : null; if (!r || !r.image) return next(); sendUpload(res, r.image); });
   app.post('/v1/vaults/create/deposited', wrap(async (req, res) => {
     const { creationId } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().deposited({ creationId })) });
@@ -94,7 +113,8 @@ function buildApp(deps) {
   app.get('/token/:mint.json', (req, res, next) => {
     const r = db ? db.prepare('SELECT * FROM vaults WHERE base_mint = ?').get(req.params.mint) : null;
     if (!r) return next();
-    res.json({ name: r.token_name, symbol: r.token_symbol, description: r.description || `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${req.protocol}://${req.get('host')}/token/${r.image ? r.base_mint + '.png' : 'default.png'}` });
+    const base = `${req.protocol}://${req.get('host')}`;
+    res.json({ name: r.token_name, symbol: r.token_symbol, description: r.description || `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${base}/token/${r.image ? r.base_mint + '.png' : 'default.png'}`, ...(r.banner ? { banner: `${base}/token/${r.base_mint}-banner.png` } : {}), external_url: `${base}/#/vault/${r.id}` });
   });
   app.get('/v1/vaults/:vault/stats', pick, wrap(async (req, res) => {
     const st = need(req.vb.stats, 'stats');

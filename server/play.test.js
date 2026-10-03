@@ -14,7 +14,7 @@ const USDC = Keypair.generate().publicKey.toBase58();
 const MEMO = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const item = (mint, v) => ({ mint, name: 'Card ' + mint, custodianValueUsd: v, imageUrl: null });
 
-function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 100)], supply = 10_000_000, realisable = 154.86, poolLive = true } = {}) {
+function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 100)], supply = 10_000_000, realisable = 154.86, poolLive = true, migrated = true } = {}) {
   const db = getTestDb();
   const delivered = [];
   const chain = {
@@ -24,7 +24,7 @@ function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 
     getParsedTransaction: async (sig) => chain.parsed[sig] || null, parsed: {},
   };
   const play = createPlay({
-    db, chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => items, readStats: async () => ({ backing: { realisableUsd: realisable }, pool: poolLive ? { supply } : null }),
+    db, chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => items, readStats: async () => ({ backing: { realisableUsd: realisable }, poolStatus: poolLive ? (migrated ? 'migrated' : 'live') : 'not launched', pool: poolLive ? { supply, isMigrated: migrated } : null }),
     deliver: async ({ mint, toAddress, onSigned }) => { if (chain.deliverFails) throw new Error('delivery would fail on chain'); onSigned('SIGNED'); delivered.push({ mint, toAddress }); return { sig: 'DELIV' + delivered.length }; },
     usdcMint: USDC, memoProgramId: MEMO, now: () => 1_800_000_000_000,
   });
@@ -47,10 +47,18 @@ describe('play — bands and prices', () => {
     const { play: p3 } = make({ items: [item('a', 10), item('b', 12), item('c', 14)] });
     assert.equal((await p3.bands()).bands[0].kind, 'draw'); assert.ok(Math.abs((await p3.bands()).bands[0].odds - 1 / 3) < 1e-9);
   });
-  test('without a live pool, token plays are closed; USDC plays stay open', async () => {
+  test('without a live pool, token plays are closed; USDC prices are still described; Play is locked', async () => {
     const { play } = make({ poolLive: false });
     const b = await play.bands();
     assert.equal(b.currencies.token, false); assert.equal(b.bands[0].priceTokens, null); assert.equal(b.bands[0].priceUsdc, 25.3);
+    assert.equal(b.open, false); assert.match(b.lockedReason, /launches and graduates/);
+  });
+  test('Play opens at graduation: a live (not migrated) curve describes the machines but refuses to start one', async () => {
+    const { play } = make({ migrated: false });
+    const b = await play.bands();
+    assert.equal(b.open, false); assert.equal(b.lockedReason, 'Play opens when the vault graduates'); assert.equal(b.bands[0].items, 2);
+    await rejects(play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'x' }), 409);
+    assert.equal((await make().play.bands()).open, true);
   });
 });
 
@@ -156,7 +164,7 @@ describe('play — submit → sweep: verify on chain, draw, deliver', () => {
     let t = 1_800_000_000_000;
     const db = getTestDb();
     const chain = { getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(), simulateTransaction: async () => ({ err: null }), getSignatureStatuses: async () => [null], getParsedTransaction: async () => null };
-    const play = createPlay({ db, chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => [item('a', 20)], readStats: async () => ({ backing: { realisableUsd: 17.8 }, pool: { supply: 10_000_000 } }), deliver: async () => ({ sig: 'x' }), usdcMint: USDC, memoProgramId: MEMO, now: () => t });
+    const play = createPlay({ db, chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => [item('a', 20)], readStats: async () => ({ backing: { realisableUsd: 17.8 }, poolStatus: 'migrated', pool: { supply: 10_000_000, isMigrated: true } }), deliver: async () => ({ sig: 'x' }), usdcMint: USDC, memoProgramId: MEMO, now: () => t });
     const s1 = await play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'a' });
     t += PLAY.payTtlMs + 1;
     assert.equal((await play.sweep()).expired, 1); assert.equal(play.get(s1.playId).status, 'expired');

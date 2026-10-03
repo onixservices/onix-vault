@@ -13,6 +13,9 @@
  * Prices (decided 2 Oct 2026): USDC = band average × 1.15. Token = band average × 1.10 ÷ (realisable
  * backing ÷ supply) — in SHARE OF BACKING, never at the market price, so a pump buys nothing cheaper.
  * A USDC play leaves the money in custody (the treasury buys the next item); a token play burns supply.
+ *
+ * Play opens at GRADUATION (3 Oct 2026): while the curve is still filling, nothing leaves custody — the
+ * backing only grows. `bands()` still describes the machines (the page shows them locked); `start()` refuses.
  */
 'use strict';
 const crypto = require('crypto');
@@ -32,7 +35,8 @@ const PLAY = Object.freeze({
   bands: Object.freeze([{ id: 'b1', label: 'under $25', min: 0, max: 25 }, { id: 'b2', label: '$25 – $60', min: 25, max: 60 }, { id: 'b3', label: '$60 – $150', min: 60, max: 150 }, { id: 'b4', label: '$150 and up', min: 150, max: Infinity }]),
 });
 
-function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readItems, readStats, deliver, isMintBusy = () => false, usdcMint, memoProgramId, now = Date.now, limits = PLAY }) {
+function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readItems, readStats, deliver, isMintBusy = () => false, usdcMint, memoProgramId, now = Date.now, limits = PLAY, requireGraduated = true }) {
+  const graduated = (st) => Boolean(st && st.pool && (st.poolStatus === 'migrated' || st.pool.isMigrated));
   const bandOf = (v) => limits.bands.find((b) => v >= b.min && v < b.max) || limits.bands[limits.bands.length - 1];
 
   /** Items in custody that are free (not reserved for a gacha, not drawn by another play). */
@@ -45,8 +49,10 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
   async function bands() {
     const [items, st] = await Promise.all([freeItems(), readStats()]);
     const navPerToken = st.pool && st.pool.supply ? st.backing.realisableUsd / st.pool.supply : null;
+    const open = !requireGraduated || graduated(st);
     return {
-      readAt: now(), currencies: { usdc: true, token: Boolean(baseMint && navPerToken) }, tokenSymbol: null,
+      readAt: now(), open, lockedReason: open ? null : (st.pool ? 'Play opens when the vault graduates' : 'Play opens when the token launches and graduates'),
+      currencies: { usdc: true, token: Boolean(baseMint && navPerToken) }, tokenSymbol: null,
       bands: limits.bands.map((b) => {
         const inBand = items.filter((it) => bandOf(it.custodianValueUsd).id === b.id);
         const avg = inBand.length ? inBand.reduce((s, it) => s + it.custodianValueUsd, 0) / inBand.length : 0;
@@ -69,7 +75,9 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
     const t = now();
     if (db.prepare("SELECT count(*) n FROM vault_plays WHERE vault = ? AND player = ? AND status = 'created' AND expires_at > ?").get(vaultWallet, player, t).n >= limits.unpaidPerWallet) throw err(409, 'you have a play waiting for payment — pay it or let it expire');
     if (db.prepare('SELECT count(*) n FROM vault_plays WHERE vault = ? AND player = ? AND created_at > ?').get(vaultWallet, player, t - 3_600_000).n >= limits.perWalletPerHour) throw err(429, `up to ${limits.perWalletPerHour} plays an hour per wallet`);
-    const b = (await bands()).bands.find((x) => x.id === band);
+    const all = await bands();
+    if (!all.open) throw err(409, all.lockedReason);
+    const b = all.bands.find((x) => x.id === band);
     if (!b || !b.items) throw err(404, 'that band has nothing to draw from');
     if (currency === 'token' && !b.priceTokens) throw err(409, 'token plays open once the token trades');
     const items = (await freeItems()).filter((it) => bandOf(it.custodianValueUsd).id === band);

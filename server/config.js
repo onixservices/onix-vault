@@ -15,6 +15,7 @@ module.exports = Object.freeze({
   PORT: parseInt(env('PORT', '3004'), 10),
   RPC_URL: env('ONIX_VAULT_RPC_URL') || env('SOLANA_RPC_URL'),  // needs DAS (Helius or equivalent)
   DB_PATH: env('ONIX_VAULT_DB_PATH', path.join(__dirname, '..', 'data', 'vault.db')),
+  UPLOADS_DIR: env('ONIX_VAULT_UPLOADS_DIR', path.join(__dirname, '..', 'data', 'uploads')),
 
   VAULT_WALLET: env('VAULT_WALLET'),                 // public key; the reader lists this wallet
   // the only secret (env VAULT_SECRET_KEY); the property is named so the pre-commit hook's

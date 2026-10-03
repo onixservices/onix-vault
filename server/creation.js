@@ -76,7 +76,7 @@ function instructionsOf(tx) {
   return JSON.stringify({ feePayer: tx.feePayer?.toBase58(), ixs: tx.instructions.filter((ix) => !WALLET_WRAPPER_PROGRAMS.has(ix.programId.toBase58())).map((ix) => ({ p: ix.programId.toBase58(), k: ix.keys.map((k) => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), d: Buffer.from(ix.data).toString('base64') })) });
 }
 
-function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quoteMint, fetchAssets, buildTransfer, rpcUrl = null, metadataBase, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [], reservedIndexes = () => [], gasSol = LIMITS.gasSol, limits = LIMITS, retryMs = 2000 }) {
+function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quoteMint, fetchAssets, buildTransfer, rpcUrl = null, metadataBase, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [], reservedIndexes = () => [], gasSol = LIMITS.gasSol, limits = LIMITS, retryMs = 2000, uploads = null }) {
   const pending = new Map(); // creationId → { baseMintKp, baseMint, pool, content } (the mint key lives only here, only until submit)
 
   // ── reading ──
@@ -93,7 +93,14 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   }
   const backingOfMints = (items, mints) => { const picked = items.filter((it) => mints.includes(it.mint)); const indexUsd = picked.reduce((s, it) => s + it.custodianValueUsd, 0); return { items: picked, indexUsd, realisableUsd: r2(indexUsd * haircut) }; };
 
-  function checkInputs({ owner, name, symbol, mints, description, links }) {
+  // an upload id is accepted only if that file is here (uploads are content-addressed; see server/uploads.js)
+  function checkUpload(id, what) {
+    if (id == null || id === '') return null;
+    if (!uploads) throw err(503, 'image uploads are not configured');
+    if (!uploads.valid(id) || !uploads.pathOf(id)) throw err(422, `${what}: unknown upload — upload the image first`);
+    return id;
+  }
+  function checkInputs({ owner, name, symbol, mints, description, links, imageId, bannerId }) {
     try { new PublicKey(owner); } catch { throw err(400, 'owner must be a wallet address'); }
     if (typeof name !== 'string' || !name.trim() || name.trim().length > limits.nameMax) throw err(400, `name: 1–${limits.nameMax} characters`);
     if (typeof symbol !== 'string' || !/^[A-Z0-9]{2,10}$/.test(symbol)) throw err(400, `symbol: 2–${limits.symbolMax} characters, A–Z and digits`);
@@ -104,7 +111,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     if (description != null && (typeof description !== 'string' || description.length > limits.descriptionMax)) throw err(400, `description: up to ${limits.descriptionMax} characters`);
     const lk = {};
     if (links && typeof links === 'object') for (const k of ['x', 'site']) if (links[k]) { const u = String(links[k]); if (!/^https:\/\/[^\s]{3,200}$/.test(u)) throw err(400, `links.${k}: an https URL`); lk[k] = u; }
-    return { owner, name: name.trim(), symbol, mints: [...new Set(mints)], description: description ? String(description).trim() : null, links: lk };
+    return { owner, name: name.trim(), symbol, mints: [...new Set(mints)], description: description ? String(description).trim() : null, links: lk, image: checkUpload(imageId, 'imageId'), banner: checkUpload(bannerId, 'bannerId') };
   }
 
   async function quote({ owner, rules: rulesIn }) {
@@ -151,7 +158,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   }
 
   async function open(input) {
-    const { owner, name, symbol, mints, description, links } = checkInputs(input);
+    const { owner, name, symbol, mints, description, links, image, banner } = checkInputs(input);
     const rules = validateRules(input.rules || {});
     const t = now();
     if (db.prepare("SELECT id FROM vault_creations WHERE owner = ? AND status IN ('opened','deposited') AND expires_at > ?").get(owner, t)) throw err(409, 'this wallet already has a vault being created — finish or abandon it first');
@@ -165,9 +172,9 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     const custody = keyring.custodySigner(index).publicKey();
     const depositTransactions = await packTransfers({ owner, custody, mints, withGas: gasSol > 0 });
     const id = crypto.randomUUID();
-    db.prepare(`INSERT INTO vault_creations (id, owner, custody_index, custody_wallet, name, symbol, mints_json, rules_json, description, links_json, status, created_at, updated_at, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'opened', ?, ?, ?)`)
-      .run(id, owner, index, custody, name, symbol, JSON.stringify(mints), JSON.stringify(rules), description, JSON.stringify(links), t, t, t + limits.creationTtlMs);
+    db.prepare(`INSERT INTO vault_creations (id, owner, custody_index, custody_wallet, name, symbol, mints_json, rules_json, description, links_json, image, banner, status, created_at, updated_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'opened', ?, ?, ?)`)
+      .run(id, owner, index, custody, name, symbol, JSON.stringify(mints), JSON.stringify(rules), description, JSON.stringify(links), image, banner, t, t, t + limits.creationTtlMs);
     return { creationId: id, custodyWallet: custody, depositTransactions, gasSol, items: b.items.length, backing: { indexUsd: b.indexUsd, realisableUsd: b.realisableUsd }, expiresAt: t + limits.creationTtlMs };
   }
 
@@ -252,9 +259,9 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     const acct = await chain.getAccountInfoBase64(c.pool);
     if (!acct) throw err(409, 'the pool is not on chain yet — try again in a few seconds');
     const t = now(), rules = JSON.parse(c.rules_json), vaultId = c.symbol.toLowerCase();
-    db.prepare(`INSERT INTO vaults (id, name, operator, wallet, creator, custody_index, pool, base_mint, config, graduation_usd, grad_mult, creator_fee_pct, token_name, token_symbol, rules, rules_json, description, links_json, created_by, created_at, launch_sig)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, ?, ?)`)
-      .run(vaultId, c.name, c.owner.slice(0, 4) + '…' + c.owner.slice(-4), c.custody_wallet, c.owner, c.custody_index, c.pool, c.base_mint, c.config, c.graduation_usd, rules.gradMult, rules.creatorFeePct, c.name, c.symbol, c.rules_json, c.description, c.links_json, c.owner, t, signature || c.launch_sig || null);
+    db.prepare(`INSERT INTO vaults (id, name, operator, wallet, creator, custody_index, pool, base_mint, config, graduation_usd, grad_mult, creator_fee_pct, token_name, token_symbol, rules, rules_json, description, links_json, image, banner, created_by, created_at, launch_sig)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(vaultId, c.name, c.owner.slice(0, 4) + '…' + c.owner.slice(-4), c.custody_wallet, c.owner, c.custody_index, c.pool, c.base_mint, c.config, c.graduation_usd, rules.gradMult, rules.creatorFeePct, c.name, c.symbol, c.rules_json, c.description, c.links_json, c.image || null, c.banner || null, c.owner, t, signature || c.launch_sig || null);
     const ins = db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)');
     for (const m of JSON.parse(c.mints_json)) ins.run(c.custody_wallet, m, 'creation', t);
     db.prepare("UPDATE vault_creations SET status = 'launched', updated_at = ? WHERE id = ?").run(t, c.id);

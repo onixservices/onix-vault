@@ -21,10 +21,13 @@ const { createItemsReader } = require('./items');
 const { createStatsReader } = require('./stats');
 const { createWalletReader } = require('./wallet');
 const { createCurveTrader, productionCurveDeps } = require('./curve');
+const { createDammTrader, createRoutedTrader, productionDammDeps } = require('./damm');
 const { createAdmissions, VAULT_RULES } = require('./admissions');
 const { describeRules } = require('./rules');
 const { createVaultCreator } = require('./creation');
 const { createPlay } = require('./play');
+const { createUploads } = require('./uploads');
+const { createRateLimiter } = require('./ratelimit');
 const reservationsRepo = require('./reservationsRepo');
 const keyring = require('./keyring');
 const { normalize } = require('./registry');
@@ -103,7 +106,14 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     return { address: address.toBase58(), priceUsd: Number(getPriceFromSqrtPrice(st.sqrtPrice, C.BASE_DECIMALS, C.QUOTE_DECIMALS).toString()) };
   };
   const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig, readDamm });
-  const trader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
+  // one Buy door for the token's whole life: the curve while live, the graduated DAMM v2 pool once migrated
+  const curveTrader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
+  const dammDeps = productionDammDeps({ rpcUrl: C.RPC_URL, chain });
+  const trader = def.pool ? createRoutedTrader({
+    curve: curveTrader,
+    makeDamm: (pool) => createDammTrader({ pool, baseMint: def.baseMint, quoteMint: C.USDC_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, ...dammDeps }),
+    whereToTrade: async () => { const st = await stats.read(); const p = st.pool; return p && p.isMigrated ? { venue: 'pool', pool: p.damm ? p.damm.address : null } : { venue: 'curve', pool: null }; },
+  }) : null;
   // only the creator adds items (2 Oct 2026); a file-registry vault names its creator, else nobody can
   const admissions = createAdmissions({ db, chain, vaultWallet, creator: def.creator || null, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
     onAdmitted: def.manifest ? (mint) => db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)').run(vaultWallet, mint, 'admission', Date.now()) : null });
@@ -129,21 +139,23 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
   const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
   // the Create door: Onix (the operator key) is the curve's partner — it pays for the config and claims the fee
   const partner = signer || defaultSigner;
+  const uploads = createUploads({ dir: C.UPLOADS_DIR });
+  const uploadLimiter = createRateLimiter({ capacity: 20, perMs: 3_600_000 });
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
   const transferForCreation = createTransferBuilder(productionDeps(chain));
   const creator = creatorOverride || createVaultCreator({ db, chain, sdk: require('@meteora-ag/dynamic-bonding-curve-sdk'), getClient: curveDeps.getClient, partner, keyring, quoteMint: C.USDC_MINT,
     fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transferForCreation.buildTransferTx(a), rpcUrl: C.RPC_URL, metadataBase: C.PUBLIC_URL, haircut: C.HAIRCUT,
-    existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null) });
+    existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null), uploads });
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
-  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, keyringConfigured: keyring.configured });
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), keyringConfigured: keyring.configured });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
-  return { app, db, vaults: bundles, addVault, creator, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
+  return { app, db, vaults: bundles, addVault, creator, uploads, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
 }
 
 function main() {
-  const { app, vaults, creator } = createServer();
+  const { app, vaults, creator, uploads, db } = createServer();
   app.listen(C.PORT, '127.0.0.1', () => {
     for (const v of vaults) console.log(`[vault] ${v.meta.name} (${v.meta.id}) · ${v.wallet} · pool ${v.def.pool || '—'} · signer ${v.signerConfigured() ? 'configured' : 'NOT configured (list only)'}`);
     console.log(`[vault] Onix.Vault server on 127.0.0.1:${C.PORT} · ${vaults.length} vault(s)`);
@@ -151,6 +163,8 @@ function main() {
   setInterval(() => { for (const v of vaults) { try { v.service.sweepExpired(); } catch (e) { console.warn(`[vault ${v.meta.id}] sweep failed`, e.message); } } }, 60_000).unref();
   setInterval(() => { for (const v of vaults) if (v.play) v.play.sweep().then((r) => { if (r.delivered || r.failed) console.log(`[vault ${v.meta.id}] plays: ${r.verified} verified · ${r.delivered} delivered · ${r.failed} failed`); }).catch((e) => console.warn(`[vault ${v.meta.id}] play sweep failed`, e.message)); }, 10_000).unref();
   setInterval(() => { creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
+  // images nobody attached to a vault or a live creation within an hour are removed
+  setInterval(() => { try { const keep = [...db.prepare('SELECT image, banner FROM vaults').all(), ...db.prepare("SELECT image, banner FROM vault_creations WHERE status IN ('opened','deposited')").all()].flatMap((r) => [r.image, r.banner]).filter(Boolean); const r = uploads.sweep({ keep }); if (r.removed) console.log(`[uploads] ${r.removed} orphan image(s) removed`); } catch (e) { console.warn('[uploads] sweep failed', e.message); } }, 15 * 60_000).unref();
   setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }
 

@@ -45,7 +45,7 @@ describe('creator + mint assertion', () => {
 });
 
 /** A world: the creator's wallet holds cards; "the chain" moves them when a deposit tx is "sent". */
-function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lamports = null } = {}) {
+function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lamports = null, uploads = null } = {}) {
   const db = getTestDb();
   const sent = [], calls = [];
   const world = { assets: assets.map((a) => ({ ...a })), sol: {} };
@@ -81,7 +81,7 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
   };
   const kr = { custodySigner: (i) => keyring.custodySigner(i, SEED) };
   const creator = createVaultCreator({ db, chain, sdk, getClient: async () => client, partner: fromKeypair(partnerKp), keyring: kr, quoteMint: Keypair.generate().publicKey.toBase58(),
-    fetchAssets: async (rpc, owner) => world.assets.filter((a) => a.ownership.owner === owner), buildTransfer, metadataBase: 'https://v.test', now: () => 1_800_000_000_000, retryMs: 1, existingSymbols: () => ['VEONIX', 'TAKEN'], reservedIndexes: () => [0] });
+    fetchAssets: async (rpc, owner) => world.assets.filter((a) => a.ownership.owner === owner), buildTransfer, metadataBase: 'https://v.test', now: () => 1_800_000_000_000, retryMs: 1, existingSymbols: () => ['VEONIX', 'TAKEN'], reservedIndexes: () => [0], uploads });
   // the creator "signs and sends" the deposit txs in the world
   const deposit = async (txs) => { for (const b64 of txs) { const tx = Transaction.from(Buffer.from(b64, 'base64')); tx.partialSign(ownerKp); await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64')); } };
   return { creator, db, chain, sent, calls, world, deposit, configReads: () => configReads };
@@ -215,6 +215,26 @@ describe('Create door — submit and confirm', () => {
     assert.equal(w.db.prepare('SELECT status FROM vault_creations WHERE id = ?').get(o.creationId).status, 'launched');
     const again = await w.creator.confirm({ creationId: o.creationId });
     assert.equal(again.id, 'myc', 'confirm is idempotent');
+  });
+  test('the coin image and the banner: unknown upload → 422; without an uploads store → 503; a stored one travels open → confirm and lands on the vault row as /token/<mint>.png', async () => {
+    const { createUploads } = require('./uploads');
+    const fs = require('fs'), os = require('os'), path = require('path');
+    const uploads = createUploads({ dir: fs.mkdtempSync(path.join(os.tmpdir(), 'vault-up-')) });
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(100, 9)]);
+    const { uploadId } = uploads.store(png);
+    await rejects(make().creator.open({ owner: OWNER, name: 'X', symbol: 'IMGA', mints: ['a'], imageId: uploadId }), 503);
+    const w = make({ uploads });
+    await rejects(w.creator.open({ owner: OWNER, name: 'X', symbol: 'IMGB', mints: ['a'], imageId: 'f'.repeat(64) + '.png' }), 422);
+    await rejects(w.creator.open({ owner: OWNER, name: 'X', symbol: 'IMGB', mints: ['a'], bannerId: '../x.png' }), 422);
+    const o = await w.creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a', 'b'], rules: { gradMult: 3, creatorFeePct: 50 }, imageId: uploadId, bannerId: uploadId, description: 'ten slabs' });
+    assert.equal(w.db.prepare('SELECT image, banner FROM vault_creations WHERE id = ?').get(o.creationId).image, uploadId);
+    await w.deposit(o.depositTransactions);
+    const d = await w.creator.deposited({ creationId: o.creationId });
+    const built = Transaction.from(Buffer.from(d.transaction, 'base64')); built.partialSign(ownerKp);
+    const r = await w.creator.submit({ creationId: o.creationId, signedTransaction: built.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') });
+    const def = await w.creator.confirm({ creationId: o.creationId, signature: r.signature });
+    assert.equal(def.token.image, '/token/' + d.baseMint + '.png'); assert.equal(def.token.banner, '/token/' + d.baseMint + '-banner.png'); assert.equal(def.description, 'ten slabs');
+    assert.deepEqual(w.db.prepare('SELECT image, banner FROM vaults WHERE id = ?').get('myc'), { image: uploadId, banner: uploadId });
   });
   test('a different message, or one the creator did not sign, is refused; the pool not on chain yet → 409', async () => {
     const w = make({ poolOnChain: false }); const { o, d } = await launch(w);
