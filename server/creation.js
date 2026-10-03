@@ -35,7 +35,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const LIMITS = Object.freeze({
   nameMax: 32, symbolMax: 10, descriptionMax: 200, minItems: 1, minBackingUsd: 5,
-  gasSol: 0.02,                 // what the creator sends the custody wallet for its future transactions (deliveries, fee claims)
+  // what the creator sends the custody wallet for its future transactions (deliveries, fee claims, the treasury's purchases).
+  // 0.05, not 0.02 (3 Oct 2026): Collector Crypt hands a buyer with less than ~0.05 SOL a sponsored, two-signer purchase the
+  // treasury refuses — a vault born with 0.02 could never buy its next item.
+  gasSol: 0.05,
   txMaxBytes: 1232,
   creationTtlMs: 2 * 60 * 60 * 1000,
   maxOpenPerHour: 10,           // global: every launch costs Onix the config rent

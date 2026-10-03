@@ -111,7 +111,8 @@ node scripts/create-vault.js … --go                                           
 1. **quote** — what the creator wallet holds that the rules take; the curve it implies (opens at 2×
    realisable, graduates at the multiple). The USDC-to-graduate number is printed here. Say it out loud.
 2. **open** — the custody wallet is derived (next free index) and the deposit transactions are built:
-   items + 0.02 SOL gas → custody, one wallet prompt per transaction. Nothing of Onix is spent.
+   items + 0.05 SOL gas → custody (deliveries, fee claims and the treasury's purchases; Collector Crypt wants ≥ ~0.05 SOL in a
+   buyer's wallet), one wallet prompt per transaction. Nothing of Onix is spent.
 3. **deposited** — only when the chain shows every item and the gas in custody does Onix create the
    config (**simulated first**; `feeClaimer` = `leftoverReceiver` = custody), read it back until the RPC
    has it, and build the launch (`createPool`, unsigned).
