@@ -361,9 +361,9 @@
         <div class="f"><label for="f-x">X profile (optional)</label><input id="f-x" value="" placeholder="https://x.com/you"></div>
         <div class="f wide"><label for="f-desc">Description <span class="faint">(shows in Phantom, Jupiter, Meteora · up to 200 characters)</span></label><textarea id="f-desc" maxlength="200" rows="2" placeholder="what this collection is, in your words"></textarea></div>
         <div class="f"><label>Coin image <span class="faint">(the face of the token everywhere)</span></label>
-          <label class="upload" id="up-image"><span class="pv" id="pv-image">$</span><span><b>Drop a PNG, JPG or WebP</b><small>square · up to 1 MB · <span id="up-image-msg">optional</span></small></span><input type="file" id="f-image" accept="image/png,image/jpeg,image/webp" hidden></label></div>
+          <label class="upload" id="up-image"><span class="pv" id="pv-image">$</span><span><b>Pick a PNG, JPG or WebP</b><small>cropped to a square here · <span id="up-image-msg">optional</span></small></span><input type="file" id="f-image" accept="image/png,image/jpeg,image/webp" hidden></label></div>
         <div class="f"><label>Banner <span class="faint">(top of your vault page and the board tile)</span></label>
-          <label class="upload" id="up-banner"><span class="pv wide" id="pv-banner"></span><span><b>Optional · about 3:1</b><small>PNG, JPG or WebP · up to 1 MB · <span id="up-banner-msg">optional</span></small></span><input type="file" id="f-banner" accept="image/png,image/jpeg,image/webp" hidden></label></div>
+          <label class="upload" id="up-banner"><span class="pv wide" id="pv-banner"></span><span><b>Pick a PNG, JPG or WebP</b><small>cropped to 3:1 here · <span id="up-banner-msg">optional</span></small></span><input type="file" id="f-banner" accept="image/png,image/jpeg,image/webp" hidden></label></div>
       </div>
       <p class="eyebrow" style="margin-top:6px">Rules — what this vault takes and how it pays you</p>
       <div class="form">
@@ -373,13 +373,13 @@
         <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40% (3.2% of every trade)</option><option value="50">50%</option></select></div>
         <div class="f"><label for="f-grad">Opens to the whole market at</label><select id="f-grad"><option value="2">2× the opening cap</option><option value="2.5" selected>2.5× the opening cap</option><option value="3">3× the opening cap</option></select></div>
       </div>
-      <div class="terms">
+      <details class="deal"><summary>The deal, in five lines</summary><div class="terms">
         <div><b>Opens at</b><span>2× what is inside — your 50% is worth your items on day one</span></div>
         <div><b>Token split</b><span>50% you · 50% on the curve. Yours is released when trading opens to everyone, then over 6 months</span></div>
         <div><b>Fee on every trade</b><span>10%: your share goes to your wallet on chain from the first trade; the vault keeps the rest to buy the next item; the first 60 s charge 99% → 10% so bots cannot front-run you</span></div>
         <div><b>At graduation</b><span>30% of the USDC raised goes into the vault to buy more items</span></div>
         <div><b>Custody</b><span>your items move to a wallet created for this vault; only the vault's doors can move them out. You can take them back any time before launch</span></div>
-      </div>
+      </div></details>
       <p class="faint" id="c2-msg" style="font-size:12.5px;min-height:16px"></p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Next: review</button><button class="cta ghost" id="back1">Back</button></div>
     </div>

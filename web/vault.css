@@ -432,3 +432,5 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .f label .faint{color:var(--text-faint); font-weight:500; text-transform:none; letter-spacing:0; font-family:var(--font)}
 #s-create .eyebrow{color:var(--brand)} #s-create .hd .eyebrow{color:var(--text-faint)}
 .terms b{color:var(--brand)}
+
+.deal{border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface)} .deal summary{cursor:pointer; padding:11px 14px; font-weight:600; font-size:13.5px; color:var(--brand)} .deal[open] summary{border-bottom:1px solid var(--border)} .deal .terms{border:0; border-radius:0}

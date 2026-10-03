@@ -70,7 +70,7 @@
     });
   }
   // ── vault page: the vault's own mini-site (hero · stats · tabs) ──
-  var ITEM_FILTER = 'all';
+  var ITEM_FILTER = 'all', EXPLAIN_LONG = false;   // the long explainer boxes live in How it works; the Trade tab keeps one line
   function mine() { return !!(W.addr && META.creator && W.addr === META.creator); }
   function renderVault() {
     var tk = META.token || {};
@@ -151,6 +151,14 @@
   $('item-filters').addEventListener('click', function (e) { var b = e.target.closest('button[data-f]'); if (!b) return; ITEM_FILTER = b.dataset.f; if (ITEMS) renderItems(ITEMS); });
   function renderExplain(st) {
     var p = st.pool, live = p && st.poolStatus === 'migrated', b = st.backing, fee = META.creatorFeePct || 40;
+    if (!EXPLAIN_LONG) {
+      var lk0 = p && p.locked;
+      $('t-explain').innerHTML = '<div class="box"><p>One token = one of ' + (p ? p.supply.toLocaleString('en-US') : '10,000,000') + ' shares of what is in custody (<b>' + usd(b.realisableUsd) + '</b> today). '
+        + (live ? 'Trades go to this vault\'s Meteora pool; ' + (lk0 ? Math.round((lk0.creatorPct != null ? p.supply * lk0.creatorPct / 100 : lk0.tokens) / 1e6 * 100) / 100 + 'M are the creator\'s, in <a href="' + esc(lk0.locker ? lk0.locker.url : 'https://lock.jup.ag') + '" target="_blank" rel="noopener">Jupiter Lock</a>. ' : '')
+                : 'On the curve the 10% fee pays the creator (' + (fee * 0.08).toFixed(1) + '%) and this vault\'s treasury; at graduation 30% of the USDC goes to the vault and Play opens. ')
+        + '<a href="#/how">How it works →</a></p></div>';
+      return;
+    }
     var boxes = ['<div class="box"><h3>What a token is</h3><p>One of ' + (p ? p.supply.toLocaleString('en-US') : '10,000,000') + ' shares of what sits in the custody wallet. Backing today: <b>' + usd(b.realisableUsd) + '</b> = ' + usd(b.indexUsd) + ' insured × ' + b.multiplier + ' realisable. Market cap is price × supply and is shown separately. They are never added.</p></div>'];
     if (live) {
       var lk = p.locked;
@@ -497,16 +505,38 @@
       .then(function () { CR.busy = false; $('c-launch').disabled = false; });
   }
   var UP = { image: null, banner: null };
+  // the picture is cropped and resized in the browser before it goes up: the coin to a 512 square, the banner
+  // to 3:1 at 1200×400 — whatever the file was (a 6 MB photo included), what leaves is small and the right shape
+  var SHAPES = { image: { w: 512, h: 512 }, banner: { w: 1200, h: 400 } };
+  function fitImage(file, shape) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var sw = img.naturalWidth, sh = img.naturalHeight, target = shape.w / shape.h, cw = sw, ch = sh;
+        if (sw / sh > target) cw = Math.round(sh * target); else ch = Math.round(sw / target);   // centre crop to the shape
+        var c = document.createElement('canvas'); c.width = Math.min(shape.w, cw); c.height = Math.round(c.width / target);
+        c.getContext('2d').drawImage(img, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, c.width, c.height);
+        var png = file.type === 'image/png' && file.size < 400 * 1024;   // keep small PNGs (transparency); photos become JPEG
+        c.toBlob(function (blob) { blob ? resolve(blob) : reject(new Error('could not read that image')); }, png ? 'image/png' : 'image/jpeg', 0.9);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('that file is not an image the browser can read')); };
+      img.src = url;
+    });
+  }
   function wireUpload(kind) {
     $('f-' + kind).addEventListener('change', function () {
       var f = this.files && this.files[0]; if (!f) return;
-      var msg = $('up-' + kind + '-msg'), pv = $('pv-' + kind);
-      if (f.size > 1024 * 1024) { msg.textContent = 'that file is ' + Math.round(f.size / 1024) + ' KB — up to 1024 KB'; return; }
-      msg.textContent = 'uploading…';
-      f.arrayBuffer().then(function (buf) { return fetch('/v1/vaults/create/upload', { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream' }, body: buf }); })
+      var msg = $('up-' + kind + '-msg'), pv = $('pv-' + kind), input = this;
+      // a new pick replaces the old one entirely: id and preview go first, so a failure never keeps the previous image
+      UP[kind] = null; pv.style.backgroundImage = ''; pv.textContent = kind === 'image' ? '$' : '';
+      msg.textContent = 'fitting ' + (kind === 'image' ? 'to a square' : 'to 3:1') + '…';
+      fitImage(f, SHAPES[kind])
+        .then(function (blob) { msg.textContent = 'uploading ' + Math.round(blob.size / 1024) + ' KB…'; return blob.arrayBuffer().then(function (buf) { return fetch('/v1/vaults/create/upload', { method: 'POST', headers: { 'content-type': blob.type }, body: buf }); }); })
         .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; }); })
-        .then(function (b) { UP[kind] = b.uploadId; msg.textContent = Math.round(b.bytes / 1024) + ' KB · ' + b.type.replace('image/', ''); pv.style.backgroundImage = 'url(' + b.url + ')'; pv.textContent = ''; })
-        .catch(function (e) { UP[kind] = null; msg.textContent = e.message; });
+        .then(function (b) { UP[kind] = b.uploadId; msg.textContent = Math.round(b.bytes / 1024) + ' KB · ' + b.type.replace('image/', '') + ' · ' + SHAPES[kind].w + '×' + SHAPES[kind].h; pv.style.backgroundImage = 'url(' + b.url + ')'; pv.textContent = ''; })
+        .catch(function (e) { UP[kind] = null; msg.textContent = e.message; })
+        .then(function () { input.value = ''; });   // so picking the same file again fires `change`
     });
   }
   wireUpload('image'); wireUpload('banner');
