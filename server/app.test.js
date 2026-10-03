@@ -136,7 +136,7 @@ describe('routes — what the page reads', () => {
     db.prepare(`INSERT INTO vaults (id, name, operator, wallet, pool, base_mint, config, graduation_usd, token_name, token_symbol, rules, created_by, created_at, image) VALUES ('t','T','o','W','P','MINT1','C',1,'T','T','custom','x',1,?)`).run(u.uploadId);
     const im = await fetch(bU + '/token/MINT1.png'); assert.equal(im.status, 200); assert.equal(im.headers.get('content-type'), 'image/png');
     assert.equal((await fetch(bU + '/token/MINT1-banner.png')).status, 404);
-    const meta = await (await fetch(bU + '/token/MINT1.json')).json(); assert.match(meta.image, /\/token\/MINT1\.png$/); assert.equal(meta.banner, undefined); assert.match(meta.external_url, /#\/vault\/t$/);
+    const meta = await (await fetch(bU + '/token/MINT1.json')).json(); assert.match(meta.image, /\/token\/MINT1\.png$/); assert.equal(meta.banner, undefined); assert.match(meta.external_url, /#\/vault\/t$/); assert.equal(meta.extensions.website, meta.external_url); assert.equal(meta.twitter, undefined);
     sU.close();
   });
   test('fences: a limiter that denies turns the costly routes into 429 and leaves reads alone', async () => {

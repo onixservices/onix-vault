@@ -120,7 +120,11 @@ function buildApp(deps) {
     const r = db ? db.prepare('SELECT * FROM vaults WHERE base_mint = ?').get(req.params.mint) : null;
     if (!r) return next();
     const base = `${req.protocol}://${req.get('host')}`;
-    res.json({ name: r.token_name, symbol: r.token_symbol, description: r.description || `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${base}/token/${r.image ? r.base_mint + '.png' : 'default.png'}`, ...(r.banner ? { banner: `${base}/token/${r.base_mint}-banner.png` } : {}), external_url: `${base}/#/vault/${r.id}` });
+    // socials the scanners read (Meteora, RugCheck, Jupiter): the creator's X and the vault page as the website
+    let links = {}; try { links = r.links_json ? JSON.parse(r.links_json) : {}; } catch { links = {}; }
+    const website = links.site || `${base}/#/vault/${r.id}`;
+    const ext = { website, ...(links.x ? { twitter: links.x } : {}) };
+    res.json({ name: r.token_name, symbol: r.token_symbol, description: r.description || `${r.name} — a vault on Onix.Vault. One token per vault; backed by items a custodian holds.`, image: `${base}/token/${r.image ? r.base_mint + '.png' : 'default.png'}`, ...(r.banner ? { banner: `${base}/token/${r.base_mint}-banner.png` } : {}), external_url: website, ...ext, extensions: ext, properties: { category: 'image', files: [{ uri: `${base}/token/${r.image ? r.base_mint + '.png' : 'default.png'}`, type: 'image/png' }] } });
   });
   app.get('/v1/vaults/:vault/stats', pick, wrap(async (req, res) => {
     const st = need(req.vb.stats, 'stats');
