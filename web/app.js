@@ -11,13 +11,14 @@
   var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var get = function (path) { return fetch(path).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; }); }); };
 
-  var VAULTS = [], VAULT = null, META = null, STATS = null, ITEMS = null, ITEMS_AT = 0;
+  var VAULTS = [], VAULT = null, META = null, STATS = null, ITEMS = null, ITEMS_AT = 0, SWAP_URL = 'https://onix.finance';
+  var getUsdc = function () { return '<a href="' + esc(SWAP_URL) + '" target="_blank" rel="noopener">get USDC on onix.finance \u2197</a>'; };
   var SYM = function () { return '$' + ((META && META.token && META.token.symbol) || 'VEONIX'); };
   var vpath = function (suffix) { return '#/vault/' + (META && META.id ? META.id : '1') + (suffix || ''); };
 
   // ── data ──
   function loadVaults() {
-    return get('/v1/vaults').then(function (b) { VAULTS = b.vaults; if (!META && VAULTS.length) selectVault(VAULTS[0].id); return VAULTS; });
+    return get('/v1/vaults').then(function (b) { VAULTS = b.vaults; if (b.swapUrl) SWAP_URL = b.swapUrl; if (!META && VAULTS.length) selectVault(VAULTS[0].id); return VAULTS; });
   }
   function selectVault(id) {
     var v = VAULTS.filter(function (x) { return String(x.id) === String(id) || x.vault === id; })[0] || VAULTS[0];
@@ -230,7 +231,7 @@
   function heldNow() { return T.side === 'buy' ? BAL.usdc : BAL.token; }
   function paintBalance() {
     var h = heldNow();
-    $('t-bal').textContent = !T.wallet ? 'Connect a wallet to see your balance' : h == null ? 'Reading your balance…' : 'You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' : Math.floor(h).toLocaleString('en-US') + ' ' + SYM());
+    $('t-bal').innerHTML = !T.wallet ? 'Connect a wallet to see your balance' : h == null ? 'Reading your balance\u2026' : 'You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' + (h < 1 ? ' \u00b7 ' + getUsdc() : '') : Math.floor(h).toLocaleString('en-US') + ' ' + SYM());
     $('t-max').hidden = !(h > 0);
   }
   $('t-max').addEventListener('click', function () { var h = heldNow(); if (h > 0) { $('t-amount').value = T.side === 'buy' ? Math.floor(h * 100) / 100 : Math.floor(h); quoteNow(); } });
@@ -263,7 +264,7 @@
             if (T.side === 'buy' && room != null) $('t-quote').textContent = 'The curve only takes ' + usd2(room) + ' more before it graduates — try ' + usd2(Math.ceil(room / 0.9 * 100) / 100) + ' (fee included).';
             else $('t-quote').textContent = 'That is more than the curve holds.' + (h != null ? ' You have ' + (T.side === 'buy' ? '$' + h.toFixed(2) + ' USDC' : Math.floor(h).toLocaleString('en-US') + ' ' + SYM()) + ' — use Max.' : '');
           }
-          else $('t-quote').textContent = q.error;
+          else $('t-quote').innerHTML = esc(q.error) + (/needs \$/.test(q.error) && T.side === 'buy' ? ' \u00b7 ' + getUsdc() : '');
           return;
         }
         $('t-quote').textContent = (q.partial ? 'The curve takes ' + usd2(q.amountInUsed) + ' of this and graduates; ' + usd2(q.amountInLeft) + ' stays with you. ' : '') + 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2((q.tradingFeeUsd || 0) + (q.protocolFeeUsd || 0)) + (q.priceImpactPct != null ? ' · impact ' + q.priceImpactPct.toFixed(1) + '%' : '') + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
@@ -296,7 +297,7 @@
         $('t-amount').value = ''; $('t-quote').textContent = 'You receive —';
         setTimeout(refreshAfterTrade, 2500);
       })
-      .catch(function (e) { $('t-msg').textContent = e && e.message ? e.message : 'Cancelled.'; })
+      .catch(function (e) { var m = e && e.message ? e.message : 'Cancelled.'; $('t-msg').innerHTML = esc(m) + (/needs \$/.test(m) && T.side === 'buy' ? ' \u00b7 ' + getUsdc() : ''); })
       .then(function () { T.busy = false; tradePanel(STATS); });
   });
 
@@ -330,13 +331,13 @@
       $('bands').innerHTML = withItems.map(function (x) {
         var n = x.items, hold = BAL.token, cash = BAL.usdc;
         var canUsd = !!W.addr && cash != null && cash >= x.priceUsdc, canTok = !!W.addr && x.priceTokens != null && hold != null && hold >= x.priceTokens;
-        var usdcWhy = !W.addr ? 'Connect wallet to play' : cash == null ? 'Reading your balance…' : !canUsd ? 'You have ' + usd2(cash) + ' USDC' : '';
+        var usdcWhy = !W.addr ? 'Connect wallet to play' : cash == null ? 'Reading your balance\u2026' : !canUsd ? 'You have ' + usd2(cash) + ' USDC \u00b7 ' + getUsdc() : '';
         var tokWhy = !W.addr ? 'Connect wallet to play' : x.priceTokens == null ? 'Token plays open when the token trades' : hold == null ? 'Reading your balance…' : !canTok ? 'You hold ' + Math.floor(hold).toLocaleString('en-US') + ' ' + SYM() : '';
         var top = Math.max.apply(null, x.preview.map(function (c) { return c.custodianValueUsd || 0; }));
         return '<div class="machine ' + x.kind + '" data-band="' + x.id + '"><div class="mh"><b>' + esc(x.label) + '</b><span>' + n + ' item' + (n === 1 ? '' : 's') + (x.kind === 'pick' ? ' · pick, not a draw' : '') + '</span></div>'
           + '<div class="fanbig">' + fanBig(x.preview) + '</div>'
           + '<div class="odds"><span><b>1 in ' + n + '</b> each</span><span>avg value <b>' + usd(x.avgIndexUsd) + '</b></span>' + (x.preview.length === n ? '<span>top <b>' + usd(top) + '</b></span>' : '') + '</div>'
-          + '<div class="pay"><button type="button" class="usdc" data-band="' + x.id + '" data-cur="usdc"' + (canUsd ? '' : ' disabled') + '><b>' + usd2(x.priceUsdc) + '</b><span>USDC · stays in the vault</span>' + (usdcWhy ? '<small>' + esc(usdcWhy) + '</small>' : '') + '</button>'
+          + '<div class="pay"><button type="button" class="usdc" data-band="' + x.id + '" data-cur="usdc"' + (canUsd ? '' : ' disabled') + '><b>' + usd2(x.priceUsdc) + '</b><span>USDC · stays in the vault</span>' + (usdcWhy ? '<small>' + usdcWhy + '</small>' : '') + '</button>'
           + '<button type="button" data-band="' + x.id + '" data-cur="token"' + (canTok ? '' : ' disabled') + '><b>' + (x.priceTokens != null ? x.priceTokens.toLocaleString('en-US') + ' ' + SYM() : '—') + '</b><span>burned · ' + usd(x.avgIndexUsd * 1.10) + ' of backing</span>' + (tokWhy ? '<small>' + esc(tokWhy) + '</small>' : '') + '</button></div></div>';
       }).join('');
     }).catch(function (e) { $('bands').innerHTML = '<p class="faint">Play is not open on this vault: ' + esc(e.message) + '</p>'; });

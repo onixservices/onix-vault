@@ -59,12 +59,13 @@ function buildApp(deps) {
   const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
   const need = (x, what) => { if (!x) throw new VaultError(503, `${what} not configured for this vault`); return x; };
   const summary = async (v) => ({ vault: v.wallet, ...v.meta, rules: v.admissions ? v.admissions.rules : null, stats: v.stats ? await v.stats.read() : null });
+  const swapUrl = deps.swapUrl || 'https://onix.finance';
 
   app.get('/v1/health', (req, res) => res.json({ ok: true, keyring: keyringConfigured(), vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), ...(vaults[0] ? { vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() } : {}) }));
 
   // ── what the page reads (no RPC key ever reaches the browser) ──
   app.get('/v1/vaults', wrap(async (req, res) => {
-    res.json({ readAt: new Date().toISOString(), vaults: await Promise.all(vaults.map(summary)) });
+    res.json({ readAt: new Date().toISOString(), swapUrl, vaults: await Promise.all(vaults.map(summary)) });
   }));
   // ── the Create door: items go into a derived custody wallet; the creator is the pool's creator; Onix is the partner ──
   const needCreator = () => { if (!creator) throw new VaultError(503, 'vault creation not configured'); return creator; };

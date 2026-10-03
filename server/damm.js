@@ -24,7 +24,10 @@ const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default
  * @param {function} deps.getTokenProgram  (flag) => PublicKey  (the SDK's `getTokenProgram`)
  * @param {function} deps.getCurrent       async () => { time, slot }
  */
-function createDammTrader({ pool, baseMint, quoteMint, baseDecimals = 6, quoteDecimals = 6, getCpAmm, getTokenProgram, getCurrent, getLatestBlockhash, simulate = null, getBalanceUi = null }) {
+function createDammTrader({ pool, baseMint, quoteMint, baseDecimals = 6, quoteDecimals = 6, getCpAmm, getTokenProgram, getCurrent, getLatestBlockhash, simulate = null, getBalanceUi = null, referralTokenAccount = null }) {
+  const referralPk = referralTokenAccount ? new PublicKey(referralTokenAccount) : null;
+  // the referral account holds USDC, so it is only attached when the pool collects its fee in token B = USDC (OnlyB); otherwise nobody
+  const referralFor = (st) => (referralPk && Number(st.collectFeeMode) === 1 && st.tokenBMint.equals(quotePk) ? referralPk : null);
   const toUnits = (n, d) => new BN(Math.round(n * 10 ** d).toString());
   const fromUnits = (bn, d) => Number(bn.toString()) / 10 ** d;
   const basePk = new PublicKey(baseMint), quotePk = new PublicKey(quoteMint), poolPk = new PublicKey(pool);
@@ -43,18 +46,19 @@ function createDammTrader({ pool, baseMint, quoteMint, baseDecimals = 6, quoteDe
     const { time, slot } = await getCurrent();
     // decimals in the pool's own A/B order (the mints sort; USDC is not always B)
     const aIsBase = st.tokenAMint.equals(basePk);
-    const q = cp.getQuote({ inAmount: amountIn, inputTokenMint: inMint, slippage: slippageBps, poolState: st, currentTime: time, currentSlot: slot, tokenADecimal: aIsBase ? baseDecimals : quoteDecimals, tokenBDecimal: aIsBase ? quoteDecimals : baseDecimals });
+    const ref = referralFor(st);
+    const q = cp.getQuote({ inAmount: amountIn, inputTokenMint: inMint, slippage: slippageBps, poolState: st, currentTime: time, currentSlot: slot, tokenADecimal: aIsBase ? baseDecimals : quoteDecimals, tokenBDecimal: aIsBase ? quoteDecimals : baseDecimals, hasReferral: Boolean(ref) });
     const outDec = sell ? quoteDecimals : baseDecimals;
     // the fee is charged in the quote token for USDC-paired pools (collectFeeMode 0) — shown in USDC when it is; otherwise in the input unit, said so
     const feeUnits = Number(q.totalFee.toString());
     const feeUsd = sell ? feeUnits / 10 ** quoteDecimals : feeUnits / 10 ** quoteDecimals;
     return {
-      raw: { amountIn, minimumAmountOut: q.minSwapOutAmount, st, inMint, outMint },
+      raw: { amountIn, minimumAmountOut: q.minSwapOutAmount, st, inMint, outMint, ref },
       view: {
         side, venue: 'pool', amountIn: amount, amountInUsed: amount, amountInLeft: 0, partial: false,
         amountOut: fromUnits(q.swapOutAmount, outDec), minimumAmountOut: fromUnits(q.minSwapOutAmount, outDec),
         tradingFeeUsd: feeUsd, protocolFeeUsd: 0, priceImpactPct: Number(q.priceImpact.toString()),
-        slippageBps, unitIn: sell ? 'token' : 'USDC', unitOut: sell ? 'USDC' : 'token',
+        slippageBps, unitIn: sell ? 'token' : 'USDC', unitOut: sell ? 'USDC' : 'token', referral: ref ? ref.toBase58() : null,
       },
     };
   }
@@ -70,7 +74,7 @@ function createDammTrader({ pool, baseMint, quoteMint, baseDecimals = 6, quoteDe
     const tx = await cp.swap({
       payer: ownerPk, pool: poolPk, inputTokenMint: raw.inMint, outputTokenMint: raw.outMint, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut,
       tokenAMint: st.tokenAMint, tokenBMint: st.tokenBMint, tokenAVault: st.tokenAVault, tokenBVault: st.tokenBVault,
-      tokenAProgram: getTokenProgram(st.tokenAFlag), tokenBProgram: getTokenProgram(st.tokenBFlag), referralTokenAccount: null, poolState: st,
+      tokenAProgram: getTokenProgram(st.tokenAFlag), tokenBProgram: getTokenProgram(st.tokenBFlag), referralTokenAccount: raw.ref, poolState: st,
     });
     tx.feePayer = ownerPk;
     tx.recentBlockhash = await getLatestBlockhash();

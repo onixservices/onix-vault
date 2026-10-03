@@ -46,4 +46,8 @@ module.exports = Object.freeze({
   // the treasury buying the next item (server/restock.js): off unless the operator turns it on; the script works regardless
   RESTOCK_ENABLED: env('ONIX_VAULT_RESTOCK') === '1',
   CC_API_BASE: env('ONIX_VAULT_CC_API_BASE', 'https://api.collectorcrypt.com'),
+  // Onix.Finance's USDC fee account, passed as the REFERRAL of every swap the page builds (curve and pool): Meteora pays the
+  // host share of its own fee to it — the trader pays nothing extra. The same wallet the onix.finance swap collects into.
+  REFERRAL_USDC_ACCOUNT: env('ONIX_VAULT_REFERRAL_USDC_ACCOUNT', 'B3CHwKZjyX9nJV8CrSNZMMyLGp9n4mhahVy4Y4en4Gep'),
+  SWAP_URL: env('ONIX_VAULT_SWAP_URL', 'https://onix.finance'),
 });

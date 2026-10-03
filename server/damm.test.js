@@ -79,6 +79,20 @@ describe('damm — build', () => {
   });
 });
 
+describe('damm — the referral', () => {
+  test('attached only when the pool collects its fee in token B = USDC (OnlyB); the quote says hasReferral; otherwise nobody', async () => {
+    const REF = Keypair.generate().publicKey.toBase58();
+    const f = fakeCp(); f.st.collectFeeMode = 1;
+    const b = await createDammTrader(deps(f, { referralTokenAccount: REF })).build({ owner: OWNER, side: 'buy', amount: 1 });
+    assert.equal(b.quote.referral, REF); assert.equal(f.calls.find((c) => c[0] === 'quote')[1].hasReferral, true); assert.equal(f.calls.find((c) => c[0] === 'swap')[1].referralTokenAccount.toBase58(), REF);
+    const g = fakeCp(); g.st.collectFeeMode = 0;   // BothToken: the fee may be in the vault token → no referral in USDC
+    const b2 = await createDammTrader(deps(g, { referralTokenAccount: REF })).build({ owner: OWNER, side: 'buy', amount: 1 });
+    assert.equal(b2.quote.referral, null); assert.equal(g.calls.find((c) => c[0] === 'swap')[1].referralTokenAccount, null);
+    const h = fakeCp({ aIsBase: false }); h.st.collectFeeMode = 1;   // OnlyB but B is the vault token → no referral
+    assert.equal((await createDammTrader(deps(h, { referralTokenAccount: REF })).quote({ side: 'buy', amount: 1 })).referral, null);
+  });
+});
+
 describe('routed trader — the curve while live, the pool once migrated', () => {
   test('routes by the stats; the pool trader is built once per pool address', async () => {
     let where = { venue: 'curve', pool: null }, made = [];

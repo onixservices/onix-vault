@@ -108,11 +108,11 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   };
   const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig, readDamm });
   // one Buy door for the token's whole life: the curve while live, the graduated DAMM v2 pool once migrated
-  const curveTrader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, ...curveDeps }) : null;
+  const curveTrader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, referralTokenAccount: C.REFERRAL_USDC_ACCOUNT, ...curveDeps }) : null;
   const dammDeps = productionDammDeps({ rpcUrl: C.RPC_URL, chain });
   const trader = def.pool ? createRoutedTrader({
     curve: curveTrader,
-    makeDamm: (pool) => createDammTrader({ pool, baseMint: def.baseMint, quoteMint: C.USDC_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, ...dammDeps }),
+    makeDamm: (pool) => createDammTrader({ pool, baseMint: def.baseMint, quoteMint: C.USDC_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, referralTokenAccount: C.REFERRAL_USDC_ACCOUNT, ...dammDeps }),
     whereToTrade: async () => { const st = await stats.read(); const p = st.pool; return p && p.isMigrated ? { venue: 'pool', pool: p.damm ? p.damm.address : null } : { venue: 'curve', pool: null }; },
   }) : null;
   // only the creator adds items (2 Oct 2026); a file-registry vault names its creator, else nobody can
@@ -153,7 +153,7 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
     existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null), uploads });
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
-  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, keyringConfigured: keyring.configured });
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, swapUrl: C.SWAP_URL, keyringConfigured: keyring.configured });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
   return { app, db, vaults: bundles, addVault, creator, uploads, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };

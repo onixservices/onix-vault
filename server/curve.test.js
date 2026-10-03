@@ -31,6 +31,20 @@ function fakeClient({ outBase = 1_000_000n, outQuote = 4_000_000n } = {}) {
 const deps = (fc, extra = {}) => ({ pool: POOL, baseDecimals: 6, quoteDecimals: 6, getClient: async () => fc.client, getCurrentPoint: async () => new BN(1), getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
   simulate: async () => ({ err: null, logs: [] }), getBalanceUi: async () => 100, ...extra });
 
+describe("curve — the referral (Onix.Finance earns the host share of Meteora's fee)", () => {
+  test('with a referral account the quote says hasReferral and the swap carries the account; without, null', async () => {
+    const fc = fakeClient();
+    const REF = Keypair.generate().publicKey.toBase58();
+    const t = createCurveTrader(deps(fc, { referralTokenAccount: REF }));
+    const b = await t.build({ owner: OWNER, side: 'sell', amount: 1 });
+    assert.equal(b.quote.referral, REF);
+    assert.equal(fc.calls.find((c) => c[0] === 'quote')[1].hasReferral, true);
+    assert.equal(fc.calls.find((c) => c[0] === 'swap')[1].referralTokenAccount.toBase58(), REF);
+    const fc2 = fakeClient(); await createCurveTrader(deps(fc2)).build({ owner: OWNER, side: 'sell', amount: 1 });
+    assert.equal(fc2.calls.find((c) => c[0] === 'swap')[1].referralTokenAccount, null);
+  });
+});
+
 describe('curve — balances', () => {
   test('reads USDC and the token for a wallet; without a balance reader both are null', async () => {
     const t = createCurveTrader({ pool: 'P', getClient: async () => ({}), getCurrentPoint: async () => 0, getLatestBlockhash: async () => 'b', quoteMint: 'Q', baseMint: 'B', getBalanceUi: async (o, m) => (m === 'Q' ? 12.5 : 1000) });

@@ -23,7 +23,9 @@ const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default
  * @param {function} deps.getCurrentPoint    async () => BN (slot or timestamp, per the config's activationType)
  * @param {function} deps.getLatestBlockhash async () => string
  */
-function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClient, getCurrentPoint, getLatestBlockhash, simulate = null, getBalanceUi = null, quoteMint = null, baseMint = null }) {
+function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClient, getCurrentPoint, getLatestBlockhash, simulate = null, getBalanceUi = null, quoteMint = null, baseMint = null, referralTokenAccount = null }) {
+  // the referral earns the host share of Meteora's fee (paid in the quote token, which is what the curve collects); null = nobody
+  const referralPk = referralTokenAccount ? new PublicKey(referralTokenAccount) : null;
   const toUnits = (n, d) => new BN(Math.round(n * 10 ** d).toString());
   const fromUnits = (bn, d) => Number(bn.toString()) / 10 ** d;
 
@@ -40,7 +42,7 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
     const cfg = await client.state.getPoolConfig(vp.poolState ? vp.poolState.config : vp.config);
     const sell = side === 'sell';
     const amountIn = toUnits(amount, sell ? baseDecimals : quoteDecimals);
-    const common = { virtualPool: vp, config: cfg, swapBaseForQuote: sell, slippageBps, hasReferral: false, eligibleForFirstSwapWithMinFee: false, currentPoint: await getCurrentPoint(cfg) };
+    const common = { virtualPool: vp, config: cfg, swapBaseForQuote: sell, slippageBps, hasReferral: Boolean(referralPk), eligibleForFirstSwapWithMinFee: false, currentPoint: await getCurrentPoint(cfg) };
     // a BUY fills partially: whatever the curve still takes before graduation is taken, the rest stays with the
     // buyer (nobody has to guess the room left — measured 2 Oct 2026: $0.23 refused with $0.20 to go)
     const partial = !sell && typeof client.pool.swapQuote2 === 'function';
@@ -67,8 +69,8 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
     const { raw, view } = await _quote({ side, amount, slippageBps });
     const client = await getClient();
     const tx = raw.partial
-      ? await client.pool.swap2({ owner: ownerPk, pool: raw.poolPk, swapMode: 1 /* PartialFill */, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: false, referralTokenAccount: null })
-      : await client.pool.swap({ owner: ownerPk, pool: raw.poolPk, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: side === 'sell', referralTokenAccount: null });
+      ? await client.pool.swap2({ owner: ownerPk, pool: raw.poolPk, swapMode: 1 /* PartialFill */, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: false, referralTokenAccount: referralPk })
+      : await client.pool.swap({ owner: ownerPk, pool: raw.poolPk, amountIn: raw.amountIn, minimumAmountOut: raw.minimumAmountOut, swapBaseForQuote: side === 'sell', referralTokenAccount: referralPk });
     tx.feePayer = ownerPk;
     tx.recentBlockhash = await getLatestBlockhash();
     // compile first (signatures are derived at compile time), then assert on what we send
@@ -92,7 +94,7 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
         throw err(409, `the trade would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
       }
     }
-    return { quote: view, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
+    return { quote: { ...view, referral: referralPk ? referralPk.toBase58() : null }, transaction: bytes.toString('base64'), message: bs58.encode(compiled.serializeMessage()) };
   }
 
   /** What a wallet holds of the pair — so the panel can show a balance and a Max, and say "you hold X" instead of the curve's raw error. */
