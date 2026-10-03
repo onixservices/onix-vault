@@ -182,8 +182,11 @@ function buildApp(deps) {
   app.all('/v1/*', (req, res) => res.status(404).json({ error: 'no such endpoint', code: 404 }));
   // the page: static, same origin, reads only /v1
   if (webDir) {
-    app.use(express.static(webDir, { index: 'index.html', extensions: ['html'], maxAge: 0 }));
-    app.get(/^\/(?!v1\/).*/, (req, res) => res.sendFile(path.join(webDir, 'index.html')));
+    // the page and its script are not fingerprinted: every load must revalidate (max-age=0 alone let browsers
+    // keep a stale app.js for hours — 2 Oct 2026, the PO saw a one-hour-old page after three deploys)
+    const noStale = (res) => { res.setHeader('Cache-Control', 'no-cache, must-revalidate'); res.setHeader('X-Content-Type-Options', 'nosniff'); };
+    app.use(express.static(webDir, { index: 'index.html', extensions: ['html'], maxAge: 0, setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file)) noStale(res); else res.setHeader('Cache-Control', 'public, max-age=86400'); } }));
+    app.get(/^\/(?!v1\/).*/, (req, res) => { noStale(res); res.sendFile(path.join(webDir, 'index.html')); });
   }
 
   // errors carry the service's status; never a bare 500 with no reason
