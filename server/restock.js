@@ -51,7 +51,13 @@ function listingView(raw) {
   };
 }
 
-/** The creator's rules, applied to a listing (same checks as an admission, minus the on-chain read). */
+/** What the treasury buys: the entry rule, or the creator's own `restock` rule laid over it (category, min/max value, grade). */
+function buyRules(rules) {
+  const r = rules.restock && typeof rules.restock === 'object' ? rules.restock : {};
+  return { ...rules, category: r.category || rules.category, minValueUsd: r.minValueUsd ?? rules.minValueUsd, minGrade: r.minGrade ?? rules.minGrade, maxValueUsd: r.maxValueUsd ?? null };
+}
+
+/** The buy rule, applied to a listing (same checks as an admission, minus the on-chain read, plus the restock ceiling). */
 function listingPassesRules(l, rules) {
   if (!rules.custodians.includes(l.custodian)) return { ok: false, reason: 'custodian not accepted' };
   if (l.insuredUsd == null) return { ok: false, reason: 'no insured value' };
@@ -60,6 +66,7 @@ function listingPassesRules(l, rules) {
   if (!l.grade || !l.gradingCompany || gradeOf(l) == null) return { ok: false, reason: 'not a graded card' };
   if (/pre-?order|mystery|sealed|booster|pack|box|bundle|lot/i.test(l.name || '')) return { ok: false, reason: 'not a single graded card (filler)' };
   if (rules.minValueUsd && l.insuredUsd < rules.minValueUsd) return { ok: false, reason: `below the vault's minimum value ($${rules.minValueUsd})` };
+  if (rules.maxValueUsd && l.insuredUsd > rules.maxValueUsd) return { ok: false, reason: `above the restock ceiling ($${rules.maxValueUsd})` };
   if (rules.category && rules.category !== 'mixed' && categoryOf(l) !== rules.category) return { ok: false, reason: `not ${rules.category}` };
   if (rules.minGrade && rules.minGrade !== 'any') { const g = gradeOf(l); if (g == null || g < rules.minGrade) return { ok: false, reason: `below the vault's minimum grade (${rules.minGrade})` }; }
   return { ok: true, reason: null };
@@ -69,7 +76,8 @@ function listingPassesRules(l, rules) {
  * PURE: what to buy, given the budget, the rules and the listings. The cheapest price-to-index that fits.
  * @returns {{ pick: object|null, why: string, considered: number, rejected: Record<string, number> }}
  */
-function decide({ budgetUsd, rules, listings, exclude = new Set(), limits = RESTOCK }) {
+function decide({ budgetUsd, rules: entryRules, listings, exclude = new Set(), limits = RESTOCK }) {
+  const rules = buyRules(entryRules);
   const rejected = {};
   const bump = (k) => { rejected[k] = (rejected[k] || 0) + 1; };
   const fits = [];
@@ -99,7 +107,8 @@ function decide({ budgetUsd, rules, listings, exclude = new Set(), limits = REST
  * @param {function} deps.ownerOf         async (mint) => owner wallet (DAS) or null
  */
 function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, getSolBalance = null, ownerOf, now = Date.now, limits = RESTOCK, log = console }) {
-  const categoriesParam = rules.category && rules.category !== 'mixed' ? { pokemon: 'Pokemon', 'one-piece': 'One Piece', sports: 'Sports' }[rules.category] : undefined;
+  const br = buyRules(rules);
+  const categoriesParam = br.category && br.category !== 'mixed' ? { pokemon: 'Pokemon', 'one-piece': 'One Piece', sports: 'Sports' }[br.category] : undefined;
 
   async function market() {
     const out = [];
@@ -207,4 +216,4 @@ function productionRestockDeps({ ccApiBase = 'https://api.collectorcrypt.com', r
   };
 }
 
-module.exports = { createRestock, decide, listingView, listingPassesRules, productionRestockDeps, RESTOCK };
+module.exports = { createRestock, decide, buyRules, listingView, listingPassesRules, productionRestockDeps, RESTOCK };

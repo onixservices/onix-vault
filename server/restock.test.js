@@ -39,6 +39,16 @@ describe('restock — the decision is pure', () => {
     assert.equal(listingPassesRules(L('a', 20, 30, { category: 'One Piece', grade: 'NM/MINT 8' }), rules).reason, "below the vault's minimum grade (9)");
     assert.equal(listingPassesRules(L('a', 20, 30, { category: 'One Piece', grade: 'MINT 9' }), rules).ok, true);
   });
+  test("the creator's own restock rule overrides the entry rule for what the treasury buys (category, min/max value, grade)", () => {
+    const { buyRules } = require('./restock');
+    const entry = { ...RULES, category: 'mixed', minValueUsd: 0, minGrade: 'any', restock: { category: 'one-piece', minValueUsd: 25, maxValueUsd: 100, minGrade: 9 } };
+    assert.deepEqual(buyRules(entry), { ...entry, category: 'one-piece', minValueUsd: 25, maxValueUsd: 100, minGrade: 9 });
+    const listings = [L('p', 15, 30), L('o1', 20, 30, { category: 'One Piece', grade: 'MINT 9' }), L('o2', 80, 150, { category: 'One Piece', grade: 'MINT 9' }), L('o3', 20, 30, { category: 'One Piece', grade: 'NM 8' })];
+    const d = decide({ budgetUsd: 200, rules: entry, listings });
+    assert.equal(d.pick.mint, 'o1');
+    assert.deepEqual(d.rejected, { 'not one-piece': 1, 'above the restock ceiling ($100)': 1, "below the vault's minimum grade (9)": 1 });
+    assert.equal(decide({ budgetUsd: 200, rules: { ...RULES, restock: 'sameAsEntry' }, listings }).pick.mint, 'p', 'sameAsEntry: the entry rule (any graded card), cheapest ratio wins (p 0.5×)');
+  });
   test('nothing fits → says why (budget below minimum, or the market)', () => {
     assert.match(decide({ budgetUsd: 2, rules: RULES, listings: [L('a', 10, 20)] }).why, /treasury below the minimum buy/);
     assert.match(decide({ budgetUsd: 50, rules: RULES, listings: [L('a', 30, 20)] }).why, /nothing on the market fits \(1 listings/);
