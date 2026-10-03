@@ -423,7 +423,6 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 
 .vhero .who{flex:1 1 260px} .vhero .acts{margin-left:auto}
 .vhero .stats .v{font-size:clamp(15px,4.2vw,20px); overflow-wrap:anywhere}
-@media(max-width:560px){ .vhero .id{margin-top:-28px; gap:12px} .vhero .coin{width:68px; height:68px} .vhero .acts{width:100
 .vhero .who{flex:1 1 260px} .vhero .acts{margin-left:auto}
 .vhero .stats .v{font-size:clamp(15px,4.2vw,20px); overflow-wrap:anywhere}
 @media(max-width:560px){ .vhero .id{margin-top:-28px; gap:12px} .vhero .coin{width:68px; height:68px} .vhero .acts{width:100%; margin-left:0} .vhero .stats>div{padding:12px 14px} }
