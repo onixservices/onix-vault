@@ -222,6 +222,10 @@ Kept for the record of the first design (burn for a specific item at 1.15×). Th
 
 ## First integrator
 
-Onix.Cards' gacha buys from Vault #1 through this API, by the same endpoints a third party
-would use. That is not a claim of demand; it is the proof that the path works before anyone
-else is asked to rely on it.
+Onix.Cards' gacha is an integrator of **every** vault, by the same endpoints a third party would use: it discovers
+them with `listVaults()` (no address configured), keeps the graduated ones, reads each vault's items, and when a player
+wins one it reserves, pays and settles **on the vault that holds it**. Vault machines live in their own **Vaults**
+category there — prizes from a vault are not traded in for Onix credit — and use the standard rarity bands, weighted
+by what the vault holds. First pull, 3 Oct 2026: the Magnemite the treasury had bought an hour earlier; payment
+`5Pxj47…` (operator → custody, memo = reservation), delivery `4Y9SNe…` (custody → player). That is not a claim of
+demand; it is the proof that the path works before anyone else is asked to rely on it.

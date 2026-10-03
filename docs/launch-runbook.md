@@ -9,28 +9,17 @@
 
 ## 0. Before anyone touches a wallet
 
-- [ ] Every `PENDING` in `src/curve/params.js` has been replaced by a decision, and
-      `npm run curve:dry-run` prints **no** "PENDING placeholder" lines.
-- [ ] The dry run says `program validation OK`.
-- [ ] Read back and sanity-check: start price, price at graduation, **USDC needed to
-      graduate**. Say the last number out loud. It is how much real buying has to happen.
-- [ ] `docs/curve-config.md` matches `params.js` exactly (a reviewer diffed them).
-- [ ] The **vault wallet** exists, was generated **on the server** (its secret never passes
-      through a chat or a laptop), is empty of everything except its purpose, and its address
-      is written down where the page will read it.
-- [ ] Decided which wallet is **`fee_claimer`** (receives the trading fees — the whole
-      mechanism), which is **`leftover_receiver`** (only matters if `leftover > 0`; ours is 0,
-      but the program rejects a zero key), and which is **`payer`**.
-- [ ] **All 37 cards are going in** (decided 30 Sep) — in stages: the canary (the cheapest,
-      ~$12) and a small first lot at launch, the rest during the week, each admission a public
-      transaction. Nobody picks what goes first beyond "cheapest first". The list is saved.
-- [ ] **The gacha already knows the vault.** Its reconcile and its draw treat the vault wallet
-      as "buyable at the published price" (a third state: neither `gone` nor own stock), and the
-      four machines' edge has been re-measured with prize cost ≈ the exit price. If a machine
-      would pause, that is fixed **before** any card moves. Moving cards first empties the shop.
-- [ ] Admission tokens for the operator are **not** in the DBC's `lockedVesting` (see
-      `curve-config.md`). The time lock (Jupiter Lock, 12 months) is set up and its address
-      is published.
+- [ ] `npm test` green; `node scripts/abuse-rehearsal.js` against the target server: every attack refused.
+- [ ] `node src/curve/dry-run.js <backingUsd> [gradMult] [creatorFeePct]` read out loud: opening cap, graduation cap,
+      **USDC needed to graduate**. It is how much real buying has to happen.
+- [ ] The server's `.env` holds `VAULT_MASTER_SEED` (generated there by `onixvault/scripts/server-setup.sh`, never
+      printed, backed up offline) and the operator key that pays configs and migrations, with ≥ 0.05 SOL.
+- [ ] `GET /v1/health` says `keyring: true`.
+- [ ] The creator's wallet holds the items, ≥ 0.06 SOL (0.05 goes to custody as gas; the rest pays the deposits and
+      the launch) and nothing it would mind showing.
+- [ ] `ONIX_VAULT_RESTOCK=1` if the treasury loop should run (fee claim + restock, every 15 min).
+- [ ] For a vault machine on Onix.Cards: `GACHA_VAULT_MACHINE_VAULT=<custody>`, `_NAME`, `_PRICE_USD` in the Cards
+      `.env`; the price must leave ≥ 8% over the vault's average exit price or the machine pauses itself.
 
 ## 1. Rehearsal (off mainnet)
 

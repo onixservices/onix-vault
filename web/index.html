@@ -82,7 +82,7 @@
       <!-- CURVE node -->
       <rect class="node" x="60" y="158" width="222" height="108" rx="14"/>
       <text class="lbl" x="78" y="184">Bonding curve</text>
-      <text class="sm" x="78" y="200">$VEONIX · METEORA DBC · USDC</text>
+      <text class="sm" x="78" y="200">THE VAULT'S TOKEN · METEORA DBC · USDC</text>
       <!-- the band, not a price chart -->
       <line x1="78" y1="236" x2="264" y2="236" stroke="var(--edge-2)" stroke-width="3" stroke-linecap="round"/>
       <rect x="118" y="231" width="110" height="10" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1"/>
@@ -419,7 +419,8 @@
       <div><div class="num">3</div><b>Settle</b><p><span class="mono">POST …/reservations/{id}/settle</span> with the signature. The vault reads the payment from the chain and delivers to your winner.</p></div>
     </div>
 <pre><span class="c">// examples/integrator/vaultClient.js — the client Onix.Cards' gacha runs in production</span>
-<span class="k">const</span> vault = createVaultClient({ baseUrl: <span class="s">'https://vault.onix.finance'</span>, vault: <span class="s">'4yTsiQXPPhbmXHgZSgp7NwUNVfjbjWLkdUN5YhQmyqRt'</span> });
+<span class="k">const</span> vaults = (<span class="k">await</span> listVaults({ baseUrl: <span class="s">'https://vault.onix.finance'</span> })).filter(v =&gt; v.graduated); <span class="c">// every vault that sells</span>
+<span class="k">const</span> vault = createVaultClient({ baseUrl: <span class="s">'https://vault.onix.finance'</span>, vault: vaults[0].vault });
 
 <span class="k">const</span> items = <span class="k">await</span> vault.items();                              <span class="c">// 1 · exitPriceUsd on every item</span>
 <span class="k">const</span> r = <span class="k">await</span> vault.reserve({ mint, integrator, winner, idempotencyKey: pullId });
@@ -430,8 +431,9 @@ console.log(done.deliverySignature);                            <span class="c">
       <div class="r"><span class="k">Sandbox</span><span>The same server against devnet with a test vault: <span class="mono">npm run rehearse:vault</span> in the public repo. Rehearsed 1 October: reserve → pay → settle → delivered, verified on the raw transactions.</span></div>
       <div class="r"><span class="k">Limits</span><span>Reservations expire in minutes. Let three expire without settling and the vault stops taking yours. <span class="mono">x-api-key</span> is optional: it identifies you, it unlocks nothing.</span></div>
       <div class="r"><span class="k">Contract</span><span><span class="mono">server/openapi.json</span> is the source; the docs follow it. Webhooks are roadmap — today you poll the reservation.</span></div>
+      <div class="r"><span class="k">Live</span><span>Onix.Cards runs a <b>Vaults</b> category: one machine per graduated vault, the standard rarity bands weighted by what the vault holds. Its first pull (3 Oct 2026) paid the vault through these three calls and the vault delivered the card.</span></div>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="cta" href="#/integrate">Read the API docs</a><a class="cta ghost" href="#/vault/1">See Vault #1's items</a></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="cta" href="#/integrate">Read the API docs</a><a class="cta ghost" href="#/">See the vaults</a></div>
   </div>
 </section>
 

@@ -1,8 +1,8 @@
-# Impact and market — DRAFT
+# Impact and market
 
 > For the "Impact / TAM" criterion. **Every number below was measured or taken from a named
 > source; none is a projection.** Where we have no number, it says so. Drafted 22 September
-> 2026; to be tightened before submission.
+> 2026; rewritten 3 October 2026 for the model that runs.
 
 ## The precondition, and the first asset class that meets it
 
@@ -26,9 +26,9 @@ token is not yet measured** — one probe per custodian, and that number is not 
 | Collector Crypt marketplace | ~$77.8M / 30 days (Aug 2026) | industry reporting |
 | `$CARDS` (Collector Crypt token) | $157M cap · $8.3M daily volume | DexScreener, 20 Sep 2026 |
 
-**What this says:** there is a large, liquid, on-chain market for the *cards*. What does not
-exist is a way to hold **exposure to a basket of them** with backing anyone can verify —
-without picking cards, without custody, without trusting a spreadsheet.
+**What this says:** there is a large, liquid, on-chain market for the *cards*, and most of it is gacha. What does
+not exist is a way to put a collection on chain as **one token whose backing anyone can count**, that pays the person
+who brought the items, and whose items flow into the gachas that already move that volume.
 
 ## The launch rail is real and where the fees are
 
@@ -44,16 +44,19 @@ Onix.Vault's token launches on Meteora's Dynamic Bonding Curve, then graduates t
 **What this says:** the rail is not a sandbox, and the place a curve graduates to is where
 the trading actually lands.
 
-## Who this is for — honestly
+## Who this is for
 
-- **The buyer of exposure.** Someone who believes in graded cards as a category and wants
-  a position whose backing they can count, rather than a card they must store, insure and
-  eventually sell at 0.89× of index.
-- **The holder of an idle card.** Someone with a slab nobody is bidding on, who would take a
-  liquid position for it under a published rule.
+- **The creator** — a collector with graded cards a custodian already tokenized. They open a vault on them, keep half the
+  token (released over 6 months from graduation) and 40% of every trade fee on chain. Compared with the launchpads
+  creators already use (Clanker 40% of fees, Jupiter Studio 50% + anti-sniper, Believe 50%), the difference is that their
+  half is backed by their own items from day one.
+- **The holder** — exposure to a collection whose backing is counted from a wallet, which grows with every trade fee
+  and every USDC play, and which can be spent on a draw for an item at its share of backing.
+- **The player and the gacha** — every graduated vault is a machine. On the vault page (Play), and on Onix.Cards, where
+  the first vault machine went live on 3 Oct 2026 and paid the vault through the public API on its first pull.
 
-**What we do not claim:** that either group is queuing up. Vault #1 launches with the
-operator's own inventory and no waiting list. Demand is the thing this launch measures.
+**What we do not claim:** that any of these groups is queuing up. The vaults so far are ours and the ones made to test
+the doors. Demand is what the submission window measures.
 
 ## Why the timing
 
@@ -70,9 +73,10 @@ fee engine works), market cap ~$277k, **mNAV 0.95×**, and 0.80× at its low. Th
 discounts backing it cannot reach, even while that backing grows.
 
 That is the precedent and the gap in one object: the mechanism is proven, the exit is
-missing. Onix.Vault adds the exit — redemption with a published rule, and a gacha door — on
-backing a third-party custodian already put on chain, where the reserve's contents are
-verifiable from the wallet rather than from the team's reporting.
+missing. Onix.Vault adds the exit — **Play**, a provably fair draw for an item paid in USDC (which stays in the vault)
+or in the token at its share of backing (burned), and a **gacha API** any machine can buy through — on backing a
+third-party custodian already put on chain, counted from the custody wallet rather than from the team's reporting.
+And it pays the person who brought the items, which SV151 never did.
 
 ## Where it goes if it works
 
@@ -83,8 +87,9 @@ inventory**, one vault at a time.
 
 ## What we still do not know
 
-- whether a **second** vault, seeded by a stranger, finds buyers — the token-per-person
-  model was rejected precisely on this question
-- the realisable multiplier per category (Pokémon measured 0.88×; One Piece ≈1.01× on a
-  small sample)
-- anything about demand. We have a mechanism and a measurement plan, not a number.
+- whether vaults opened by strangers find buyers — the whole question of a launchpad
+- the realisable multiplier per category (Pokémon measured 0.88×; One Piece ≈1.01× on a small sample)
+- whether gacha players prefer a vault's machine to a curated one (the first vault machine on Onix.Cards paused itself
+  on margin after one pull: four $24 cards cannot fund a $25 pull — the restock bot buying below the index is what
+  reopens it)
+- anything about demand. We have a working loop on mainnet and a measurement plan, not a number.
