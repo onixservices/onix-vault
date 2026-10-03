@@ -181,10 +181,13 @@ function main() {
   setInterval(() => { for (const v of vaults) if (v.restock) v.restock.confirm().then((r) => { if (r.landed || r.failed) console.log(`[vault ${v.meta.id}] restock: ${r.landed} landed · ${r.failed} failed · ${r.pending} pending`); }).catch((e) => console.warn(`[vault ${v.meta.id}] restock confirm failed`, e.message)); }, 2 * 60_000).unref();
   // a round that buys nothing says why once (when the reason changes): a silent loop reads the same as a dead one
   const restockWhy = new Map();
-  if (C.RESTOCK_ENABLED) setInterval(async () => { for (const v of vaults) { try { const st = await v.stats.read(); if (!st.pool || !v.signerConfigured()) continue;
+  // the 1st round runs a minute after boot, then every 15 min: a deploy restarts the server, and with only the interval a
+  // run of deploys closer than 15 min apart starved the loop (3 Oct 2026: no claim for 40 min)
+  const treasuryRound = async () => { for (const v of vaults) { try { const st = await v.stats.read(); if (!st.pool || !v.signerConfigured()) continue;
     // 1st the fees reach the treasury (any vault with a curve), then the treasury buys (graduated vaults only)
     if (v.feeclaim) { try { const c = await v.feeclaim.execute({ go: true }); if (c.claimed) console.log(`[vault ${v.meta.id}] fees CLAIMED: treasury +$${c.claimed.treasuryUsd.toFixed(2)} · Onix +$${c.claimed.onixUsd.toFixed(2)} · ${c.claimed.signature}`); } catch (e) { console.warn(`[vault ${v.meta.id}] fee claim failed`, e.message); } }
-    if (st.poolStatus !== 'migrated') continue; const r = await v.restock.execute({ go: true }); if (r.bought) console.log(`[vault ${v.meta.id}] restock BOUGHT ${r.bought.name} for $${r.bought.priceUsd} (index $${r.bought.insuredUsd}) · ${r.bought.signature}`); else if (restockWhy.get(v.wallet) !== r.why) console.log(`[vault ${v.meta.id}] restock: no buy — ${r.why} (treasury $${r.treasuryUsd})`); restockWhy.set(v.wallet, r.bought ? null : r.why); } catch (e) { console.warn(`[vault ${v.meta.id}] restock failed`, e.message); } } }, 15 * 60_000).unref();
+    if (st.poolStatus !== 'migrated') continue; const r = await v.restock.execute({ go: true }); if (r.bought) console.log(`[vault ${v.meta.id}] restock BOUGHT ${r.bought.name} for $${r.bought.priceUsd} (index $${r.bought.insuredUsd}) · ${r.bought.signature}`); else if (restockWhy.get(v.wallet) !== r.why) console.log(`[vault ${v.meta.id}] restock: no buy — ${r.why} (treasury $${r.treasuryUsd})`); restockWhy.set(v.wallet, r.bought ? null : r.why); } catch (e) { console.warn(`[vault ${v.meta.id}] restock failed`, e.message); } } };
+  if (C.RESTOCK_ENABLED) { setTimeout(treasuryRound, 60_000).unref(); setInterval(treasuryRound, 15 * 60_000).unref(); }
   setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }
 
