@@ -1,4 +1,4 @@
-# Launch runbook — Vault #1
+# Launch runbook
 
 > Step by step, with the **point of no return marked**. Written 22 September 2026 from the
 > SDK's real client surface (`DynamicBondingCurveClient` → `partner` / `pool` / `state`),
@@ -97,49 +97,63 @@ find the step where *we* fumble.
 > (the canary was marked `gone` — fixed and tested before the lot moved); the cheapest card in the
 > inventory had no insured value and would not have counted — the lot was picked from the eligible 37.
 
-## 2. Mainnet — in this order
+## 2. Mainnet — the Create door (any vault, including ours)
 
-Reversible until the line. Irreversible after it.
+Since 2 October every vault, Onix's included, is created through the same door the page uses. The
+script `scripts/create-vault.js` runs the four steps with a server-side key as the creator; the page
+runs them with a wallet. Both end in the same registry row.
 
-### Still reversible
+```
+node scripts/create-vault.js --name "Vault #1" --symbol XYZ --mints <m1,m2,…> [--grad 2.5] [--fee 40]        # dry run: prints the curve
+node scripts/create-vault.js … --go                                                                       # does it
+```
 
-1. **Create the config.** `partner.createConfig` with the built parameters,
-   `quote_mint = USDC`, `fee_claimer` = the decided wallet. A config with no pool can be
-   ignored forever; creating it commits nothing.
-2. **Read the config back** (`state`) and diff it against `params.js`. Every field.
-3. **Admit the first lot into the vault wallet** — the canary first, alone, then verify the
-   gacha still shows its machines open and the reader counts it; then the rest of the first
-   lot. Transfers we control, to a wallet we control. Reversible while nobody else holds
-   anything.
-4. **Run the reader against the real vault wallet.** The number it prints is the number the
-   page will show on day one. If it is not the number you expected, stop here.
+1. **quote** — what the creator wallet holds that the rules take; the curve it implies (opens at 2×
+   realisable, graduates at the multiple). The USDC-to-graduate number is printed here. Say it out loud.
+2. **open** — the custody wallet is derived (next free index) and the deposit transactions are built:
+   items + 0.02 SOL gas → custody, one wallet prompt per transaction. Nothing of Onix is spent.
+3. **deposited** — only when the chain shows every item and the gas in custody does Onix create the
+   config (**simulated first**; `feeClaimer` = `leftoverReceiver` = custody), read it back until the RPC
+   has it, and build the launch (`createPool`, unsigned).
+4. **submit / confirm** — the creator signs; the throwaway mint key completes the transaction; the pool
+   on chain registers the vault (custody, creator, rules, manifest, image) and it is served at once.
 
-### ━━━━━━━━━━━━━━━━━━ POINT OF NO RETURN ━━━━━━━━━━━━━━━━━━
+Reversible until step 4: `abandon` returns items and gas to the creator. **Creating the pool is the point
+of no return**: the config is fixed, the mint exists, the first outside buy can happen at any moment.
 
-> **Creating the pool mints the token and opens the curve to the public.** From this instant,
-> the config (fee, quote, curve, migration) is fixed, the mint exists, and the first outside
-> buy can happen at any moment. Everything above can be undone. Nothing below can.
->
-> Before crossing: re-read §0. Then say the USDC-to-graduate number out loud once more.
+## 2b. Graduation — done by us, in this order
 
-5. **Create the pool.** `pool.createPool` (or `createPoolWithFirstBuy` if we make the first
-   buy ourselves — **if we do, it is declared on the page as ours**, never presented as
-   demand). The transaction that does this is the one recorded for the video.
-6. **Publish the addresses**: config, pool, base mint, vault wallet, fee claimer. On the page
-   and in the README. The reader is now pointed at the real mint (`--mint`).
-7. **Fire every door once, declared as ours:** claim the first fee and **buy a card with it**
-   through the existing agent · the gacha **buys the canary** from the vault through the API ·
-   **redeem** one card by burning tokens · **admit** the next card. Four public transactions.
-   They are the proof the whole submission rests on, and each one is labelled "operator".
+The Meteora keeper does **not** migrate configs like ours (measured 2 October: five minutes, nothing).
+When `stats.pool.graduationProgress` reaches 1:
+
+```
+node scripts/graduate.js --vault <id>          # dry run: reads the pool and the config, prints the plan
+node scripts/graduate.js --vault <id> --go     # four transactions, paid by the operator key (~0.02 SOL)
+```
+
+1. `createLocker` — the creator's 50% goes into Jupiter Lock (the escrow is derivable from the pool)
+2. `migrateToDammV2` — the USDC and the curve's tokens become a DAMM v2 pool, LP permanently locked
+3. `partnerWithdrawMigrationFee` — 30% of the USDC raised lands in the custody wallet (the treasury)
+4. `withdrawLeftover` — the 0.1% leftover lands in custody
+
+Out of order, 2 and 4 fail with `NotPermitToDoThisAction`. After this the page shows *Live*: the price
+comes from the DAMM pool, Trade routes to the pool, Play opens.
+
+## 2c. Fire every door once, declared as ours
+
+Create · buy on the curve (PartialFill at the end) · graduate · buy on the pool · Play in USDC · Play by
+burning · the gacha buys through the API. Every one is a public transaction, each labelled "operator"
+on the page. The first full cycle ran on 2 October 2026 with `$OT4` (pool `FY2JcK…`, DAMM `7bAwnt…`,
+play `52202e96`, delivery `5Tjw3g…`).
 
 ## 3. After launch — the loop
 
-- fees are claimed on a schedule and split **50 / 30 / 20 of what reaches us** (after the
-  protocol's 20% — see `src/curve/split.js`); each leg's transactions are public
-- the page reads the vault and the pool every load; there is no cache to go stale silently
-- **items leave the vault only through the two exit doors**, at the published price, and the
-  USDC that arrives buys the next item at the buy rule. Every delivery is a public transaction
-  paired with the burn or the payment that caused it. There is no third way out.
+- the creator's 40% of every fee is claimed by the creator (`claimCreatorTradingFee`); the partner's
+  share by the operator key (`scripts/claim-fees.js`) and split treasury / Onix (`src/curve/split.js`)
+- USDC in custody (migration fee, Play) buys the next item that passes the rules — an operator-run step
+  today, every purchase a public transaction into custody
+- the page reads custody and the pool every load; there is no cache to go stale silently
+- **items leave custody only through Play or the gacha API**, at the published price. There is no third way out.
 
 ## 4. If something goes wrong
 

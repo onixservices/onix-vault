@@ -1,170 +1,115 @@
 # Architecture
 
-> How Onix.Vault is put together, and — more importantly — **where the line is drawn**.
-> Written 21 September 2026, before the code, so the boundary is a design decision
-> rather than something that happened.
+> How Onix.Vault is put together, and where the lines are drawn. First written 21 September 2026,
+> before the code; rewritten 3 October 2026 after the model changed (creator-owned vaults, custody
+> per vault, Play) and the whole cycle ran on mainnet.
 
-## The one rule everything else follows
+## The rules everything else follows
 
-> **The code is public; the key is not.**
-
-Everything that makes a vault work is in this repository, including the server that
-delivers items and therefore signs. What is not here, and never will be, is the vault
-wallet's secret key: it is generated on the machine that runs the server, lives in that
-machine's `.env`, and is read by exactly one module (`server/signer.js`) behind an
-interface (`publicKey()`, `signTransaction()`) so that the key can move to a KMS or a
-multisig by configuration, without touching the rest. That is the production pattern
-Solana's own docs describe, and it is the product claim: **anyone can verify any vault
-without asking us for anything — and anyone can run one.**
-
-Why the earlier rule ("what signs is not public") changed, on 1 October 2026: the vault
-API had been built inside Onix's private monorepo because it could reuse the gacha's
-signer and delivery code. That would have meant the judged work was not in the judged
-repository. The API, the delivery and the fee pipeline moved here; the private monorepo
-keeps only what is private — deployment, the vhost, the `.env`.
+1. **The code is public; the keys are not.** Everything that makes a vault work is in this repository,
+   including the server that delivers items and therefore signs. The secrets stay on the machine
+   that runs it: the operator key (Onix, the curve's partner) and **one master seed** from which every
+   vault's custody wallet is derived (`server/keyring.js`, SLIP-0010, `m/44'/501'/<index>'/0'`).
+   No key is ever on disk; a backup of the seed is a backup of every custody wallet.
+2. **The chain is the truth.** What a vault holds is read from its custody wallet every time, filtered
+   by the manifest the creator declared. Nothing is believed because an event said so; payments are
+   read from the transaction itself before anything leaves custody.
+3. **The server never signs a user's transaction and never pre-signs anything a wallet will see.**
+   Deposits, launches, trades and plays are built unsigned, with the user as the only signer, and
+   simulated before the wallet sees them. A second signer (the mint at launch) signs *after* the user.
+4. **Market cap and backing are two numbers.** They are never added. The ratio is the only place they meet.
 
 ```
-┌─ PUBLIC · this repository ──────────────────────┐   ┌─ PRIVATE · one machine's .env ─────┐
-│  src/reader   what is in a vault, per token      │   │  VAULT_SECRET_KEY  read only by     │
-│  src/curve    the DBC configuration              │   │                    server/signer.js │
-│  web/         the proof page                     │   │  RPC url           (paid endpoint)  │
-│  server/      the vault API · delivery (signs    │   └─────────────────────────────────────┘
-│               with the vault wallet) · redemptions│
-│  examples/    a complete integrator client       │   ┌─ PRIVATE · Onix monorepo ──────────┐
-│  reads: Solana RPC + DAS · writes: deliveries    │   │  deployment · vhost · fee → card   │
-│  holds: NO key                                   │   │  pipeline operations · the gacha   │
-└──────────────────────────────────────────────────┘   │  that integrates over HTTP         │
-                                                       └─────────────────────────────────────┘
+┌─ PUBLIC · this repository ─────────────────────────────┐   ┌─ PRIVATE · the server's .env ──────┐
+│  src/reader   what a custody wallet holds, per token    │   │  VAULT_MASTER_SEED  → server/keyring│
+│  src/curve    the DBC configuration (DECIDED) + split   │   │  VAULT_SECRET_KEY   → server/signer │
+│  server/      API · creation · custody · trade · play   │   │                      (Onix = partner)│
+│               · delivery · uploads · rate limits        │   │  RPC url (paid, with DAS)           │
+│  web/         the page (board · vault mini-site · create)│   └─────────────────────────────────────┘
+│  scripts/     create-vault · graduate · return-* · claim│   ┌─ PRIVATE · Onix monorepo ──────────┐
+│  examples/    the integrator client Onix.Cards runs     │   │  deployment · vhost · the gacha    │
+│  reads: RPC + DAS · writes: deliveries · holds: NO key  │   │  that integrates over HTTP         │
+└─────────────────────────────────────────────────────────┘   └─────────────────────────────────────┘
 ```
 
-### `server/` — the vault API and the delivery
-
-`server/vaultService.js` holds the rules; `server/app.js` the routes (`/v1/vaults/{vault}/…`);
-`server/payment.js` builds the payment transaction the integrator signs, and reads a landed
-payment back from the transaction itself; `server/transfer.js` builds the delivery by token
-standard (pNFT, classic, Core); `server/index.js` is the only place they meet: build →
-assert single unsigned signer → sign → **persist the signed transaction** → broadcast.
-`server/items.js` lists the vault from the chain through the same reader the page uses.
-The contract is `server/openapi.json`; `docs/vault-api.md` follows it.
-
-## Components
-
-### `src/reader/` — what a vault holds
-
-Takes a vault wallet address and returns its contents and what they are worth. It asks
-Solana's DAS API for the assets owned by that wallet and keeps only those from a
-**registered custodian**: a collection address, the attribute that carries the custodian's
-value, and the custodian's redemption path. For Vault #1 the registry has two entries
-(Collector Crypt, Phygitals) and the value attribute is `Insured Value`; grade, grading
-company, certificate and the physical vault's address come along for display. A new asset
-class is a new registry entry, not a new reader.
-
-It is deliberately dumb: no database, no cache that can go stale silently, no list of
-items we maintain. **If an item is not on chain, from a registered custodian, it does not
-count.** Everything else in the wallet is listed with the reason it was not counted.
-
-Backing is reported twice, and the two are never conflated:
+## A vault, as data
 
 | | |
 |---|---|
-| **index** | the sum of `Insured Value` as the custodian wrote it |
-| **realisable** | index × `0.89` — the measured median of what the market actually pays |
+| **custody wallet** | derived for this vault; holds the items; `feeClaimer` and `leftoverReceiver` of its curve; the treasury (USDC from migration fee and Play) |
+| **creator** | the wallet that opened it: pool creator, 50% of the supply in Jupiter Lock (from graduation, over 6 months), 40% of every trade fee on chain. Only the creator adds items |
+| **rules** | lists, not text (`server/rules.js`): category, minimum value, minimum grade, creator fee share (20–50%), graduation multiple (2 / 2.5 / 3). Enforced on every deposit |
+| **manifest** | the mints the creator declared (`vault_items`); the reader counts only those, and only while the chain shows them in custody. A stray transfer into custody does not count |
+| **token** | one SPL mint per vault, created by the curve. `GET /token/{mint}.json` + the coin image and banner the creator uploaded |
+| **state** | *maturing* (the curve is filling) → *live* (graduated: DAMM v2 pool; Play open) · or *closed* (items returned; the pool stays on chain) |
 
-The `0.89` is a measurement, not an opinion, and it carries its sample and its date.
-
-### `src/curve/` — the bonding curve
-
-The Meteora DBC configuration, with the reasoning for every parameter recorded next to
-it. Fees are collected in the quote token so that what arrives is already the currency
-cards are bought in.
-
-Of every trade, a published share is split three ways:
+## The lifecycle, and which module does what
 
 ```
-10% fee ─┬─ 50% buys another graded card into the vault   → backing per token rises
-         ├─ 30% buys the token back on the market          → value returns to holders
-         └─ 20% operator
+ Create (server/creation.js)          Trade (server/curve.js · server/damm.js)        Play (server/play.js · draw.js)
+ ─────────────────────────────        ──────────────────────────────────────────      ────────────────────────────────
+ quote    what the wallet holds       curve   DBC quote/swap, PartialFill on buys     bands   by custodian value
+ open     custody derived · deposit   pool    DAMM v2 quote/swap after migration      start   commit published, payment
+          txs built (unsigned)        routed  by the migration flag in stats                  tx built (USDC → custody,
+ deposited chain shows items+gas →                                                            or burnChecked by the player)
+          Onix pays the config        Graduation (scripts/graduate.js)                 submit  signature recorded (UNIQUE)
+          (simulated first) → launch  ──────────────────────────────                   sweep   finalized → payment read
+          tx built (unsigned)         locker → migrateToDammV2 →                               from the tx → draw (HMAC)
+ submit   creator signed → mint       partnerWithdrawMigrationFee →                            → item held → delivered
+          completes → broadcast       withdrawLeftover                                         from custody
+ confirm  pool on chain → served      (the keeper does not migrate configs like ours)
 ```
 
-Fees are one of **four doors**. The other three are rules with a published price, and
-they all move backing per token the same way — up. Two of them (redemption, gacha) are
-code paths in `server/`; admission is a transfer into the vault wallet:
+- **`server/index.js`** is the only place the pieces meet: one *bundle* per vault (signer = derived
+  custody · items reader with the manifest · stats · admissions · a routed trader · play · delivery).
+  Delivery = build → assert single unsigned signer → **simulate** → sign → **persist** → broadcast.
+- **`server/stats.js`** reads the curve account with the open-source decoder (`src/reader/pool.js`),
+  the config once (threshold, locked vesting, migration fee option) and, after migration, the DAMM v2
+  pool through `@meteora-ag/cp-amm-sdk` for the live price.
+- **`server/uploads.js`** types images by their bytes (PNG/JPEG/WebP, never SVG), caps them at 1 MB,
+  names them by hash and serves them with a fixed type and `nosniff`.
+- **`server/ratelimit.js`** is a token bucket per key, no dependency: a first fence on the routes
+  that cost something (uploads, creation, plays, builds). The real limits live in the services.
 
-| door | rule | who signs |
+## The curve configuration (decided 2 October 2026 · `src/curve/params.js`)
+
+| | | why |
 |---|---|---|
-| admission | card in → tokens for 80% of realisable value, vested | the depositor |
-| redemption | burn tokens worth `max(insured, market) × 1.15` → that card out | the redeemer burns; the vault wallet delivers |
-| gacha | a gacha buys a card at `max(insured, market)` through the vault API | the gacha pays; the vault wallet delivers |
+| supply | 10,000,000 | one token = one ten-millionth of the custody wallet |
+| creator | 50% in `lockedVesting` (cliff at migration, 6 monthly periods) | the first risk-taker holds the first half, released only once the market exists |
+| curve | 50% − 0.1% leftover | the program refuses a supply with no slack when a migration fee is set (measured) |
+| opens at | 2× realisable backing | the creator's half is worth the items on day one |
+| graduates at | 2 / 2.5 / 3 × the opening (creator's choice) | plausible, never a condition |
+| trade fee | 10% · creator 40% of it on chain · scheduler 99%→10% over the first 60 s | the creator is paid by the program; bots cannot front-run the opening |
+| migration fee | 30% of the USDC raised → the custody wallet | the treasury that buys the next item |
+| graduated pool | DAMM v2, 100% of the LP permanently locked, 1% fee | nobody can pull the liquidity |
 
-The vault **never chooses** what leaves: a card leaves because someone burned for it or a
-gacha paid for it, at the published price. Delivery is the prize-delivery path Onix.Cards
-has run in production since August 2026, ported into `server/` (build → assert a single
-unsigned signer → **simulate** → sign → persist → broadcast; a delivery that would fail on
-chain is never signed). The API contract is in `server/openapi.json`; `docs/vault-api.md`
-explains it.
+Of a trade's 10%: 2% Meteora · 3.2% creator · 3.2% vault treasury · 1.6% Onix (`src/curve/split.js`).
 
-### `web/` — the proof page
+## Play — the exit door
 
-Two numbers side by side — **market cap** (price × supply) and **backing** (what the
-vault holds) — and the ratio between them. They are never added together: one is what
-the market is paying, the other is what is in the box.
+One item from a band (by custodian value) is drawn and sent from custody. **USDC** = the band's average
+× 1.15, paid to the custody wallet: the item leaves, the money stays and buys the next one. **Token** =
+the band's average × 1.10 ÷ (realisable backing ÷ supply), **in share of backing, never at the market
+price**: a pump buys nothing cheaper; the tokens are burned by the player, so supply falls. The draw is
+commit-reveal (`server/draw.js`, ported from Onix.Cards): sha256 of the server seed is published before
+payment, the player's seed rides in the memo, `HMAC(seed, playId|clientSeed|nonce)` picks the index in the
+band's snapshot sorted by mint, and the seed is revealed with the result. **Play opens at graduation**:
+while the curve is filling, nothing leaves custody.
 
-Every figure on the page carries where it came from and how old it is. A stale number is
-shown with its age, never silently refreshed and never hidden.
+The gacha API (`reservations` → payment → `settle`) is the same door for integrators: Onix.Cards' gacha is
+the first one, through the public client in `examples/`.
 
-## How a fee becomes an item
+## `web/` — the page
 
-The interesting part is that **step 3 is not new code**. Onix already runs an agent that
-buys graded cards on its own, across several venues, under published rules. Onix.Vault does
-not reimplement it. What is new, and small, is the split of a claimed fee into its three
-legs (`src/curve/split.js`, pure) and the operation that claims it and hands the card leg to
-that agent — today an operator-run step on the private side, not a service in this repository.
-
-```
-1.  someone trades on the curve                        │ Meteora DBC
-2.  fee accrues to the fee claimer, in quote token     │ Meteora DBC
-3.  the existing buying agent buys a card at the rule  │ Onix.Cards' agent · signs
-4.  the card lands in the vault wallet                 │ Solana
-5.  the reader sees one more card                      │ this repo · reads only
-```
-
-Step 5 needs no notification from step 4. The reader does not trust a message that a
-purchase happened — it looks at the wallet. **Nothing in this system asks you to believe
-an event fired.**
-
-## Admission
-
-An item enters a vault and its owner receives tokens for a published fraction of what
-that item is **realisably** worth, vesting over time (a time lock, never the DBC's
-migration-anchored vesting — see `curve-config.md`).
-
-```
-insured value  →  × 0.89 realisable  →  × 0.80 admission  →  tokens, vesting
-                                        the 20% stays in the vault
-```
-
-The discount is not a fee we collect. It stays inside the vault, where it covers what the
-vault loses when that card is eventually sold, and it makes the vault a bad place to dump
-your worst shelf. Its useful side effect: **every admission raises backing per token for
-everyone already holding**.
-
-The rule is the same for the operator's own cards and for a stranger's. Vault #1 was
-seeded through the same path a third party would use — which is what makes this a
-platform with one vault rather than our vault with a page on it.
-
-## Deployment
-
-The proof page is static and reads the chain from the browser. It is served as its own
-vhost alongside the existing Onix apps; nothing in the current production path changes.
+The board shows the vaults in two shelves, *Live* and *Maturing*. **Each vault is its own mini-site**:
+banner, coin, description, a strip of numbers for its state, and tabs Trade · Play · Items · Activity ·
+Proof. The page reads only `/v1` on the same origin; the browser never holds an RPC key. Every figure
+carries where it came from and how old it is; a value we never had shows an em dash.
 
 ## What is deliberately not here
 
-- **A vault that runs its own draw.** The vault *sells* to gachas through the API (in the
-  window, with Onix's gacha as the first integrator); it never operates one. The version
-  where the vault is the house is roadmap and a legal question before it is a build.
-- **A program with escrow enforcing redemption and settlement.** v1 is an API whose every
-  step is anchored to a public transaction; the program is the destination.
-- **Third parties creating their own vaults.** Roadmap. Vault #1 is the seed of that, not
-  the alternative to it — and it was created through the same path a third party will use.
-- **The vault wallet's key.** The code that signs is here; the key never is. Run the
-  server with your own key and it is your vault.
+- **A program with escrow** enforcing custody release. v1 is an API whose every step is anchored to a
+  public transaction and a derived key that signs only through the doors; the program is the destination.
+- **Jupiter as a dependency.** A pool a few dollars deep is not routed there; the vault's own pool always is.
+- **The seed or any key.** Run the server with your own and it is your platform.

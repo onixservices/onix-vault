@@ -396,8 +396,9 @@
       $('i-grade').textContent = [c.gradingCompany, c.grade].filter(Boolean).join(' ') || '—';
       $('i-cert').textContent = c.certNumber || '—'; $('i-vault').textContent = c.physicalVault || '—'; $('i-cust').textContent = c.custodian || '—';
       $('i-usd').textContent = usd2(c.custodianValueUsd); $('i-mint').textContent = c.mint;
-      $('i-redeem-usd').textContent = usd2(c.redeemPriceUsd);
-      $('i-redeem-tok').textContent = STATS && STATS.pool ? '≈ ' + Math.round(c.redeemPriceUsd / STATS.pool.priceUsd).toLocaleString('en-US') + ' ' + SYM() + ' at today\'s price · listed value + 15%' : 'listed value + 15% · in tokens once trading opens';
+      var bd = BANDS_DEF.filter(function (b) { return b.id === bandOf(c.custodianValueUsd || 0); })[0];
+      $('i-play').innerHTML = '<a href="' + vpath('/play') + '">' + esc(bd ? bd.label : 'its band') + '</a>';
+      $('i-play-sub').textContent = STATS && STATS.pool && STATS.poolStatus === 'migrated' ? 'open the machine \u2192' : 'Play opens when the vault graduates';
       $('i-exit').textContent = usd2(c.exitPriceUsd);
       var res = c.status === 'reserved';
       $('i-status').textContent = res ? 'Reserved' + (c.reservedUntil ? ' · ' + Math.max(0, Math.round((c.reservedUntil - Date.now()) / 60000)) + ' min' : '') : 'Available';
@@ -573,11 +574,11 @@
     var pool = ITEMS_X.slice();
     function take() { if (!pool.length) pool = ITEMS_X.slice(); return pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; }
     var steps = [
-      function () { var it = take(); S.items.push(it); S.usd += it.v; push('user', '<span class="who">' + who() + '</span> <span class="what">put in</span> <span class="item">' + esc(it.n) + '</span>', '+' + usd(it.v), 'got tokens for 80% of realisable, locked 12 m'); paint(it.v); drawShelf(); },
-      function () { var t = [40, 120, 260, 75, 900, 310][Math.floor(Math.random() * 6)]; var fee = t * 0.10; S.fees += fee; S.cash += fee * 0.5; S.usd += fee * 0.5; push('trade', '<span class="who">' + who() + '</span> <span class="what">traded</span> ' + usd(t) + ' <span class="who">of the token</span>', '+' + usd(fee * 0.5), 'fee → the vault'); paint(fee * 0.5); },
-      function () { if (S.items.length < 2) return steps[0](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var app = ['Pixel Gacha', 'Slab Arena', 'Cellar Club', 'Vault Royale'][Math.floor(Math.random() * 4)]; S.sold += it.v; S.cash += it.v; push('game', '<span class="who">' + app + '</span> <span class="what">bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">for a player</span>', usd(it.v), 'paid in USDC · listed price'); paint(0); drawShelf(); },
+      function () { var it = take(); S.items.push(it); S.usd += it.v; push('user', '<span class="who">the creator</span> <span class="what">put in</span> <span class="item">' + esc(it.n) + '</span>', '+' + usd(it.v), 'no new tokens \u00b7 backing per token up'); paint(it.v); drawShelf(); },
+      function () { var t = [40, 120, 260, 75, 900, 310][Math.floor(Math.random() * 6)]; var fee = t * 0.10; S.fees += fee; S.cash += fee * 0.32; S.usd += fee * 0.32; push('trade', '<span class="who">' + who() + '</span> <span class="what">traded</span> ' + usd(t) + ' <span class="who">of the token</span>', '+' + usd(fee * 0.32), 'fee: 3.2% creator \u00b7 3.2% the vault \u00b7 2% Meteora'); paint(fee * 0.32); },
+      function () { if (S.items.length < 2) return steps[0](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var app = ['Pixel Gacha', 'Slab Arena', 'Cellar Club', 'Vault Royale'][Math.floor(Math.random() * 4)]; S.sold += it.v; S.cash += it.v; push('game', '<span class="who">' + app + '</span> <span class="what">bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">for a player</span>', usd(it.v), 'paid in USDC through the API \u00b7 money stays'); paint(0); drawShelf(); },
       function () { if (S.cash < 400) return steps[1](); var it = take(); var spend = Math.min(S.cash, it.v); it = { n: it.n, k: it.k, v: spend }; S.items.push(it); S.cash -= spend; push('cart', '<span class="what">The vault bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">with the money inside</span>', '+1 item', usd(spend) + ' → an item'); paint(0); drawShelf(); },
-      function () { if (S.items.length < 3) return steps[1](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var prem = it.v * 0.15; S.usd -= it.v; S.usd += prem; push('fire', '<span class="who">' + who() + '</span> <span class="what">took out</span> <span class="item">' + esc(it.n) + '</span> <span class="who">· burned tokens</span>', '−' + usd(it.v), '+' + usd(prem) + ' premium stays', true); paint(-it.v + prem); drawShelf(); }
+      function () { if (S.items.length < 3) return steps[1](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; S.usd -= it.v; push('fire', '<span class="who">' + who() + '</span> <span class="what">played</span> <span class="who">and drew</span> <span class="item">' + esc(it.n) + '</span> <span class="who">\u00b7 burned tokens</span>', '\u2212' + usd(it.v), 'supply down \u00b7 share of backing paid', true); paint(-it.v); drawShelf(); }
     ];
     var order = [0, 1, 0, 1, 1, 2, 3, 1, 0, 1, 4, 1, 2, 1, 3, 0, 1, 1, 2, 3, 1, 4, 0, 1], k = 0;
     function next() { steps[order[k % order.length]](); k++; }
@@ -590,14 +591,14 @@
   function sdRender() {
     $('sd-pick').innerHTML = SD.items.eligible.map(function (c) {
       var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
-      return '<button type="button" class="pk' + (SD.pick === c.mint ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + esc([c.gradingCompany, c.grade].filter(Boolean).join(' ')) + ' · ' + usd(c.custodianValueUsd) + ' → ' + usd2(c.owedUsd) + '</span></div></button>';
+      return '<button type="button" class="pk' + (SD.pick === c.mint ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + esc([c.gradingCompany, c.grade].filter(Boolean).join(' ')) + ' \u00b7 ' + usd(c.custodianValueUsd) + '</span></div></button>';
     }).join('') + SD.items.ineligible.map(function (x) {
       var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
       return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>cannot go in</span></div></div>';
     }).join('');
     var c = SD.items.eligible.filter(function (x) { return x.mint === SD.pick; })[0];
     $('sd-calc').style.display = c ? '' : 'none';
-    if (c) { $('sd-val').textContent = usd2(c.custodianValueUsd); $('sd-real').textContent = usd2(c.realisableUsd); $('sd-owed').textContent = usd2(c.owedUsd); }
+    if (c) { $('sd-val').textContent = usd2(c.custodianValueUsd); $('sd-real').textContent = usd2(c.realisableUsd); var bd = BANDS_DEF.filter(function (b) { return b.id === bandOf(c.custodianValueUsd || 0); })[0]; $('sd-owed').textContent = bd ? bd.label : '\u2014'; }
     $('sd-go').disabled = !c || SD.busy; $('sd-go').textContent = c ? (SD.wallet ? 'Send ' + c.name.slice(0, 24) : 'Connect wallet to send') : 'Pick a card';
   }
   function sdScan(addr) {
@@ -627,7 +628,7 @@
       .then(function (x) {
         return fetch('/v1/vaults/' + VAULT + '/admissions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mint: c.mint, owner: SD.wallet, signature: x.sig, valueUsd: x.b.valueUsd }) })
           .then(function (r) { return r.json(); }).then(function (rec) {
-            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + x.sig + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> · recorded, verifying on chain · you are owed ' + usd2(rec.owedUsd) + ' in ' + SYM() + ', locked ' + rec.lockMonths + ' months. <a href="' + vpath() + '">See it in the vault →</a>';
+            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + x.sig + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> \u00b7 recorded, verifying on chain \u00b7 backing per token goes up when it lands. <a href="' + vpath() + '">See it in the vault →</a>';
             SD.pick = null; ITEMS = null; sdScan(SD.wallet);
           });
       })

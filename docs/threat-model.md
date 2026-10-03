@@ -1,227 +1,175 @@
 # Threat model
 
-> What can go wrong when a page makes claims about real money and real property, and what
-> stops each one. Written before the build, 21 September 2026.
->
-> This document is deliberately blunt. A vault that holds other people's value earns trust
-> by naming its own failure modes first.
+> What can go wrong when a page makes claims about real money and real property, and what stops each
+> one. First written 21 September 2026, before the build; rewritten 3 October 2026 for the model as it
+> runs on mainnet (creator-owned vaults, custody per vault, Play). Deliberately blunt: a vault that holds
+> other people's value earns trust by naming its own failure modes first.
 
-## What we are actually protecting
-
-Three different things, with three different failure modes:
+## What we are protecting
 
 | | what breaks if it fails |
 |---|---|
-| **the cards** | the vault is empty and the token is backed by nothing |
-| **the numbers** | the cards are fine but the page lies about them |
-| **the rules** | the cards and numbers are fine but someone extracts value unfairly |
+| **the items** | custody is empty and the token is backed by nothing |
+| **the numbers** | the items are fine but the page lies about them |
+| **the rules** | items and numbers are fine but someone extracts value unfairly |
+| **the keys** | the server is made to sign something it should not |
 
-Most attention in crypto goes to the first. **The second is the one that actually happens**,
-and the third is the one that is hardest to undo.
+Most attention in crypto goes to the first. The second is the one that actually happens; the third is the
+hardest to undo; the fourth is the one we can engineer against today.
 
 ---
 
-## 1. Custody — the cards
+## 1. Custody — the items
 
-### The vault wallet is compromised
-Every card leaves in one transaction and the backing is gone.
+### The master seed is compromised
+Every custody wallet derives from one seed. Lose it and every vault can be emptied in one block.
 
-**Today:** the vault is a wallet operated by Onix, and we say so on the page. That is the
-honest description of a single point of failure, not a mitigation.
-**Mitigations in place:** the vault wallet is separate from every operational wallet, holds
-no other role, and signs nothing except deliveries through the two exit doors — each one
-built only after a payment or a burn was read from the chain. Its address is published, so
-a theft would be visible to anyone within one block.
-**Roadmap, in order:** multisig, then a program that can only release under published rules.
-**What we will not do:** describe the current setup as trustless. It isn't.
+**Today:** the seed is generated on the server, lives in a `.env` readable by one user, is read by one
+module (`server/keyring.js`) and is never logged, returned or written anywhere else; the operator keeps an
+offline backup. Each custody wallet signs **only** through the doors (Play delivery, gacha settlement,
+abandon-before-launch), each one built after a payment or a burn was read from the chain. Addresses are
+public: a theft would be visible within one block.
+**Roadmap, in order:** a program with escrow that can only release under the published rules; until then,
+this is a single point of failure and the page says "custody: derived wallet operated by Onix".
+**What we will not do:** call it trustless.
 
 ### The custodian fails
-The cards are tokenized by Collector Crypt and physically held in OmniVault, PWCC and PSA
-Vault. If the custodian stops honouring the token, the NFT is a picture.
+Items are tokenized by Collector Crypt and held in OmniVault, PWCC and PSA Vault. If the custodian stops
+honouring the token, the NFT is a picture. **Mitigation:** none we control. The custodian and the physical
+vault are named on every item, and vault rules name the custodian, so the reader evaluates a risk they can see.
 
-**Mitigation:** none that we control, and pretending otherwise would be the dishonest move.
-What we do instead is **name the custodian and the physical vault on every card**, so the
-reader is evaluating a risk they can see rather than one they cannot.
+### An item leaves without the page noticing
+**Mitigation:** the reader asks the chain what custody holds, every time, filtered by the manifest.
+There is no inventory we maintain that can drift from reality.
 
-### A card leaves without the page noticing
-**Mitigation:** the reader never trusts an event. It asks the chain what the wallet holds,
-every time. There is no cached inventory that can drift from reality.
+### A creation is abandoned with the items in custody
+Items deposited, launch never signed. **Mitigation:** `abandon` returns every item and the gas to the
+creator, signed by the derived key, only to the creator who opened it; expired creations (2 h) are
+abandoned by a sweep. Measured on mainnet (2 October: a card and 0.03 SOL returned).
 
 ---
 
 ## 2. Honesty — the numbers
 
-This is the section that matters most, because these failures are quiet.
-
 ### Insured value is treated as a market price
-The custodian's `Insured Value` is an index they assign. It is **not** what a card sells for.
-Publishing backing at index inflates it by roughly 12%.
-
-**Mitigation:** backing is always shown after the measured `0.89×` haircut, and both figures
-are labelled. The multiplier carries its sample size and date, and is re-measured rather
-than inherited.
+The custodian's `Insured Value` is an index. **Mitigation:** backing is shown after the measured `0.89×`
+haircut; both figures are labelled; the multiplier carries its sample and date.
 
 ### Liquidity is added to backing
-Money that went up the curve sits in the pool and becomes migration liquidity. It is not the
-vault's and cannot buy a card.
+Money that went up the curve becomes migration liquidity; it is not the vault's. **Mitigation:** the two
+are never summed anywhere; the strip shows market cap *and* backing *and* the ratio, nothing more.
 
-**Mitigation:** the two are never summed anywhere in the codebase or the page. Adding them
-is a bug with a test, not a judgement call.
+### "Raised" is confused with market cap
+It happened on 2 October: the bar showed price × supply as "raised". **Mitigation now:** progress is the
+curve's own condition — USDC in the reserve ÷ the threshold in the config, both read from the chain.
 
 ### A stale number is shown as fresh
-**Mitigation:** every figure carries its age. A value we cannot refresh is shown with how old
-it is; a value we never had shows an em dash. **`$0.00` is only ever printed when zero is a
-measured fact.**
+**Mitigation:** every figure carries its age; a value we never had shows an em dash; `$0.00` only when
+zero is a measured fact. After a trade the page re-reads the chain until the number moves.
 
 ### The page implies a right that is broader than the one granted
-"Backed by cards" reads as "I can get a card". The right actually granted is narrower: a
-**specific** card, for a **specific** number of tokens, at a **published** price with a
-premium.
-
-**Mitigation:** the rule and the price per card are on the vault page, not in a FAQ, and the
-price is computed live from the same sources the backing uses. A card that is reserved by a
-gacha or mid-redemption leaves the displayed backing with a label, so the page never counts a
-card that is about to leave.
+"Backed by cards" reads as "I can get a card". The right is narrower: **a draw from a band**, at a
+published price, from what is in custody at that moment. **Mitigation:** the machines, their odds and
+their prices are on the vault page; a token's share of backing is shown, not promised.
 
 ---
 
 ## 3. Fairness — the rules
 
-### Adverse selection on admission
-If cards were admitted at full value, the rational move is to deposit your worst card and
-keep your best.
+### The creator dumps on the buyers
+The creator holds half the supply. **Mitigation:** that half is in `lockedVesting`: nothing before
+graduation, then monthly over 6 months, in Jupiter Lock (an escrow anyone can read). Before graduation the
+creator owns no tradable token at all. The creator's income is the fee share, paid by the program per trade.
 
-**Mitigation:** admission pays a published fraction of **realisable** value, not index. The
-gap stays in the vault. Dumping a bad card is a bad trade by construction.
+### The creator fills the vault with junk, or pulls the good items
+**Mitigations:** deposits pass the vault's **published rules** (custodian, category, minimum value,
+minimum grade) on chain, at deposit time; items are counted only while custody holds them; the creator has
+**no door of their own** — an item leaves only through Play or the gacha API, at the same price for the
+creator and for a stranger.
 
-### The operator competes with its own vault
-The operator runs a gacha that sells cards to players, and operates the vault that sells cards
-to gachas. That is a real conflict.
+### Pump-and-play
+Pump the token, then buy the cheap item with cheap tokens. **Mitigation:** a token play is priced in
+**share of backing** (realisable backing ÷ supply), never at the market price. A pump changes nothing;
+only more backing per token makes a play cheaper. Tokens paid are burned, so the next share is larger.
 
-**Mitigation:** the operator holds **no card inventory outside the vault** — all 37 cards it
-owned were admitted (30 September 2026). Its gacha buys from the vault through the same public
-API and at the same published price as any other gacha, and every such purchase is a public
-transaction. Declared is inventory; hidden is a conflict.
+### The draw is rigged, or re-rolled until it suits
+**Mitigations:** commit-reveal — sha256 of the server seed published *before* payment; the player's seed
+rides in the payment memo; the band's snapshot (mints sorted) is frozen when the play opens; the index
+comes only from `HMAC(seed, playId|clientSeed|nonce)`; the seed is revealed with the result; a redraw
+(nonce + 1, at most 5) happens only when the drawn item is no longer free, and every nonce is recorded.
+Anyone recomputes the draw with the proof on the page (we did, outside the server, on the first mainnet play).
 
-### The seeder exits through later buyers
-Whoever seeds a vault holds the largest position and could sell into the people who bought
-after them.
+### Play empties a vault that has not proven anything yet
+**Mitigation:** Play opens at graduation. While the curve fills, nothing leaves custody.
 
-**Mitigation:** admission tokens vest. This protects buyers, and it is the reason the rule
-applies to the operator first.
+### Pay once, play twice · pay from another wallet · pay with the wrong thing
+**Mitigations:** `UNIQUE(payment_sig)`; the payment is read from the transaction: payer = player, memo =
+`play:<id>`, USDC delta on custody ≥ the frozen price, or `burnChecked` of the vault's mint by the player
+with a balance delta ≥ the price; a wrong payment is `payment_rejected` with the reason, never a refund
+by the server (there is no refund path by design: the money never reached a server wallet).
 
-### Which cards stay out of the vault
-Keeping the best cards and depositing the worst is cherry-picking from the inside.
+### The same item sold twice (Play vs gacha)
+**Mitigation:** plays and reservations share one view of what is busy; an item held by a play is not
+offered to an integrator and vice versa; the delivery re-checks the chain before signing.
 
-**Mitigation:** none stay out. Every card the operator owned is in the vault, and the page
-lists them all. There is nothing to pick from.
+### Spam creations drain Onix's SOL
+Each launch costs the partner the config rent. **Mitigations:** the config is created **only after the
+creator's items and gas are in custody** (the creator spent first); one creation in flight per wallet;
+a global cap per hour; symbols unique and a reserved list (USDC, SOL, VEONIX…); creation and uploads
+rate-limited per address.
 
-### Cherry-picking on the way OUT (redemption and gacha)
-Whoever can pick a card will pick the one whose insured value lags the market.
+### A hostile upload
+SVG with script, a 50 MB file, a PNG header on a text file. **Mitigations:** type decided by the bytes
+(PNG/JPEG/WebP only), 1 MB cap, name = sha256, served with a fixed `Content-Type` and
+`X-Content-Type-Options: nosniff`, orphans swept after an hour, uploads rate-limited.
 
-**Mitigations:** the exit price is `max(insured, live market reference)`, never the index
-alone; redemption adds a **15% premium** that stays in the vault, so every exit raises
-backing per token for those who remain. The market reference is the one the backing page
-already publishes, with its sample and its age.
-
-### Floor and ceiling collapse into one
-If redemption and admission were both at backing value the token would be pinned to NAV:
-no speculation, no volume, no fees — the mechanism that funds the vault would starve.
-
-**Mitigation:** the two doors have different prices on purpose. Redemption at 1.15× puts the
-arbitrage floor near 0.87× of backing; admission at 0.80× puts the ceiling at 1.25×. The
-band between them is where trading lives.
-
-### A gacha reserves cards it never pays for
-The reservation step of the vault API could be used to lock the whole vault for free.
-
-**Mitigations:** reservations expire on a short TTL; an integrator that repeatedly reserves
-without settling is cut off; a reserved card is still in the wallet and still counts in the
-on-chain backing — only the *displayed* backing labels it.
-
-### Anyone can create a vault and the board becomes a dump
-The Robinhood Chain launchpad Noxa launched 60,000 tokens in two weeks with no gate, took $12M in
-fees and disappeared (July 2026). A vault platform with no gate would be the same, with real items.
-
-**Mitigations (the gate is above, not below):** a vault can only be created over a **custodian we
-registered** (we verified identity + value on chain, physical redemption, the collections) — nobody
-adds a custodian; a vault is **one custodian + one category**, chosen from the registry, never free
-text; only items that pass the vault's rules can be built by the UI, strays never count; creation,
-when it opens: an opening lot of the creator's own items (≥ 5 or ≥ $500 realisable), a non-token
-creation fee, one vault per wallet per custodian, and **no creator powers** — admission tokens come
-from the curve, exits go through the program, the creator earns the operator's leg of the fee and
-nothing else; the board ranks by backing and activity, with a minimum to appear. Until the program
-exists, creation is operator-run (request access).
-
-### Where admission tokens come from
-The curve mints the whole supply into the pool; nobody can mint more. So the sender of an item is
-owed tokens that the **vault buys on the curve** with its own USDC (fees, gacha sales) — worth 80% of
-realisable, locked 12 months. **Mitigation for the gap:** when the vault has no USDC the admission is
-listed publicly as `tokens pending` and is paid in order as USDC arrives; the operator cannot jump the
-queue. The operator seeded Vault #1 as a donation and **holds no tokens** — there is no allocation to
-dump.
-
-### The vault becomes the house
-If the vault itself ran the draw, token holders would be exposed to gambling regulation on
-top of everything else.
-
-**Mitigation:** the vault only **sells** at a published price. Whoever runs a draw runs it
-under their own rules and their own regulator. This is a design boundary, not a
-configuration.
+### A gacha reserves items it never pays for
+**Mitigations:** reservations expire on a short TTL; an integrator that lets three expire is cut off;
+a reserved item still counts in on-chain backing — only the displayed state labels it.
 
 ---
 
-## 4. The boundary itself
+## 4. The keys and the wallet
 
-### A secret reaches the public repository
-**Mitigations, layered:** the vault key is generated on the server and read by one module
-behind an interface; the `.gitignore` is an allowlist (`server/**/*.js`, never `.env`, never
-`*keypair*.json`); a `pre-commit` hook refuses private keys, Solana keypairs, API keys and
-`.env` files; GitHub's push protection is a second, independent net.
-**If it happens anyway:** the key is compromised the moment it lands. Deleting the commit is
-not a remedy — **rotate**.
+### A wallet is shown a transaction that fails, or one it cannot simulate
+Phantom blocks a dApp whose transaction fails simulation or carries a foreign pre-signature ("could be
+malicious" / "Solicitud bloqueada" — measured five times across Onix products). **Mitigations:** every
+transaction the page hands to a wallet is single-signer = the user, **unsigned**, and **simulated on the
+server first** (402 with the two numbers when the wallet lacks funds); the launch's second signer (the
+mint) signs *after* the creator, and the server compares what came back **by content**, ignoring the
+ComputeBudget and Lighthouse instructions Phantom adds.
 
 ### The server is made to deliver without a payment
-**Mitigations:** a delivery is built only inside `settle`, only after the payment transaction
-was read from the chain (finalized, credits the vault's USDC account with ≥ the frozen price,
-memo = reservation id); the `settling` state is the reentrancy lock; `UNIQUE(payment_sig)` is
-the last one — a payment settles one reservation, ever. The server never accepts "I paid" as
-input; it accepts a signature and reads the chain.
+**Mitigations:** a delivery is built only inside the sweep / `settle`, only after the payment was read
+from the chain (finalized); `UNIQUE(payment_sig)`; the server never accepts "I paid" as input.
 
-### A delivery is broadcast twice
-**Mitigation:** sign → **persist the signed transaction** → broadcast. A rebroadcast is the
-same signature; a crash between persist and broadcast delivers once or not at all, never twice.
+### A delivery is broadcast twice, or signed when it cannot land
+**Mitigations:** build → assert single unsigned signer → **simulate** → sign → **persist** → broadcast.
+A rebroadcast is the same signature. A delivery that would fail is never signed; the play becomes
+`delivery_failed`, keeps the payment, and only the operator re-runs it, on the server, through the same path.
 
-### A delivery is signed that cannot land
-**Mitigation:** the delivery is **simulated before it is signed**; a transaction that would
-fail on chain (frozen token, wrong account set, missing rent) is never signed and never
-broadcast. The reservation becomes `delivery_failed`, keeps the payment, and only the operator
-can re-run it — by hand, on the server, through the same path. There is no route for it.
+### Onix pays for a config the program will refuse
+It happened (SDK said valid; the program said `InvalidTokenSupply`). **Mitigation:** every transaction
+Onix pays is simulated against the program before it is sent; the leftover of 0.1% that the program needs
+is in the decided config.
+
+### A secret reaches the public repository
+**Mitigations, layered:** keys and the seed are generated on the server; the `.gitignore` is an allowlist;
+a `pre-commit` hook refuses private keys, keypairs, API keys and `.env` files; GitHub push protection is
+a second net. **If it happens anyway: rotate.**
 
 ---
 
-## 5. Things we know are unresolved
+## 5. Known and unresolved
 
-Listed because a threat model that ends in "all clear" is not a threat model.
-
-- **Custodian concentration.** Vault #1's backing is 37 cards, **all held by one custodian**
-  (Collector Crypt). If that custodian fails, pauses redemptions or delists the collection, the
-  backing is neither sellable nor redeemable, whatever the chain says. The platform spreads
-  this across custodians and asset classes over time; Vault #1 does not, and the page names
-  the custodian next to every item so nobody mistakes "on chain" for "custodian-proof".
-
-- **Single-signature custody of vault #1.** Named on the page. Multisig is roadmap, not done.
-- **A vault with no trading earns no fees, so backing never grows.** Not a security failure,
-  but it is the most likely way this ends up meaning nothing.
-- **Legal shape.** A token whose treasury is managed by an operator and which returns value to
-  holders resembles a security in several jurisdictions. A redemption right for a physical
-  good arguably moves it towards a warehouse receipt; we are not lawyers, and this is named,
-  not solved. The copy avoids language that makes it worse.
-- **Redemption v1 is semi-manual.** The burn is verified on chain by us and the vault wallet
-  delivers; there is no program enforcing it yet. The rule is published and every delivery is
-  a public transaction, but a holder still trusts the operator to honour it. A program with
-  escrow is the destination.
-- **Third-party demand for the vault API is unmeasured.** Onix's own gacha is the first
-  integrator, and it says so. Nobody else has asked yet.
-- **The `0.89×` is our own measurement** from our own sales. It is the best number we have and
-  it is not an independent one.
+- **Custodian concentration.** Every item so far is held by one custodian (Collector Crypt).
+- **Single operator of the seed.** Named on the page. A program with escrow is the destination; multisig
+  of the operator key is roadmap.
+- **A vault with no trading earns no fees, so its treasury never grows.** The most likely way this ends up
+  meaning nothing.
+- **The treasury → next item step is operator-run.** USDC lands in custody (migration fee, Play); the buying
+  agent that turns it into an item runs on the private side today.
+- **Legal shape.** A token whose treasury buys items and a draw for physical goods touch securities and
+  gaming rules in several jurisdictions. Named, not solved; the copy avoids making it worse.
+- **The `0.89×` is our own measurement** from our own sales.
+- **Third-party demand for the gacha API is unmeasured.** Onix.Cards' gacha is the first integrator.

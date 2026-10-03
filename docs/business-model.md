@@ -1,107 +1,87 @@
-# Business model — DRAFT
+# Business model
 
-> For the "Business Plan" criterion, which the 2026 rules define as *"the team's ability to
-> execute"*. Drafted 22 September 2026. Revenue lines are mechanisms, not forecasts.
+> For the "Business Plan" criterion, which the 2026 rules define as *"the team's ability to execute"*.
+> Drafted 22 September 2026; rewritten 3 October 2026 after the model moved to creator-owned vaults and
+> the first full cycle ran on mainnet. Revenue lines are mechanisms, not forecasts.
 
-> Onix.Vault is a platform for vaults of real-world assets a custodian has already put on
-> chain. Vault #1 holds graded cards, so the lines below say "card"; read "item" for any other
-> registered custodian.
+> Onix.Vault is a platform for vaults of real-world assets a custodian has already put on chain.
+> Vault #1 holds graded cards, so the lines below say "card"; read "item" for any other registered custodian.
 
-## How Onix.Vault makes money
+## Who makes money, and from what
 
-One published number: **1.6% of every trade** on the curve is the operator's.
-
-That is what is left after the protocol's cut (Meteora keeps 20% of every fee, fixed by the
-program) and after the vault's own share:
+The design question of 2 October was the creator's: *"if I send $1,000 of cards I want at least $1,000 of
+the token — the first risk-taker needs an edge."* The answer is the split below. Every leg is a public
+transaction and the split is printed on the vault page.
 
 ```
-10% fee ─┬─ 2%   Meteora
-         ├─ 4%   buys a card into the vault      → backing grows for every holder
-         ├─ 2.4% buys the token back              → value returns to holders
-         └─ 1.6% operator                         → revenue
+the creator        50% of the supply, locked (released over 6 months from graduation)
+                   + 40% of every trade fee, paid by the program (3.2% of volume)
+the vault          3.2% of volume while on the curve  + 30% of the USDC raised at graduation
+                   + every USDC play  → the treasury buys the next item
+Meteora            2% of volume (fixed by the program)
+Onix               1.6% of volume on the curve  + the config rent it fronts, back from the same leg
 ```
 
-Every leg is a public transaction. The split is printed on the vault page, not in a Discord.
+Of a 10% trade fee: 2% Meteora · 3.2% creator · 3.2% vault treasury · 1.6% Onix (`src/curve/split.js`).
+After graduation the pool charges 1% to its (permanently locked) liquidity, and the vault earns through Play.
 
-Three further lines exist and are **not** in the number above. None of them is an
-operator fee; all of them raise backing per token, which is the asset the operator is
-paid on:
+Three further lines are **not** operator fees; all of them raise backing per token, which is the asset
+everyone above is paid on:
 
-- **Admission.** A card enters a vault at 80% of its realisable value. The 20% stays in
-  the vault.
-- **Redemption.** A holder burns tokens worth `max(insured, market) × 1.15` for a specific
-  card. The 15% premium stays in the vault. This is the door Meteora + Sunrise's `$SV151`
-  (Jun 2026) does not have — and it trades at 0.80–0.95× of its reserve.
-- **Gacha.** Any gacha buys a card from the vault at `max(insured, market)` through the
-  vault API (`docs/vault-api.md`) — above the 0.89× the market pays on a listing. Onix's
-  own gacha is the first integrator, by the same public endpoints.
-- **After graduation.** The DAMM v2 pool the token migrates to charges its own fee, and the
-  curve's migrated liquidity is permanently locked. That pool keeps feeding the vault after
-  the curve is gone.
+- **Play in USDC.** The band's average × 1.15 goes to the custody wallet; the item leaves, the money stays.
+  Gacha is a $284M/month market (Collector Crypt alone buys back 92.9% of what it sells); the vault is a
+  supplier with no inventory risk of its own.
+- **Play by burning.** The band's average × 1.10 in share of backing, burned: supply shrinks for everyone.
+- **The gacha API.** Any gacha buys from any vault at the published price (`docs/vault-api.md`); Onix.Cards'
+  gacha is the first integrator, through the same public endpoints.
+
+## Why a creator comes
+
+Compared with the launchpads creators already use (Clanker 40% of fees · Jupiter Studio 50% + anti-sniper ·
+Believe 50% · Bags royalties in the config), the creator here gets the same on-chain fee share **plus half
+the supply backed by their own items**, an anti-sniper opening (99% → 10% over 60 s), and a treasury that
+buys more of what they collect. What they give up: the items go into custody they do not control, and
+leave only through Play or the API, at the same price for them and for a stranger. That is the deal that
+makes the token worth holding for the people who did not create it.
 
 ## What it costs
 
-Almost nothing marginal. The reader is static and reads the chain from the browser. Fee
-claims and card purchases are scheduled jobs against infrastructure Onix already runs. The
-real cost is the one every vault carries: **whoever operates it holds the keys**, and that
-is named on the page rather than abstracted away.
+Almost nothing marginal. One server, one RPC. Onix fronts the curve config (~0.01 SOL per vault) only
+after the creator's items are in custody, and the migration (~0.02 SOL) when a vault graduates. The real
+cost is the one named on the page: **whoever operates the server holds the seed** every custody wallet
+derives from — a single point of failure until the escrow program exists.
 
 ## Proof of execution — what already runs
 
-The criterion asks whether the team can execute. The honest answer is what is already in
-production, verifiable on chain:
-
-- **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized
-  graded cards. It buys inventory **on its own**, across several venues, under published
-  rules, with deliverability proven by simulation before every purchase. The Onix.Vault fee →
-  card pipeline **is that agent**, not a rewrite of it.
-- **Onix.Finance**, in production: an LP position inspector that reconstructs PnL from
-  on-chain events for Meteora, Orca and Raydium — and, since 20 September, opens and closes
-  wide Meteora DLMM positions in **one atomic transaction**, live on mainnet with real money.
+- **Onix.Vault**, mainnet, 2 October 2026: a vault created through the door by a third-party wallet
+  (`$OT4`), bought to graduation, migrated to a DAMM v2 pool by our script, a Play paid in USDC and the card
+  delivered from custody — the draw recomputed outside the server from the published proof. 149 tests.
+- **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized graded cards
+  that buys inventory on its own, across venues, under published rules, with deliverability proven by
+  simulation before every purchase. Its gacha is the vault's first integrator.
+- **Onix.Finance**, in production: an LP inspector that reconstructs PnL from on-chain events for Meteora,
+  Orca and Raydium, and opens wide Meteora DLMM positions in one atomic transaction.
 - **`solana-lp-utils`**, public, delivered under a Superteam Brazil grant.
 
-Everything above predates the hackathon window and is declared as such. What is built in
-the window is the curve, the vault wallet, the reader, the proof page, the redemption rule
-and its v1, and the vault API with the gacha as its first integrator.
+Everything but the first predates the hackathon window and is declared as such. Built in the window:
+the curve configuration, custody by derivation, the Create door, the trade panel (curve and pool), Play,
+the gacha API and its first integrator, the page, the docs.
 
 ## What we are not claiming
 
-- **No traction is claimed for Onix.Vault.** It launches with the operator's own inventory.
+- **No traction.** The only vaults so far are ours and the one made for the test. Volume is unknown.
 - **No revenue forecast.** 1.6% of a volume we cannot predict is not a number we will print.
-- **No decentralisation claim for Vault #1.** It is operated by Onix, with one signature,
-  and the page says so. Multisig and a program-held vault are on the roadmap, in that order.
+- **No decentralisation.** Custody is a derived wallet operated by Onix; the page says so.
 
 ## Where ONIX fits — and where it does not
 
-Onix already has a token (ONIX, minted April 2026, never launched, no pool). It is **not** the
-vault token and never will be. A vault token is the quota of *one* vault: it is burned to
-redeem that vault's items and diluted when items are admitted. ONIX is meant to be worth
-something across *every* vault, so it has to sit one level up:
-
-| role | what it does | status |
-|---|---|---|
-| **Admission ticket** | paying an admission in ONIX improves the admission rate (e.g. 85% instead of 80% of realisable value) in any vault | roadmap — rule text only in the window |
-| **Vote** | the parameters of each vault (redemption premium, buy rule) are set by ONIX holders | roadmap |
-| **Treasury policy** | the operator's own revenue (the 1.6% above, and nothing taken from holders) may seed and feed an ONIX/USDC pool. That is *our* money being used for *our* token, declared as such — never a leg of the trade fee | roadmap; after mint authority is revoked |
-
-Two things are prerequisites and are said plainly: ONIX's mint authority is still active and
-its supply sits in one wallet; both change before ONIX is shown to anyone. Nothing about ONIX
-is built in the hackathon window, and the Vault #1 token (`$VEONIX`) is minted by the curve
-with an immutable authority precisely so that it carries none of this history.
+Onix has a token (ONIX, minted April 2026, never launched, no pool). It is **not** a vault token and never
+will be: a vault token is the quota of *one* vault. ONIX sits one level up (admission to creating vaults,
+votes on platform parameters, a treasury policy fed only by Onix's own revenue). Nothing about ONIX is
+built in the window; its mint authority is still active and that changes before it is shown to anyone.
 
 ## The platform, in one line
 
-Vault #1 is the seed. **Anyone who holds already-tokenized, custodied assets can run a
-vault under the same rule the operator was admitted under** — and the operator earns on
-every vault the same way it earns on its own. Every vault is also a prize supplier to every
-gacha through the same API. That is the business: not one vault, but the rail every vault
-runs on, with four doors that all pay the vault.
-
-## The operator holds no tokens (1 October 2026)
-
-Vault #1 was seeded with Onix's own cards **as a donation**: the operator received no tokens for
-them, there is no allocation and no vesting, and the DBC's `lockedVesting` is zero. Onix earns the
-operator's leg of the fee (20% of the 10%) and nothing else. Third parties who send a card are owed
-tokens that the vault **buys on the curve** with its USDC (80% of realisable, locked 12 months) —
-the curve is the only source of tokens, for everyone. This is the simplest honest answer to "who is
-dumping on me": nobody holds a bag.
+Anyone who holds already-tokenized, custodied assets can open a vault, keep half the token and 40% of
+every trade, and let the market and the players grow the rest. Every vault is also a prize supplier to
+every gacha through the same API. That is the business: not one vault, but the rail every vault runs on.

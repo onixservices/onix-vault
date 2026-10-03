@@ -31,14 +31,14 @@
   <div class="crumbs"><a href="#/">Home</a><span>›</span><span>How it works</span></div>
   <div>
     <p class="eyebrow">The mechanism, with the numbers</p>
-    <h2 style="margin-top:8px">Four doors. Every one raises backing per token.</h2>
-    <p class="muted" style="margin-top:8px;max-width:64ch">A bonding curve on Meteora prices the token in USDC. The vault is a wallet anyone can read. Nothing leaves it except through a burn or a payment, at a printed price — and the fee from every trade buys the next item.</p>
+    <h2 style="margin-top:8px">Create · Trade · Play. Backing per token only goes up.</h2>
+    <p class="muted" style="margin-top:8px;max-width:64ch">A creator puts items a custodian already holds on chain into a vault wallet and gets a token on a Meteora curve, priced in USDC. Traders buy and sell; 10% of every trade pays the creator on chain and feeds the vault's treasury. When the curve fills, the token moves to a pool and Play opens: pay USDC (it stays in the vault) or burn the token (priced in share of backing) to draw an item from a band. Nothing leaves custody any other way.</p>
   </div>
   <div class="howgrid">
     <div class="verbs">
-      <a href="#/vault/1"><b>Buy</b><span>the token — a share of everything inside</span></a>
-      <a href="#/vault/1/send"><b>Put in</b><span>an item — get tokens, same deal for all</span></a>
-      <a href="#/vault/1"><b>Take out</b><span>the exact item you want, for tokens</span></a>
+      <a href="#/create"><b>Create</b><span>a vault from items you already own on chain — half the token and 40% of every trade are yours</span></a>
+      <a href="#/"><b>Trade</b><span>the token — a share of everything inside — on the curve, then on the pool</span></a>
+      <a href="#/"><b>Play</b><span>for an item from a band — USDC stays in the vault; a burned token shrinks the supply</span></a>
     </div>
     <div class="term" id="term" aria-live="off">
       <div class="term-top">
@@ -62,7 +62,7 @@
   </div>
   <p class="faint" style="font-size:12.5px;text-align:center">The panel is a simulation of how a vault behaves over a day. Vault #1's real numbers are in the app and on chain.</p>
   <div class="fly">
-    <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: traders buy on the curve, fees buy items into the vault, owners admit items for tokens, holders redeem items by burning tokens, gachas buy items at the published price; every door raises backing per token.">
+    <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: a creator puts items into the vault and gets half the token, locked; traders buy and sell on the curve; the fee pays the creator and the treasury, which buys the next item; players pay USDC or burn the token to draw an item; gachas buy items through the API; every door raises backing per token.">
       <defs>
         <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-2)"/></marker>
       </defs>
@@ -112,14 +112,14 @@
       <!-- labels around -->
       <text class="lbl" x="185" y="40" text-anchor="middle">Traders</text>
       <text class="sm" x="185" y="54" text-anchor="middle">BUY · SELL ON THE CURVE</text>
-      <text class="sm" x="402" y="112" text-anchor="middle">10% FEE → BUYS THE NEXT ITEM</text>
-      <text class="sm" x="402" y="352" text-anchor="middle">30% BUYS THE TOKEN BACK</text>
-      <text class="lbl" x="630" y="40" text-anchor="middle">Owner</text>
-      <text class="sm" x="630" y="54" text-anchor="middle">ADMITS AN ITEM · GETS TOKENS, LOCKED 12 M</text>
-      <text class="lbl" x="560" y="446" text-anchor="middle">Redeem</text>
-      <text class="sm" x="560" y="458" text-anchor="middle">BURN × 1.15 → THE ITEM</text>
-      <text class="lbl" x="740" y="446" text-anchor="middle">Gacha</text>
-      <text class="sm" x="740" y="458" text-anchor="middle">PAYS USDC → THE ITEM</text>
+      <text class="sm" x="402" y="112" text-anchor="middle">10% FEE → CREATOR · TREASURY</text>
+      <text class="sm" x="402" y="352" text-anchor="middle">TREASURY BUYS THE NEXT ITEM</text>
+      <text class="lbl" x="630" y="40" text-anchor="middle">Creator</text>
+      <text class="sm" x="630" y="54" text-anchor="middle">PUTS ITEMS IN · HALF THE TOKEN, LOCKED 6 M</text>
+      <text class="lbl" x="560" y="446" text-anchor="middle">Play · token</text>
+      <text class="sm" x="560" y="458" text-anchor="middle">BURN AT SHARE OF BACKING → AN ITEM</text>
+      <text class="lbl" x="740" y="446" text-anchor="middle">Play · USDC</text>
+      <text class="sm" x="740" y="458" text-anchor="middle">PAYS, THE MONEY STAYS → AN ITEM</text>
 
       <!-- particles -->
       <g><circle r="9" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s"><mpath href="#p-buy"/></animateMotion></g>
@@ -136,14 +136,12 @@
   </div>
 
   <div class="legend4">
-    <div><i style="background:#2775ca"></i><span><b>USDC</b>comes in from traders and gachas; fees buy the next item</span></div>
-    <div><i style="background:var(--gold)"></i><span><b>$VEONIX</b>minted for admitted items, bought back with fees, burned to redeem</span></div>
+    <div><i style="background:#2775ca"></i><span><b>USDC</b>comes in from traders and players; the treasury buys the next item</span></div>
+    <div><i style="background:var(--gold)"></i><span><b>The token</b>half to the creator (locked 6 months from graduation), half sold on the curve; burned to play</span></div>
     <div><i style="background:#e8e4d8;border:1px solid #9a8f70"></i><span><b>Items</b>watches, wine, cards, comics — held by a named custodian, counted on chain</span></div>
     <div><i style="background:var(--verify)"></i><span><b>Backing per token</b>goes up at every door. That is the whole design.</span></div>
   </div>
-  <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · a redemption rule, printed · an exit for gachas at the same price for everyone. No door depends on anyone's word.</p>
-
-  <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · a redemption rule, printed · an exit for gachas at the same price for everyone. No door depends on anyone's word.</p>
+  <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · the creator is paid by the program, not by us · one price rule for everyone, printed · nothing leaves custody except through a payment or a burn. No door depends on anyone's word.</p>
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><a class="cta" href="#/">Open the app</a><a class="cta ghost" href="#/integrate">Integrate a gacha</a></div>
 </section>
 
@@ -291,9 +289,9 @@
       </div>
       <div class="door4">
         <div class="d"><div><div class="k">Buy</div><b>Buy the token</b><p>Backed by everything inside — this one too.</p></div><a class="cta sm" id="i-buy" href="#/vault/1">Buy the token</a></div>
-        <div class="d"><div><div class="k">Take it out</div><b>Take it out</b><p>Trade tokens worth the listed value + 15%.</p></div><div class="big"><span id="i-redeem-usd"></span><small id="i-redeem-tok">listed value + 15% · in tokens once trading opens</small></div></div>
+        <div class="d"><div><div class="k">Play</div><b>Play for it</b><p>Drawn from its band: pay USDC (stays in the vault) or burn the token at share of backing.</p></div><div class="big"><span id="i-play"></span><small id="i-play-sub">open the machine →</small></div></div>
         <div class="d"><div><div class="k">Games &amp; shops</div><b>Any app can buy it</b><p>At the listed price, through the API.</p></div><div class="big"><span id="i-exit"></span><small>listed price</small></div></div>
-        <div class="d"><div><div class="k">Admitted</div><b>How it got here</b><p>Sent by the operator at launch.</p></div><span class="sig mono faint" style="font-size:11px" id="i-admit">—</span></div>
+        <div class="d"><div><div class="k">In custody</div><b>How it got here</b><p>Put in by the creator; counted only because the chain shows it in the custody wallet.</p></div><span class="sig mono faint" style="font-size:11px" id="i-admit">—</span></div>
       </div>
 
     </div>
@@ -306,8 +304,8 @@
   <div class="sec">
     <div>
       <p class="eyebrow" id="sd-rules">Vault #1 takes graded cards from Collector Crypt</p>
-      <h2 style="margin-top:8px">Send a card, get <span id="sd-sym">$VEONIX</span></h2>
-      <p class="muted" style="margin-top:8px;max-width:62ch">Your card goes into the vault. You get tokens worth 80% of what it sells for, locked 12 months — bought on the curve as soon as the vault has the USDC. The same deal Onix would get.</p>
+      <h2 style="margin-top:8px">Add a card to the vault</h2>
+      <p class="muted" style="margin-top:8px;max-width:62ch">Only the creator can add. The card goes to the custody wallet and no new <span id="sd-sym">$VEONIX</span> is minted: backing per token goes up for every holder, and the card joins its band in Play. Cards must pass this vault's rules.</p>
     </div>
     <div class="walletrow">
       <span class="faint" style="font-size:13px">Your wallet, or paste an address</span>
@@ -319,7 +317,7 @@
     <div class="calc" id="sd-calc" style="display:none">
       <div><div class="lab">Listed value</div><div class="cv" id="sd-val">—</div><div class="cs">the custodian's insured value</div></div>
       <div><div class="lab">What it sells for</div><div class="cv" id="sd-real">—</div><div class="cs">× 0.89, measured</div></div>
-      <div><div class="lab">You get</div><div class="cv v" id="sd-owed">—</div><div class="cs">in $VEONIX at the price when bought · locked 12 months</div></div>
+      <div><div class="lab">Joins the band</div><div class="cv v" id="sd-owed">—</div><div class="cs">in Play, once the vault graduated</div></div>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta" id="sd-go" type="button" disabled>Pick a card</button><a class="cta ghost" id="sd-back" href="#/vault/1">Back to the vault</a></div>
     <p class="faint" id="sd-msg" style="font-size:12.5px;min-height:16px"></p>

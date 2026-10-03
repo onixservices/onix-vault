@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Onix.Vault API",
-    "version": "1.0.0",
-    "description": "How a gacha (ours or anyone's) buys an item out of a vault, and how a holder redeems one. Every state change is anchored to a public transaction: the payment is read from the chain before the vault delivers. The vault never holds anyone's money and never runs a draw. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing."
+    "version": "1.2.0",
+    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing."
   },
   "servers": [
     {
@@ -533,13 +533,665 @@
         }
       }
     },
-    "/v1/vaults/create/quote": { "get": { "summary": "What a wallet could open a vault on, and the curve it implies", "parameters": [{ "name": "wallet", "in": "query", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "items, indexUsd, realisableUsd, canCreate, why, curve{openingMcapUsd, graduationUsd, supply, creatorPct, reservePct, curvePct}, creatorTokensWorthUsd" } } } },
-    "/v1/vaults/create/build": { "post": { "summary": "Create the curve config (Onix pays and is the fee partner) and return the ONE createPool transaction the creator signs", "requestBody": { "content": { "application/json": { "schema": { "type": "object", "required": ["owner", "name", "symbol"], "properties": { "owner": { "type": "string" }, "name": { "type": "string", "maxLength": 32 }, "symbol": { "type": "string", "pattern": "^[A-Z0-9]{2,10}$" } } } } } }, "responses": { "200": { "description": "creationId, pool, baseMint, config, configSignature, curve, backing, transaction (base64, pre-signed by the mint key), message" }, "400": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" }, "422": { "$ref": "#/components/responses/Error" } } } },
-    "/v1/vaults/create/confirm": { "post": { "summary": "The pool is on chain → the vault is registered and served", "requestBody": { "content": { "application/json": { "schema": { "type": "object", "required": ["creationId"], "properties": { "creationId": { "type": "string" }, "signature": { "type": "string" } } } } } }, "responses": { "201": { "description": "vault summary" }, "404": { "$ref": "#/components/responses/Error" }, "409": { "$ref": "#/components/responses/Error" } } } },
+    "/v1/vaults/create/quote": {
+      "get": {
+        "summary": "What a wallet could open a vault on, and the curve those rules imply",
+        "tags": [
+          "Create"
+        ],
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rules",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "JSON of the creator's rules (category, minValueUsd, minGrade, creatorFeePct, gradMult); off-list values are 422"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "items (eligible under the rules), ineligible with reasons, indexUsd, realisableUsd, canCreate, why, curve{openingMcapUsd, graduationUsd, supply, creatorPct}, rules"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/upload": {
+      "post": {
+        "summary": "The coin image or the banner: raw bytes, typed by the bytes (PNG, JPEG, WebP — never SVG), up to 1 MB, stored under its sha256",
+        "tags": [
+          "Create"
+        ],
+        "requestBody": {
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "uploadId, type, bytes, url (a preview at GET /v1/vaults/create/uploads/{id}); orphans are swept after an hour"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/uploads/{id}": {
+      "get": {
+        "summary": "Preview of an upload before launch (fixed Content-Type, nosniff)",
+        "tags": [
+          "Create"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the image"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/open": {
+      "post": {
+        "summary": "Step 1 — open a creation: the custody wallet is derived and the deposit transactions (items + gas → custody) are built for the creator to sign. Nothing of Onix is spent.",
+        "tags": [
+          "Create"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "owner",
+                  "name",
+                  "symbol",
+                  "mints"
+                ],
+                "properties": {
+                  "owner": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "pattern": "^[A-Z0-9]{2,10}$"
+                  },
+                  "mints": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "rules": {
+                    "type": "object"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "links": {
+                    "type": "object",
+                    "properties": {
+                      "x": {
+                        "type": "string"
+                      },
+                      "site": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "imageId": {
+                    "type": "string"
+                  },
+                  "bannerId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "creationId, custodyWallet, depositTransactions[] (base64, unsigned, single signer = owner), gasSol, items, backing, expiresAt"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "a creation already in flight for this wallet, or the symbol is taken"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/deposited": {
+      "post": {
+        "summary": "Step 2 — the chain shows every item (and the gas) in custody → Onix creates the curve config (simulated first; paid once) → the launch transaction is built for the creator",
+        "tags": [
+          "Create"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "creationId"
+                ],
+                "properties": {
+                  "creationId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "creationId, pool, baseMint, config, curve, backing, transaction (base64, UNSIGNED), message"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "custody does not hold the items yet / no gas / the program would refuse the config"
+          },
+          "410": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/submit": {
+      "post": {
+        "summary": "Step 3 — the creator signed the launch (signTransaction): same content as built (wallet wrappers ignored) → the mint key completes it → broadcast",
+        "tags": [
+          "Create"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "creationId",
+                  "signedTransaction"
+                ],
+                "properties": {
+                  "creationId": {
+                    "type": "string"
+                  },
+                  "signedTransaction": {
+                    "type": "string",
+                    "description": "base64"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "signature"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "not the transaction that was built, or the creator did not sign"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/confirm": {
+      "post": {
+        "summary": "Step 4 — the pool is on chain → the vault is registered (custody, creator, rules, manifest, image, banner) and served at once",
+        "tags": [
+          "Create"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "creationId"
+                ],
+                "properties": {
+                  "creationId": {
+                    "type": "string"
+                  },
+                  "signature": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "vault summary"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/abandon": {
+      "post": {
+        "summary": "Before launch: custody returns every item and the gas to the creator (signed by the derived key); strangers cannot",
+        "tags": [
+          "Create"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "creationId",
+                  "owner"
+                ],
+                "properties": {
+                  "creationId": {
+                    "type": "string"
+                  },
+                  "owner": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "returned[] (signatures)"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/create/{creationId}": {
+      "get": {
+        "summary": "Where a creation stands; while open, what custody still lacks and fresh deposit transactions for exactly that",
+        "tags": [
+          "Create"
+        ],
+        "parameters": [
+          {
+            "name": "creationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "status, symbol, mints, custodyWallet, missingMints, custodySol, depositTransactions?"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/token/{mint}.json": {
+      "get": {
+        "summary": "Token metadata of a created vault (what wallets, Jupiter and Meteora read): name, symbol, description, image, banner, external_url",
+        "tags": [
+          "Create"
+        ],
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "metadata JSON"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/token/{mint}.png": {
+      "get": {
+        "summary": "The coin image (and /token/{mint}-banner.png the banner): fixed Content-Type from the bytes, nosniff, cached a day",
+        "tags": [
+          "Create"
+        ],
+        "parameters": [
+          {
+            "name": "mint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the image"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/play": {
+      "get": {
+        "summary": "The machines: open (Play opens at graduation) and the bands by custodian value with items, odds, priceUsdc (avg × 1.15) and priceTokens (avg × 1.10 ÷ backing per token — share of backing, never the market price)",
+        "tags": [
+          "Play"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the vault's custody wallet"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "open, lockedReason, currencies{usdc, token}, tokenSymbol, bands[{id, label, items, kind: draw|pick|empty, avgIndexUsd, priceUsdc, priceTokens, odds, preview[]}], navPerTokenUsd"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/plays": {
+      "post": {
+        "summary": "Open a play: the commit (sha256 of the server seed) is published and the payment transaction is built for the player — USDC to custody + memo play:<id>, or a burnChecked of the player's own vault tokens + memo. Unsigned, single signer, simulated first.",
+        "tags": [
+          "Play"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the vault's custody wallet"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "band",
+                  "player",
+                  "currency",
+                  "clientSeed"
+                ],
+                "properties": {
+                  "band": {
+                    "type": "string"
+                  },
+                  "player": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "enum": [
+                      "usdc",
+                      "token"
+                    ]
+                  },
+                  "clientSeed": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,32}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "playId, serverSeedHash, band, items, odds, currency, price, unit, memo, paymentTransaction (base64), quoteValidUntil, expiresAt"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "402": {
+            "description": "the wallet lacks the funds — nothing was sent"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "Play not open yet (the vault has not graduated), an unpaid play waiting, or token plays closed"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "summary": "Plays of this vault (paid ones), newest first",
+        "tags": [
+          "Play"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the vault's custody wallet"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "plays[]"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/plays/{id}/submit": {
+      "post": {
+        "summary": "The player paid: the signature is recorded (UNIQUE). A sweep waits for finality, reads the payment from the transaction itself, draws, holds the item and delivers from custody.",
+        "tags": [
+          "Play"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the vault's custody wallet"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "signature"
+                ],
+                "properties": {
+                  "signature": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "the play"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "description": "already paid / this signature already paid a play"
+          },
+          "410": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/plays/{id}": {
+      "get": {
+        "summary": "The proof: status, commit, server seed (once done), client seed, nonce, digest, index, snapshot (mints sorted), payment and delivery signatures",
+        "tags": [
+          "Play"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "the vault's custody wallet"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "the play"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v1/vaults/{vault}/trades/quote": {
       "post": {
         "summary": "Quote a buy (USDC → token) or sell (token → USDC) on the live pool",
-        "description": "Meteora DBC quote on the current pool state. 409 until the token launches.",
+        "description": "Meteora DBC quote on the current pool state. 409 until the token launches. One door for the token's whole life: while the curve is live the quote is Meteora DBC's (buys fill up to the graduation threshold and return the rest: amountInUsed, amountInLeft, partial); once migrated the same route trades on the graduated DAMM v2 pool (quote.venue = 'pool', priceImpactPct). The server never signs; the transaction is simulated first (402 with the two numbers when the wallet lacks funds).",
         "parameters": [
           {
             "$ref": "#/components/parameters/vault"
@@ -599,7 +1251,7 @@
     "/v1/vaults/{vault}/trades/build": {
       "post": {
         "summary": "Build the swap for the user's wallet to sign — unsigned, single signer = owner, nothing pre-signed",
-        "description": "Returns the base64 transaction and the base58 message Phantom's signAndSendTransaction takes. The server never signs trades.",
+        "description": "Returns the base64 transaction and the base58 message Phantom's signAndSendTransaction takes. The server never signs trades. One door for the token's whole life: while the curve is live the quote is Meteora DBC's (buys fill up to the graduation threshold and return the rest: amountInUsed, amountInLeft, partial); once migrated the same route trades on the graduated DAMM v2 pool (quote.venue = 'pool', priceImpactPct). The server never signs; the transaction is simulated first (402 with the two numbers when the wallet lacks funds).",
         "parameters": [
           {
             "$ref": "#/components/parameters/vault"
@@ -664,6 +1316,46 @@
             }
           },
           "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/vaults/{vault}/trades/balances": {
+      "get": {
+        "summary": "USDC and vault token held by a wallet (what the panel shows as balance and Max)",
+        "tags": [
+          "Trade"
+        ],
+        "parameters": [
+          {
+            "name": "vault",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "wallet, usdc, token"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
             "$ref": "#/components/responses/Error"
           },
           "409": {

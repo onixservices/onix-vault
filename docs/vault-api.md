@@ -1,6 +1,6 @@
 # The vault API — v1
 
-> How a gacha (ours or anyone's) buys an item out of a vault, and how a holder redeems one.
+> How a vault is created, traded and played, and how a gacha (ours or anyone's) buys an item out of it.
 > Written for Vault #1 (graded cards); the contract is the same for any registered custodian.
 > Drafted 30 September 2026; served by `server/` since 1 October. The server only ever
 > moves an item *after* a payment or a burn is confirmed on chain, and every delivery is a
@@ -20,22 +20,26 @@ one Collector Crypt's Gacha API uses with its integrators (Jupiter, Solflare): t
 delivered after the payment is confirmed on chain. A complete client is in
 `examples/integrator/` — the same one Onix.Cards' gacha runs.
 
-## The rule that both doors share
+## The rule the exit doors share
 
 ```
-exit price of an item = max(custodian value, live market reference)
+exit price of an item (gacha API) = max(custodian value, live market reference)
+Play, USDC                        = the band's average custodian value × 1.15
+Play, token                       = the band's average × 1.10 ÷ (realisable backing ÷ supply)   — share of backing
 ```
 
-- `custodian value` — the custodian's own on-chain attribute, as the backing page reads it (`Insured Value` for graded cards).
-- `live market reference` — the same reference the backing page publishes, with its sample
-  size and its age. If it cannot be read, the price is **unavailable**, never the index alone.
+- `custodian value` — the custodian's own on-chain attribute (`Insured Value` for graded cards).
+- `live market reference` — the same reference the backing page publishes, with its sample and age; if
+  it cannot be read the gacha price is **unavailable**, never the index alone.
 
 | door | pays | who signs what |
 |---|---|---|
-| **gacha** | `exit price` in USDC, to the vault wallet | the integrator pays; the vault wallet delivers to the winner |
-| **redemption** | `exit price × 1.15` worth of `$VEONIX`, **burned** | the holder burns; the vault wallet delivers to the holder |
+| **gacha** | `exit price` in USDC, to the custody wallet | the integrator pays; the custody key delivers to the winner |
+| **Play · USDC** | the band price, to the custody wallet | the player pays; the custody key delivers to the player |
+| **Play · token** | the band price in the vault's token, **burned** by the player | the player burns; the custody key delivers |
 
-The premium on redemption stays in the vault. The vault never picks which card leaves.
+The money stays in the vault; a burn shrinks the supply. The vault never picks which item leaves: the gacha
+picks by paying for a specific item, Play draws by commit-reveal.
 
 ## Endpoints
 
@@ -54,34 +58,25 @@ number the API did not serve with its source and age.
 |---|---|
 | `GET /v1/vaults` | the vaults (one today) with name, operator, custodians and `stats` |
 | `GET /v1/vaults/{vault}/stats` | backing (`indexUsd`, `realisableUsd`, `multiplier`) and, only when a pool exists, `pool` = price · supply · market cap · `ratio` (market cap ÷ realisable) · graduation progress · fees; until then `pool: null` and `poolStatus` says why. The two numbers are never summed. |
-| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — gacha sales and redemptions, each with its signatures |
+| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — plays, gacha sales, the creator's additions, each with its signatures |
 | `GET /v1/wallets/{wallet}/eligible-items` | "Create a vault", step 1: what in a wallet comes from a registered custodian with a value on chain; the rest listed with the reason |
 
 Anyone who prefers their own RPC can run `web/verify.html` with their own endpoint, or the CLI
 reader (`npm run backing`): same decoder, same numbers.
 
-### The Admit door — "Send a card"
+### The Admit door — the creator adds an item
 
-A vault is a **rule**, not a wallet that accepts anything (`server/admissions.js`, `VAULT_RULES`):
-registered custodian(s), a category, a minimum value. Vault #1: Collector Crypt · graded cards · no
-minimum. Three calls, the same shape as the gacha door:
+A vault is a **rule**, not a wallet that accepts anything (`server/rules.js`): registered custodian(s), a
+category, a minimum value, a minimum grade. **Only the creator adds items** (2 October 2026) and nobody is
+paid tokens for it: the supply is the curve's, and an added item raises backing per token for every holder.
 
 | endpoint | what |
 |---|---|
 | `GET /v1/vaults/{vault}/eligible-items?wallet=` | what in a wallet passes **this vault's** rules; the rest with the reason |
-| `POST /v1/vaults/{vault}/admissions/build` `{ owner, mint }` | the transfer owner → vault, **unsigned, single signer = owner**, plus the base58 message for `signAndSendTransaction`; 404 if the owner does not hold it, 422 if it fails the rules; returns `owedUsd` and `lockMonths` |
-| `POST /v1/vaults/{vault}/admissions` `{ mint, owner, signature, valueUsd }` | records it (`pending`); a sweep reads the chain and marks it `admitted` when the vault owns the item. `GET …/admissions` lists every one, with both signatures once the tokens are bought |
+| `POST /v1/vaults/{vault}/admissions/build` `{ owner, mint }` | 403 unless `owner` is the creator. The transfer owner → custody, **unsigned, single signer = owner**, plus the base58 message; 404 if the owner does not hold it, 422 if it fails the rules |
+| `POST /v1/vaults/{vault}/admissions` `{ mint, owner, signature, valueUsd }` | records it (`pending`); a sweep reads the chain and marks it `admitted` — and adds it to the manifest — when custody owns the item. `GET …/admissions` lists every one |
 
-**What the sender is owed:** tokens worth `custodian value × 0.89 × 0.80`, **bought on the curve by the
-vault as soon as it has the USDC** (fees, gacha sales), locked for the vault's lock period (12 months).
-Nobody mints tokens — the supply is the curve's. The same 45 s sweep that verifies the item does the buy:
-build on the curve as the vault (pre-flight and simulation included) → sign → persist the signature →
-broadcast; the row then carries `tokensSignature`, `tokensAmount` and `unlockAt`. If the vault has less
-USDC than owed, the row waits as `tokens: waiting` with the two numbers in `tokensNote`
-("needs $17.09 USDC and has $0.00"); nothing is signed. Release after `unlockAt` is the vault's duty
-(operator step today; the sweep will do it). Anything sent to the vault wallet outside this flow does not count and
-is returned by the operator. Enforcement by an on-chain program (the transfer fails if the rule fails)
-is the roadmap; until then the UI cannot build what the rule refuses, and the count ignores it.
+Anything sent to a custody wallet outside this flow is **not in the manifest and does not count**.
 
 ### The Create door
 
@@ -200,19 +195,10 @@ is good but the delivery failed: the reservation is `delivery_failed`, keeps the
 the operator re-runs the delivery by hand (`scripts/retry-delivery.js`, same path); poll
 `GET …/reservations/{id}` for the `deliverySignature`.
 
-### `POST /v1/vaults/{vault}/redemptions` *(v1: recorded, verified by the operator)*
+### `POST /v1/vaults/{vault}/redemptions` *(legacy, 30 September design)*
 
-```json
-{ "mint": "…", "burnSignature": "…", "recipient": "<pubkey>" }
-```
-
-v1 is **semi-manual**: the holder burns `$VEONIX` themselves (any wallet can), submits the
-signature, and the operator verifies the burn amount against `redeemPriceUsd` at the burn's
-block time before delivering from the vault wallet. Every redemption is listed publicly with
-both signatures. There is no reservation step: a burn is the commitment.
-
-→ `202 { "redemptionId", "status": "verifying" }` then, on the public list,
-`{ "burnSignature", "deliverySignature", "mint", "tokensBurned", "priceUsdAtBurn" }`.
+Kept for the record of the first design (burn for a specific item at 1.15×). The exit by burning is now
+**Play in tokens** (a draw from a band, priced in share of backing), which has no cherry-picking surface.
 
 ## What v1 does not do, on purpose
 
@@ -221,9 +207,9 @@ both signatures. There is no reservation step: a burn is the commitment.
   business and the integrator's regulator.
 - It does not let an integrator choose an exit price. The rule is the same for Onix's own
   gacha and for a stranger, and it is printed.
-- It does not enforce redemption by program. The rule is published and every delivery is a
-  public transaction; a holder still trusts the operator to honour it. Named in the threat
-  model.
+- It does not enforce custody release by program. Every rule is published and every delivery is a
+  public transaction signed by a derived key that only signs through the doors; a holder still trusts
+  the operator not to misuse the seed. Named in the threat model; the program is the destination.
 
 ## First integrator
 
