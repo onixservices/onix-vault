@@ -31,8 +31,8 @@
   <div class="crumbs"><a href="#/">Home</a><span>›</span><span>How it works</span></div>
   <div>
     <p class="eyebrow">The mechanism, with the numbers</p>
-    <h2 style="margin-top:8px">Create · Trade · Play. Backing per token only goes up.</h2>
-    <p class="muted" style="margin-top:8px;max-width:64ch">A creator puts items a custodian already holds on chain into a vault wallet and gets a token on a Meteora curve, priced in USDC. Traders buy and sell; 10% of every trade pays the creator on chain and feeds the vault's treasury. When the curve fills, the token moves to a pool and Play opens: pay USDC (it stays in the vault) or burn the token (priced in share of backing) to draw an item from a band. Nothing leaves custody any other way.</p>
+    <h2 style="margin-top:8px">Create · Trade · Play. Every door pays the vault.</h2>
+    <p class="muted" style="margin-top:8px;max-width:64ch">A creator puts items a custodian already holds on chain into a vault wallet and gets a token on a Meteora curve, priced in USDC. Traders buy and sell; 10% of every trade pays the creator on chain and feeds the vault's treasury. When the curve fills, the token moves to a pool with locked liquidity, 30% of the raise goes to the treasury, and Play opens: pay USDC (it stays in the vault) or burn the token (priced in share of backing) to draw an item from a band. Any gacha can buy items through the API at the published price. Every 15 minutes the vault claims its fees and the treasury buys the next item that passes the vault's rules — nobody clicks anything. Nothing leaves custody except through a payment or a burn.</p>
   </div>
   <div class="howgrid">
     <div class="verbs">
@@ -60,7 +60,7 @@
       <div class="feed2" id="t-feed"></div>
     </div>
   </div>
-  <p class="faint" style="font-size:12.5px;text-align:center">The panel is a simulation of how a vault behaves over a day. Vault #1's real numbers are in the app and on chain.</p>
+  <p class="faint" style="font-size:12.5px;text-align:center">The panel is a simulation of how a vault behaves over a day. The real vaults' numbers are on their pages and on chain.</p>
   <div class="fly">
     <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: a creator puts items into the vault and gets half the token, locked; traders buy and sell on the curve; the fee pays the creator and the treasury, which buys the next item; players pay USDC or burn the token to draw an item; gachas buy items through the API; every door raises backing per token.">
       <defs>
@@ -83,15 +83,10 @@
       <rect class="node" x="60" y="158" width="222" height="108" rx="14"/>
       <text class="lbl" x="78" y="184">Bonding curve</text>
       <text class="sm" x="78" y="200">THE VAULT'S TOKEN · METEORA DBC · USDC</text>
-      <!-- the band, not a price chart -->
-      <line x1="78" y1="236" x2="264" y2="236" stroke="var(--edge-2)" stroke-width="3" stroke-linecap="round"/>
-      <rect x="118" y="231" width="110" height="10" rx="5" fill="var(--gold-soft)" stroke="var(--gold)" stroke-width="1"/>
-      <text class="sm" x="118" y="256" text-anchor="middle">0.87×</text>
-      <text class="sm" x="228" y="256" text-anchor="middle">1.25×</text>
-      <text class="sm" x="171" y="222" text-anchor="middle">PRICE LIVES IN A BAND</text>
-      <circle cx="160" cy="236" r="7" fill="var(--gold)">
-        <animate attributeName="cx" values="150;196;138;184;150" dur="14s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 .6 1;.4 0 .6 1;.4 0 .6 1;.4 0 .6 1"/>
-      </circle>
+      <!-- the ratio, not a price chart: market cap and backing are shown side by side, never added -->
+      <text class="sm" x="78" y="224">FEE 10% · 99% IN THE FIRST 60 S</text>
+      <text class="sm" x="78" y="240">GRADUATES → POOL, LP LOCKED</text>
+      <text class="sm" x="78" y="256">MARKET CAP ÷ BACKING, NEVER ADDED</text>
 
       <!-- VAULT node -->
       <rect class="node vault" x="522" y="140" width="226" height="164" rx="14"/>
@@ -113,7 +108,7 @@
       <text class="lbl" x="185" y="40" text-anchor="middle">Traders</text>
       <text class="sm" x="185" y="54" text-anchor="middle">BUY · SELL ON THE CURVE</text>
       <text class="sm" x="402" y="112" text-anchor="middle">10% FEE → CREATOR · TREASURY</text>
-      <text class="sm" x="402" y="352" text-anchor="middle">TREASURY BUYS THE NEXT ITEM</text>
+      <text class="sm" x="402" y="352" text-anchor="middle">TREASURY BUYS THE NEXT ITEM · AUTOMATIC</text>
       <text class="lbl" x="630" y="40" text-anchor="middle">Creator</text>
       <text class="sm" x="630" y="54" text-anchor="middle">PUTS ITEMS IN · HALF THE TOKEN, LOCKED 6 M</text>
       <text class="lbl" x="560" y="446" text-anchor="middle">Play · token</text>
@@ -139,7 +134,7 @@
     <div><i style="background:#2775ca"></i><span><b>USDC</b>comes in from traders and players; the treasury buys the next item</span></div>
     <div><i style="background:var(--gold)"></i><span><b>The token</b>half to the creator (locked 6 months from graduation), half sold on the curve; burned to play</span></div>
     <div><i style="background:#e8e4d8;border:1px solid #9a8f70"></i><span><b>Items</b>watches, wine, cards, comics — held by a named custodian, counted on chain</span></div>
-    <div><i style="background:var(--verify)"></i><span><b>Backing per token</b>goes up at every door. That is the whole design.</span></div>
+    <div><i style="background:var(--verify)"></i><span><b>Backing per token</b>grows with every fee the treasury turns into an item and every token burned to play; a USDC play takes an item out and leaves the band's average value, plus 15%, in the treasury to buy the next.</span></div>
   </div>
   <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · the creator is paid by the program, not by us · one price rule for everyone, printed · nothing leaves custody except through a payment or a burn. No door depends on anyone's word.</p>
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><a class="cta" href="#/">Open the app</a><a class="cta ghost" href="#/integrate">Integrate a gacha</a></div>
@@ -242,9 +237,10 @@
     <div class="band">
       <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Market cap over backing</b><span class="faint" style="font-size:12.5px">the ratio, pinned where it is today</span></div>
       <div class="rail">
-        <div class="line"></div><div class="zone"></div>
-        <div class="m" style="left:28%">0.87×</div>
-        <div class="m" style="left:78%">1.25×</div>
+        <div class="line"></div>
+        <div class="m" style="left:20%">0.5×</div>
+        <div class="m" style="left:50%">1×</div>
+        <div class="m" style="left:80%">1.5×</div>
         <div class="pin" id="v-pin" style="display:none">—</div>
       </div>
       <div class="legend">

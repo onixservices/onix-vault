@@ -111,7 +111,7 @@
       $('vh-stats').innerHTML = html;
       $('vh-mature').style.display = p && !live ? '' : 'none';
       var pin = $('v-pin'), r = p ? p.ratio : null;
-      if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; } else pin.style.display = 'none';
+      if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = Math.max(2, Math.min(98, 50 + (r - 1) * 60)) + '%'; } else pin.style.display = 'none';
       renderProof(st);
       $('tab-play-btn').classList.toggle('lock', !live); $('tab-play-n').textContent = live ? '' : 'locked';
       tradePanel(st); renderExplain(st);
