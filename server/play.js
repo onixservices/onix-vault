@@ -96,6 +96,7 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
       const sim = await chain.simulateTransaction(paymentTransaction);
       if (sim && sim.err) {
         const logs = (sim.logs || []).join(' | ');
+        if (JSON.stringify(sim.err) === '"AccountNotFound"') throw err(402, 'this wallet has no SOL to pay the network fee (about 0.001 SOL). Nothing was sent.');
         if (/insufficient funds|insufficient lamports|"Custom":1\b/.test(logs + JSON.stringify(sim.err))) throw err(402, currency === 'token' ? `this wallet needs ${priceTokens.toLocaleString('en-US')} tokens for this play. Nothing was sent.` : `this wallet needs $${priceUsdc.toFixed(2)} USDC for this play. Nothing was sent.`);
         throw err(409, `the payment would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
       }

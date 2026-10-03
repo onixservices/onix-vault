@@ -70,7 +70,7 @@ function listingPassesRules(l, rules) {
   // graded cards only: the cheap end of a marketplace is fillers (pre-orders, mystery packs, sealed) — measured on the
   // Cards agent (Jul 2026: 27% of the cheap band); a vault of graded cards never buys them, whatever the ratio
   if (!l.grade || !l.gradingCompany || gradeOf(l) == null) return { ok: false, reason: 'not a graded card' };
-  if (/pre-?order|mystery|sealed|booster|pack|box|bundle|lot/i.test(l.name || '')) return { ok: false, reason: 'not a single graded card (filler)' };
+  if (/pre-?order|mystery|sealed|booster|pack\b|box\b|bundle|lot\b/i.test(l.name || '')) return { ok: false, reason: 'not a single graded card (filler)' };
   if (rules.minValueUsd && l.insuredUsd < rules.minValueUsd) return { ok: false, reason: `below the vault's minimum value ($${rules.minValueUsd})` };
   if (rules.maxValueUsd && l.insuredUsd > rules.maxValueUsd) return { ok: false, reason: `above the restock ceiling ($${rules.maxValueUsd})` };
   if (rules.category && rules.category !== 'mixed' && categoryOf(l) !== rules.category) return { ok: false, reason: `not ${rules.category}` };

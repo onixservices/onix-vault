@@ -85,7 +85,9 @@ function createCurveTrader({ pool, baseDecimals = 6, quoteDecimals = 6, getClien
       const sim = await simulate(bytes.toString('base64'));
       if (sim && sim.err) {
         const logs = (sim.logs || []).join(' | ');
-        if (/insufficient funds/i.test(logs) || /"Custom":1/.test(JSON.stringify(sim.err))) {
+        // a wallet with no SOL at all does not exist on chain yet: the simulation says AccountNotFound (abuse rehearsal, 3 Oct 2026)
+        if (JSON.stringify(sim.err) === '"AccountNotFound"') throw err(402, 'this wallet has no SOL to pay the network fee (about 0.001 SOL). Nothing was sent.');
+        if (/insufficient funds/i.test(logs) || /"Custom":1\b/.test(JSON.stringify(sim.err))) {
           const unit = side === 'sell' ? 'tokens' : 'USDC';
           const has = getBalanceUi ? await getBalanceUi(owner, side === 'sell' ? baseMint : quoteMint).catch(() => null) : null;
           const fmt = (n) => (n == null ? 'an unknown amount' : (side === 'sell' ? n.toLocaleString('en-US') : '$' + n.toFixed(2)));

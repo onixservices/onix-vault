@@ -74,6 +74,10 @@ describe('damm — build', () => {
     const t = createDammTrader(deps(f, { simulate: async () => ({ err: { InstructionError: [0, { Custom: 1 }] }, logs: ['Program log: Error: insufficient funds'] }), getBalanceUi: async () => 0.5 }));
     await assert.rejects(t.build({ owner: OWNER, side: 'buy', amount: 5 }), (e) => e.statusCode === 402 && /needs \$5\.00 USDC .* has \$0\.50/.test(e.message));
   });
+  test('a wallet with no SOL at all (AccountNotFound) is a 402 that says so, never the raw error', async () => {
+    const t = createDammTrader(deps(fakeCp(), { simulate: async () => ({ err: 'AccountNotFound', logs: [] }) }));
+    await assert.rejects(t.build({ owner: OWNER, side: 'buy', amount: 5 }), (e) => e.statusCode === 402 && /no SOL to pay the network fee/.test(e.message));
+  });
   test('owner must be a wallet address', async () => {
     await assert.rejects(createDammTrader(deps(fakeCp())).build({ owner: 'nope', side: 'buy', amount: 1 }), (e) => e.statusCode === 400);
   });
