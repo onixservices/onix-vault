@@ -65,6 +65,8 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
       const res = live.get(it.mint) || null;
       return {
         mint: it.mint, custodian: it.custodian, name: it.name || null, category: it.category || null, imageUrl: it.imageUrl || null,
+        // the card's own facts, from its on-chain attributes (the item page and the Play reveal show them; they were dropped here)
+        grade: it.grade || null, gradingCompany: it.gradingCompany || null, certNumber: it.certNumber || null, physicalVault: it.physicalVault || null,
         custodianValueUsd: it.custodianValueUsd, custodianValueBasis: it.custodianValueBasis || null,
         marketRefUsd: it.marketRefUsd ?? null,
         exitPriceUsd: it.exitPriceUsd,

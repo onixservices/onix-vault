@@ -60,6 +60,11 @@ describe('list', () => {
     assert.equal(out[0].exitPriceUsd, 20); assert.equal(out[0].exitPriceBasis, 'custodian');
     assert.equal(out[0].redeemPriceUsd, 23); assert.equal(out[0].status, 'available');
   });
+  test("the card's own facts reach the list: grade, grading company, certificate, physical vault", async () => {
+    const { svc } = make({ items: [{ ...item(), grade: 'PRISTINE 10', gradingCompany: 'CGC', certNumber: '6180353022', physicalVault: 'PWCC' }] });
+    const [i] = await svc.listItems();
+    assert.deepEqual([i.grade, i.gradingCompany, i.certNumber, i.physicalVault], ['PRISTINE 10', 'CGC', '6180353022', 'PWCC']);
+  });
   test('a reserved item shows reserved with its deadline', async () => {
     const { svc } = make();
     await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
