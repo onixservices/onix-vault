@@ -95,6 +95,7 @@
         html = S('Price', price(p.priceUsd), 'Meteora pool' + (p.damm ? ' · <a href="https://app.meteora.ag/dammv2/' + esc(p.damm.address) + '" target="_blank" rel="noopener">' + short(p.damm.address) + '</a>' : ''))
           + backing
           + S('Market cap', usd(p.mcapUsd) + (p.ratio != null ? '<small>' + p.ratio.toFixed(2) + '× backing</small>' : ''), 'price × ' + p.supply.toLocaleString('en-US'))
+          + S('Treasury', st.treasury && st.treasury.usdc != null ? usd2(st.treasury.usdc) : '\u2014', 'USDC in custody \u00b7 buys the next item')
           + S('Fees so far', usd2(p.feesLifetimeUsd), 'on the curve · 1% on the pool')
           + (cre != null ? S((mine() ? 'Your' : 'Creator') + ' share', Math.round(cre / 1e6 * 100) / 100 + 'M<small>locked</small>', (lk.locker ? '<a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener">' + esc(lk.locker.program) + '</a> · ' + (lk.vestingMonths || 6) + ' months' : 'releases over ' + (lk.vestingMonths || 6) + ' months') + (mine() && lk.locker ? ' · <a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener"><b>claim</b></a>' : '')) : '');
       } else {

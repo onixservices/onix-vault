@@ -106,7 +106,7 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     const st = await new CpAmm(new Connection(C.RPC_URL, 'confirmed')).fetchPoolState(address);
     return { address: address.toBase58(), priceUsd: Number(getPriceFromSqrtPrice(st.sqrtPrice, C.BASE_DECIMALS, C.QUOTE_DECIMALS).toString()) };
   };
-  const stats = createStatsReader({ readItems, chain, config: { haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig, readDamm });
+  const stats = createStatsReader({ readItems, chain, config: { vaultWallet, usdcMint: C.USDC_MINT, haircut: C.HAIRCUT, graduationUsd: def.graduationUsd, pool: def.pool, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, creatorPct: def.creatorPct ?? null, vestingMonths: def.vestingMonths ?? null, openingMcapUsd: def.openingMcapUsd ?? null }, cacheMs: C.ITEMS_CACHE_MS, readConfig, readDamm });
   // one Buy door for the token's whole life: the curve while live, the graduated DAMM v2 pool once migrated
   const curveTrader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, referralTokenAccount: C.REFERRAL_USDC_ACCOUNT, ...curveDeps }) : null;
   const dammDeps = productionDammDeps({ rpcUrl: C.RPC_URL, chain });

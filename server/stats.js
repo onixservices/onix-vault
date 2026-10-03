@@ -70,10 +70,14 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
     const indexUsd = items.reduce((s, it) => s + it.custodianValueUsd, 0);
     const realisableUsd = Math.round(indexUsd * haircut * 100) / 100;
     const poolPart = await readPool(realisableUsd);
+    // the treasury: USDC in the custody wallet (migration fee, USDC plays) — what buys the next item; never part of backing
+    let treasuryUsd = null;
+    if (config.vaultWallet && config.usdcMint && chain.rpc) { try { const r = await chain.rpc('getTokenAccountsByOwner', [config.vaultWallet, { mint: config.usdcMint }, { encoding: 'jsonParsed' }]); treasuryUsd = Math.round((r.value || []).reduce((s, a) => s + (a.account.data.parsed.info.tokenAmount.uiAmount || 0), 0) * 100) / 100; } catch (e) { treasuryUsd = null; } }
     const value = {
       readAt: now(),
       items: { count: items.length },
       backing: { indexUsd, realisableUsd, multiplier: haircut },
+      treasury: { usdc: treasuryUsd },
       band: BAND,
       ...poolPart,
     };
