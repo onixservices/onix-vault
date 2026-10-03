@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Onix.Vault</title>
-<meta name="description" content="Clickable prototype of the Onix.Vault platform: the board, Vault #1 with its 37 real cards, an item with its four doors, creating a vault, integrating a gacha.">
+<meta name="description" content="Auditable vaults for real-world assets on Solana. Create a vault from items a custodian holds, trade its token on a Meteora curve, and once it graduates play for the items.">
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/vault.css">
@@ -151,139 +151,121 @@
 <section class="screen" id="s-home">
   <div class="home-head">
     <p class="eyebrow">Auditable vaults for real-world assets · Solana · Meteora</p>
-    <h1>Tokens backed by things that exist.</h1>
-    <p class="lede">Real items, kept by a custodian you can check. One token per vault. <a href="#/how">How it works →</a></p>
+    <h1>Vaults backed by things that exist.</h1>
+    <p class="lede">Each vault is a wallet you can read, a token on a Meteora curve, and a set of rules. Once it graduates, you trade the token on the pool and play for the items. <a href="#/how">How it works →</a></p>
   </div>
 
-  <div class="sec">
-    <div class="hd">
-      <h2>Vaults</h2>
-      <div class="tags"><span class="tag live" id="b-live">read from chain</span><span class="tag" id="b-pool">token: —</span></div>
-    </div>
-    <div class="board" id="board"></div>
+  <div class="sec" id="shelf-live">
+    <div class="hd"><h2>Live</h2><span class="faint" style="font-size:13px">graduated · trade on the pool · play for the items</span></div>
+    <div class="tiles" id="board-live"></div>
+  </div>
+  <div class="sec" id="shelf-mat">
+    <div class="hd"><h2>Maturing</h2><span class="faint" style="font-size:13px">on the curve · buy early · play opens at graduation</span></div>
+    <div class="tiles" id="board-mat"></div>
   </div>
 
-  <div class="note blue"><b>How to read this board.</b> Backing is what the vault holds, read from the chain. Market cap is what the market pays for the token. They are never added together — the ratio is the only honest way to put them in one sentence.</div>
+  <div class="note blue"><b>How to read this board.</b> Backing is what the vault holds, read from the chain. Market cap is what the market pays for the token. They are never added together; the ratio is the only place they meet.</div>
 </section>
 
-<!-- ═══════════════ 2 · VAULT PAGE ═══════════════ -->
+<!-- ═══════════════ 2 · VAULT PAGE · the vault's own mini-site ═══════════════ -->
 <section class="screen" id="s-vault">
   <div class="crumbs"><a href="#/">Vaults</a><span>›</span><span id="v-crumb">Vault</span></div>
-  <div class="sec">
-    <div class="thero">
-      <img class="tstone" id="tk-img" src="/token/veonix.png" alt="">
-      <div class="tcopy">
-        <p class="eyebrow" id="v-eyebrow">Vault #1</p>
-        <h1><span id="tk-name">Veonix</span> <span class="tsym" id="tk-sym">$VEONIX</span></h1>
-        <p class="muted" id="tk-line">Backed by <b id="v-n">—</b> <span id="v-what">graded cards</span> in custody. Every trade buys the next one.</p>
-        <div class="tags" id="tk-tags"></div>
+
+  <div class="vhero">
+    <div class="ban" id="vh-ban"><div class="fan" id="vh-fan"></div></div>
+    <div class="id">
+      <div class="coin"><img id="tk-img" src="/token/default.png" alt=""></div>
+      <div class="who">
+        <h1><span id="tk-name">Vault</span> <span class="tsym" id="tk-sym">$—</span> <span class="tag" id="vh-chip">—</span></h1>
+        <p class="muted" id="vh-desc"></p>
+        <p class="faint" id="v-eyebrow" style="font-size:12.5px;margin-top:4px"></p>
       </div>
-      <div class="tacts">
-        <a class="cta ghost" id="v-send" href="#/vault/1/send">Send a card</a>
+      <div class="acts" id="vh-acts">
+        <a class="cta ghost sm" id="v-send" href="#/vault/1/send" style="display:none">Add a card</a>
+        <button class="cta ghost sm" type="button" data-go="trade" id="vh-trade">Trade</button>
+        <button class="cta sm" type="button" data-go="play" id="vh-play">Play</button>
       </div>
     </div>
-
-    <div class="mature big">
-      <div class="mhd"><span><span id="m-head">Opens to the whole market when</span> <b id="m-grad">—</b><span id="m-tail"> is in the curve</span></span><b id="m-pct">—</b></div>
+    <div class="stats" id="vh-stats"></div>
+    <div class="mature big" id="vh-mature" style="display:none">
       <div class="prog"><i id="m-prog" style="width:0%"></i></div>
-      <div class="mrow">
-        <div><span class="lab">USDC raised</span><b id="m-raised">—</b></div>
-        <div><span class="lab">To go</span><b id="m-left">—</b></div>
-        <div><span class="lab">Market cap</span><b id="m-mcap">—</b><small class="faint" id="m-open"></small></div>
-        <div><span class="lab">Fees so far</span><b id="m-fees">—</b></div>
-      </div>
-      <div class="mshare" id="m-share" style="display:none"><b id="m-share-t"></b><span id="m-share-s"></span>
-      </div>
+      <div class="mhd"><span><b id="m-pct">—</b> of the way · <b id="m-left">—</b> more USDC on the curve graduates this vault</span><span class="faint">then: pool on Meteora · Play opens · creator unlock starts</span></div>
     </div>
+  </div>
 
-    <div class="vgrid">
-      <div class="vleft">
-    <div class="pair">
-      <div><div class="lab">What the market pays</div><div class="val" id="v-mcap">—</div><div class="sub" id="v-mcap-sub">Token price × tokens in circulation.</div></div>
-      <div class="mid"><div class="lab" style="margin:0">Market ÷ inside</div><div class="ratio" id="v-ratio"></div><div class="sub" style="margin:0;text-align:center">market over backing</div></div>
-      <div><div class="lab">What is inside</div><div class="val g" id="v-back">—</div><div class="sub"><span id="v-n2"></span> items at what the market pays (<span id="v-mult"></span>× of the custodian's index, $<span id="v-idx"></span>). <span id="v-age"></span></div></div>
-    </div>
+  <div class="tabs vtabs" role="tablist">
+    <button data-tab="trade" id="tab-trade-btn">Trade</button>
+    <button data-tab="play" id="tab-play-btn">Play <span class="n" id="tab-play-n"></span></button>
+    <button class="on" data-tab="items">Items <span class="n" id="tab-items-n"></span></button>
+    <button data-tab="activity">Activity</button>
+    <button data-tab="proof">Proof</button>
+  </div>
 
-
-      </div>
+  <div id="tab-trade" class="sec" style="display:none">
+    <div class="trade2">
       <aside class="trade" id="trade" aria-label="Trade the token">
+        <div class="trade-top"><div class="tabs2" role="tablist"><button class="on" data-side="buy" type="button">Buy</button><button data-side="sell" type="button">Sell</button></div><span class="tag" id="t-state">not launched</span></div>
         <div id="t-grad" class="tgrad"></div>
-        <div class="trade-top"><span class="eyebrow" id="t-sym">$VEONIX</span><span class="tag" id="t-state">not launched</span></div>
-        <div class="trade-stats">
-          <div><span class="lab">Price</span><b id="t-price">—</b></div>
-          <div><span class="lab">Market cap</span><b id="t-mcap">—</b></div>
-          <div><span class="lab">Fees so far</span><b id="t-fees2">—</b></div>
-        </div>
-        <div class="tabs2" role="tablist"><button class="on" data-side="buy" type="button">Buy</button><button data-side="sell" type="button">Sell</button></div>
         <label class="amt"><input id="t-amount" type="number" min="0" step="any" placeholder="0.00" inputmode="decimal" aria-label="amount"><span id="t-unit">USDC</span></label>
         <div class="bal"><span id="t-bal">Connect a wallet to see your balance</span><button type="button" id="t-max" class="lnk" hidden>Max</button></div>
         <div class="q" id="t-quote">You receive —</div>
         <button class="cta block" id="t-go" type="button">Connect wallet</button>
         <p class="faint" id="t-msg" style="font-size:12px;min-height:16px"></p>
+        <p class="faint" id="t-venue" style="font-size:12px"></p>
       </aside>
+      <div class="explain" id="t-explain"></div>
     </div>
+  </div>
 
-    <div class="tabs" role="tablist">
-      <button class="on" data-tab="items">Items</button>
-      <button data-tab="play" id="tab-play-btn">Play</button>
-      <button data-tab="activity">Activity</button>
-      <button data-tab="proof">Proof</button>
-    </div>
+  <div id="tab-play" class="sec" style="display:none">
+    <div class="playlede"><div><h2 id="play-h">Pick a machine</h2><p class="muted" id="play-lede" style="font-size:14px">One item from the band is drawn and sent to your wallet from custody. Pay in USDC (it stays in the vault and buys the next item) or burn the vault's token at its share of backing, never at the market price.</p></div><span class="faint" style="font-size:12.5px">1 in N each · provably fair · <a href="#/how">how</a></span></div>
+    <div class="machines" id="bands"></div>
+  </div>
 
-    <div id="tab-items" class="sec">
-      <div class="grid" id="grid"></div>
-      <p class="faint" style="font-size:12.5px">Each card: the custodian's insured value is the index; the exit price is <span class="mono">max(index, market)</span>; redeem = exit × 1.15, paid by burning $VEONIX. Photos and facts are the token's own metadata.</p>
-    </div>
+  <div id="tab-items" class="sec">
+    <div class="filters" id="item-filters"></div>
+    <div class="grid" id="grid"></div>
+    <p class="faint" style="font-size:12.5px">Each card: the custodian's insured value is the index. Grade, certificate and physical vault are the token's own metadata.</p>
+  </div>
 
-    <div id="tab-play" class="sec" style="display:none">
-      <p class="muted" style="font-size:14px" id="play-lede">Pick a band. Pay in USDC or burn the vault's token. One item from the band is drawn — provably — and sent to your wallet from custody.</p>
-      <div class="bands" id="bands"></div>
-      <div class="playres" id="play-res" style="display:none"></div>
-      <p class="faint" style="font-size:12.5px">USDC price = the band's average listed value × 1.15 — the item leaves, the money stays in the vault to buy the next one. Token price = average × 1.10 in <b>share of backing</b> (backing ÷ supply), never at the market price: a pump buys nothing cheaper. Draws are commit-reveal: the hash is published before you pay, your seed goes in the memo, and the seed is revealed with the result.</p>
-    </div>
-
-    <div id="tab-activity" class="sec" style="display:none">
-      <div class="feed">
-        <div id="act-empty">
-          <h3>Nothing has happened yet.</h3>
-          <p class="muted" style="margin-top:6px">Every door fires as a public transaction and lands here, paired with the one that caused it. The first ones will be ours, and each will say so.</p>
-        </div>
-        <div id="act-rows"></div>
+  <div id="tab-activity" class="sec" style="display:none">
+    <div class="feed">
+      <div id="act-empty">
+        <h3>Nothing has happened yet.</h3>
+        <p class="muted" style="margin-top:6px">Every door fires as a public transaction and lands here, paired with the one that caused it.</p>
       </div>
+      <div id="act-rows"></div>
     </div>
+  </div>
 
-    <div id="tab-proof" class="sec" style="display:none">
-      <div class="prov">
-        <div class="r"><span class="k">The items</span><span>Read from the vault wallet on Solana with the DAS API, cached for seconds, age shown. <b>Not a list we keep.</b> Grade, certificate and physical vault come from the asset's own metadata. Custody wallet: <span class="mono" id="p-wallet"></span> · creator: <span class="mono" id="p-creator"></span> — the creator chose the rules and is paid on chain; only the vault's doors move items out of custody.</span></div>
-        <div class="r"><span class="k">Index</span><span>The <b>Insured Value</b> attribute written on chain by the custodian (Collector Crypt). An index they assign — not a market price, not a number of ours.</span></div>
-        <div class="r"><span class="k">The 0.89×</span><span>Cards sell for less than the index. <b>0.89× is the measured median</b> across our own sales; backing is shown after that haircut, with its sample and date.</span></div>
-        <div class="r"><span class="k">What the market pays</span><span>Token price (from the Meteora pool) × tokens in circulation, both on chain, read with the same open-source decoder anyone can run. <b id="p-pool"></b></span></div>
-        <div class="r"><span class="k">What we never do</span><span><b>Count the money people paid for the token as if it were in the vault.</b> That money sits in the trading pool, not in the vault. Two pockets, two numbers, never one total.</span></div>
-        <div class="r"><span class="k">How items get in</span><span>Only what passes <b>this vault's rules</b> — a registered custodian (Collector Crypt), a graded card, a value written on chain. The sender signs the transfer; the vault never pulls. The sender is owed <b>tokens worth 80% of what the card sells for</b>, bought on the curve as soon as the vault has the USDC, locked 12 months. Nobody mints tokens: the supply is the curve's. Anything sent outside this flow does not count and is returned.</span></div>
-        <div class="r"><span class="k">The operator</span><span>Onix seeded Vault #1 with its own cards and <b>holds no tokens</b> for them: it earns the operator's leg of the fee (20% of 10%), printed above, and nothing else. There is no allocation, no vesting, no team wallet.</span></div>
-        <div class="r"><span class="k">Who signs</span><span>Only the vault wallet, only to deliver through the two exit doors, only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
-      </div>
+  <div id="tab-proof" class="sec" style="display:none">
+    <div class="prov">
+      <div class="r"><span class="k">Custody</span><span>The items live in <span class="mono" id="p-wallet"></span>, a wallet derived for this vault. Read it on Solscan: every item below must be there. Only the vault's doors (Play, the gacha API) move items out, and only after a payment or a burn was read from the chain. The code that signs is public; the key is not.</span></div>
+      <div class="r"><span class="k">Creator</span><span><span class="mono" id="p-creator"></span> chose the rules, holds 50% of the supply in Jupiter Lock (released over 6 months from graduation) and is paid <b id="p-fee">40%</b> of every trade fee on chain. The creator cannot take an item out any other way than everyone else.</span></div>
+      <div class="r"><span class="k">The items</span><span>Read from the custody wallet with the DAS API, filtered by the manifest (what the creator declared and the chain confirms), cached for seconds, age shown. Grade, certificate and physical vault come from the asset's own metadata.</span></div>
+      <div class="r"><span class="k">Index · 0.89×</span><span>The <b>Insured Value</b> the custodian wrote on chain is the index. Cards sell for less: <b>0.89× is the measured median</b> across our own sales, and backing is shown after that haircut.</span></div>
+      <div class="r"><span class="k">Curve → pool</span><span><b id="p-pool"></b> Opens at 2× backing; graduates at the creator's multiple; the USDC raised moves to a Meteora DAMM v2 pool with the token, locked for good; 30% of it goes to this vault's treasury. The first 60 s charge 99%→10% so bots cannot front-run the creator.</span></div>
+      <div class="r"><span class="k">Rules</span><span id="p-rules"></span></div>
+      <div class="r"><span class="k">What we never do</span><span><b>Count the money people paid for the token as if it were in the vault.</b> That money sits in the pool, not in custody. Two pockets, two numbers, never one total.</span></div>
+    </div>
     <div class="band">
-      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Where the price can go</b><span class="faint" style="font-size:12.5px">it stays near what is inside — two rules keep it there</span></div>
+      <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Market cap over backing</b><span class="faint" style="font-size:12.5px">the ratio, pinned where it is today</span></div>
       <div class="rail">
         <div class="line"></div><div class="zone"></div>
-        <div class="m" style="left:28%">0.87× floor</div>
-        <div class="m" style="left:78%">1.25× ceiling</div>
+        <div class="m" style="left:28%">0.87×</div>
+        <div class="m" style="left:78%">1.25×</div>
         <div class="pin" id="v-pin" style="display:none">—</div>
       </div>
       <div class="legend">
-        <div><b>If it drops below the floor</b> it is cheaper to buy tokens and take an item out than to buy the item — so people do, and the price comes back up.</div>
-        <div><b>If it rises above the ceiling</b> it pays to put an item in and sell the tokens — same thing, the other way.</div>
+        <div><b>Below 1×</b> a token buys more backing than it costs: Play in tokens (priced in share of backing) is the cheapest way to an item.</div>
+        <div><b>Above 1×</b> the market pays for the rules, the fee flow and the next items the treasury buys.</div>
       </div>
     </div>
-      <div class="split">
-        <p class="eyebrow">Where every trade goes · 10% fee</p>
-        <div class="bar"><span class="s0">2% Meteora</span><span class="s1">4% buys a card</span><span class="s2">2.4% buyback</span><span class="s3">1.6% operator</span></div>
-        <p class="faint" style="font-size:12.5px">The protocol keeps 20% of every fee, fixed by the program. Of what reaches the vault, the split is 50 / 30 / 20. Both sets of numbers shown so nobody has to subtract.</p>
-      </div>
-      <div class="note blue"><b>Anyone can rebuild every number on this page without asking us for anything.</b> The reader is open source and only reads the chain — <a href="/verify.html">run it in your browser with your own RPC</a>, or <span class="mono">npm run backing</span> in the repo.</div>
-    </div>
+    <div class="note blue"><b>Anyone can rebuild every number on this page without asking us for anything.</b> The reader is open source and only reads the chain — <a href="/verify.html">run it in your browser with your own RPC</a>, or <span class="mono">npm run backing</span> in the repo.</div>
   </div>
+
+  <!-- the reveal: steps → card flip → proof folded -->
+  <div class="veil" id="veil" style="display:none"><div class="reveal" id="reveal"></div></div>
 </section>
 
 <!-- ═══════════════ 3 · ITEM PAGE ═══════════════ -->
@@ -351,7 +333,7 @@
   <div class="sec">
     <div class="hd">
       <div>
-        <p class="eyebrow">Three steps · your wallet is the vault</p>
+        <p class="eyebrow">Three steps · your items, your token, your rules</p>
         <h2 style="margin-top:8px">Create a vault</h2>
       </div>
       <div class="steps">
@@ -378,8 +360,12 @@
       <div class="form">
         <div class="f"><label for="f-name">Vault name</label><input id="f-name" value="" maxlength="32" placeholder="e.g. My Pokémon shelf"></div>
         <div class="f"><label for="f-sym">Token symbol</label><input id="f-sym" value="" maxlength="10" placeholder="e.g. SHELF" style="text-transform:uppercase"></div>
-        <div class="f"><label for="f-desc">One line about it</label><input id="f-desc" value="" maxlength="200" placeholder="what this collection is, in your words"></div>
         <div class="f"><label for="f-x">X profile (optional)</label><input id="f-x" value="" placeholder="https://x.com/you"></div>
+        <div class="f wide"><label for="f-desc">Description <span class="faint">(shows in Phantom, Jupiter, Meteora · up to 200 characters)</span></label><textarea id="f-desc" maxlength="200" rows="2" placeholder="what this collection is, in your words"></textarea></div>
+        <div class="f"><label>Coin image <span class="faint">(the face of the token everywhere)</span></label>
+          <label class="upload" id="up-image"><span class="pv" id="pv-image">$</span><span><b>Drop a PNG, JPG or WebP</b><small>square · up to 1 MB · <span id="up-image-msg">optional</span></small></span><input type="file" id="f-image" accept="image/png,image/jpeg,image/webp" hidden></label></div>
+        <div class="f"><label>Banner <span class="faint">(top of your vault page and the board tile)</span></label>
+          <label class="upload" id="up-banner"><span class="pv wide" id="pv-banner"></span><span><b>Optional · about 3:1</b><small>PNG, JPG or WebP · up to 1 MB · <span id="up-banner-msg">optional</span></small></span><input type="file" id="f-banner" accept="image/png,image/jpeg,image/webp" hidden></label></div>
       </div>
       <p class="eyebrow" style="margin-top:6px">Rules — what this vault takes and how it pays you</p>
       <div class="form">

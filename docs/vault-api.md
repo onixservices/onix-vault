@@ -94,10 +94,11 @@ later. Nothing is ever pre-signed by the server.
 | step | call | what happens |
 |---|---|---|
 | 0 | `GET /v1/vaults/create/quote?wallet=&rules=` | what the wallet holds that THESE rules take; the curve it implies (opens at 2× realisable; graduates at `gradMult` × that; 50% creator) |
-| 1 | `POST /v1/vaults/create/open` `{ owner, name, symbol, mints, rules, description, links }` | validates (lists only; symbol unique and not reserved; 1 creation in flight per wallet; global cap/hour), allocates the custody index, returns `custodyWallet` and **`depositTransactions[]`** — items → custody (+0.03 SOL gas in the first), each single-signer = creator, unsigned, simulated. **Nothing of Onix is spent here.** |
+| — | `POST /v1/vaults/create/upload` (raw image bytes) | the coin image or the banner: PNG, JPEG or WebP **decided by the bytes** (never SVG), ≤ 1 MB, stored under its sha256, previewed at `GET /v1/vaults/create/uploads/{id}`; orphans are swept after an hour; rate-limited per address |
+| 1 | `POST /v1/vaults/create/open` `{ owner, name, symbol, mints, rules, description, links, imageId, bannerId }` | validates (lists only; symbol unique and not reserved; 1 creation in flight per wallet; global cap/hour), allocates the custody index, returns `custodyWallet` and **`depositTransactions[]`** — items → custody (+0.03 SOL gas in the first), each single-signer = creator, unsigned, simulated. **Nothing of Onix is spent here.** |
 | 2 | `POST /v1/vaults/create/deposited` `{ creationId }` | 409 until the chain shows every item in custody (+ the gas). Then Onix creates the curve **config** (pays its rent, once; `feeClaimer` = the custody wallet) and returns the **launch transaction** (`createPool`, creator = payer), unsigned, simulated |
 | 3 | `POST /v1/vaults/create/submit` `{ creationId, signedTransaction }` | the creator signed it (`signTransaction`): same content as built (ComputeBudget/Lighthouse the wallet adds are ignored) → the throwaway mint key completes it → broadcast |
-| 4 | `POST /v1/vaults/create/confirm` `{ creationId, signature }` | the pool exists on chain → the vault is registered (custody wallet, creator, rules, manifest) and served at once |
+| 4 | `POST /v1/vaults/create/confirm` `{ creationId, signature }` | the pool exists on chain → the vault is registered (custody wallet, creator, rules, manifest, image, banner) and served at once. `GET /token/{mint}.json` (what wallets and Meteora read) points at `/token/{mint}.png` and `/token/{mint}-banner.png`, served with a fixed type and `nosniff` |
 | — | `POST /v1/vaults/create/abandon` `{ creationId, owner }` | before launch: custody returns every item to the creator (signed by the derived key). Expired creations (2 h) are abandoned by a sweep |
 | — | `GET /v1/vaults/create/{creationId}` | where it stands; while open, what custody still lacks and fresh deposit transactions for exactly that |
 
@@ -110,8 +111,8 @@ band's snapshot sorted by mint.
 
 | | |
 |---|---|
-| `GET /v1/vaults/{vault}/play` | the bands (by custodian value): items, odds (1/n), `priceUsdc` = average × 1.15, `priceTokens` = average × 1.10 ÷ (realisable backing ÷ supply) — **share of backing, never the market price**; `kind` = draw (3+ items) / pick / empty |
-| `POST /v1/vaults/{vault}/plays` `{ band, player, currency: usdc|token, clientSeed }` | 201: `playId`, `serverSeedHash`, price, and the **payment transaction** for the player to sign — USDC: transfer to custody + memo `play:<id>`; token: `burnChecked` of the player's own tokens + memo. Single unsigned signer = player; simulated first (402 when the wallet lacks funds). 1 unpaid play per wallet; 6 plays an hour |
+| `GET /v1/vaults/{vault}/play` | `open` (**Play opens at graduation** — while the curve fills, nothing leaves custody; `lockedReason` says so) and the bands (by custodian value): items, odds (1/n), `priceUsdc` = average × 1.15, `priceTokens` = average × 1.10 ÷ (realisable backing ÷ supply) — **share of backing, never the market price**; `kind` = draw (3+ items) / pick / empty |
+| `POST /v1/vaults/{vault}/plays` `{ band, player, currency: usdc|token, clientSeed }` | 409 until the vault graduated. 201: `playId`, `serverSeedHash`, price, and the **payment transaction** for the player to sign — USDC: transfer to custody + memo `play:<id>`; token: `burnChecked` of the player's own tokens + memo. Single unsigned signer = player; simulated first (402 when the wallet lacks funds). 1 unpaid play per wallet; 6 plays an hour |
 | `POST /v1/vaults/{vault}/plays/{id}/submit` `{ signature }` | 202: recorded (UNIQUE). A sweep (10 s) waits for finality, reads the payment from the transaction itself (payer, amount, memo; for a burn: the instruction, the mint, the authority, the balance delta), draws, holds the item, delivers from custody (build → assert → simulate → sign → persist → broadcast) |
 | `GET /v1/vaults/{vault}/plays/{id}` · `GET …/plays` | the proof: commit, seed (once done), client seed, digest, index, nonce, snapshot, signatures |
 
@@ -120,9 +121,13 @@ drawn by a play is never sold to an integrator underneath it, and vice versa.
 
 ### The Buy door
 
-`POST /v1/vaults/{vault}/trades/quote` and `…/trades/build` — a Meteora DBC quote on the live pool and
-the swap for the **user's** wallet to sign (unsigned, single signer, the base58 message for Phantom).
-The server never signs a trade. 409 until the pool exists.
+`POST /v1/vaults/{vault}/trades/quote` and `…/trades/build` — a quote and the swap for the **user's** wallet to
+sign (unsigned, single signer, simulated first — 402 with the two numbers when the wallet lacks funds). The
+server never signs a trade. 409 until the pool exists. **One door for the token's whole life:** while the curve
+is live the quote is Meteora DBC's (buys fill up to the graduation threshold and return the rest); once it
+migrated the same routes trade on the graduated **DAMM v2 pool** through `@meteora-ag/cp-amm-sdk`
+(`quote.venue` = `curve` | `pool`; `priceImpactPct` on the pool). Jupiter is not a dependency: a pool a few
+dollars deep is not routed there, the vault's own pool always is.
 
 ### `GET /v1/vaults/{vault}/items`
 

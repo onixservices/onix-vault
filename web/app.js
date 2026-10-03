@@ -42,86 +42,82 @@
     })();
   }
 
-  // ── board ──
+  // ── board: Live (graduated) on top, Maturing (on the curve) below, Create last ──
+  var STRIPS = {};
+  function fanHtml(items, n, cls) { return (items || []).slice(0, n).map(function (c, i) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy" style="--rot:' + ((i - (n - 1) / 2) * 7) + 'deg">' : ''; }).join(''); }
+  function isLive(v) { return !!(v.stats && v.stats.pool && v.stats.poolStatus === 'migrated'); }
   function tile(v) {
-    var st = v.stats, p = st && st.pool, sym = '$' + ((v.token && v.token.symbol) || 'TOKEN');
-    var pct = p ? Math.round((p.graduationProgress || 0) * 100) : 0;
-    return '<a class="vcard" href="#/vault/' + v.id + '"><div class="strip" data-strip="' + v.vault + '"></div><div class="body">'
-      + '<div class="head"><b>' + esc(v.name) + '</b><span class="tag gold">operated by ' + esc(v.operator || '—') + '</span></div>'
-      + '<div class="kv"><div><span class="l">Backing</span><span class="x g">' + (st ? usd(st.backing.realisableUsd) : '—') + '</span></div><div><span class="l">Market cap</span><span class="x">' + (p ? usd(p.mcapUsd) : '—') + '</span></div><div><span class="l">Ratio</span><span class="x">' + (p && p.ratio != null ? p.ratio.toFixed(2) + '×' : '—') + '</span></div></div>'
-      + '<div class="prog"><i style="width:' + pct + '%"></i></div>'
-      + '<p class="faint" style="font-size:12.5px">' + (st ? st.items.count : '—') + ' items · ' + esc(v.description || (v.custodians || []).join(', ')) + ' · ' + (p ? pct + '% of the way to the open market' : 'token ' + (st ? st.poolStatus : '—')) + '</p>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap"><span class="cta sm">Buy ' + esc(sym) + '</span><span class="cta ghost sm">Send a card</span></div></div></a>';
+    var st = v.stats, p = st && st.pool, sym = '$' + ((v.token && v.token.symbol) || 'TOKEN'), live = isLive(v);
+    var pct = p ? Math.round((p.graduationProgress || 0) * 100) : 0, need = p && p.graduationUsdc, raised = p ? p.raisedUsd || 0 : 0;
+    var kv = live
+      ? '<div class="kv"><span>Price</span><b>' + price(p.priceUsd) + '</b><span>Backing</span><b>' + usd(st.backing.realisableUsd) + '</b><span>Market cap</span><b>' + usd(p.mcapUsd) + '</b><span>Items</span><b>' + st.items.count + '</b></div>'
+      : p ? '<div class="kv"><span>Raised</span><b>' + usd2(raised) + ' <span class="faint">of ' + (need ? usd(need) : '—') + '</span></b><span>Backing</span><b>' + usd(st.backing.realisableUsd) + '</b></div><div class="prog"><i style="width:' + pct + '%"></i></div>'
+      : '<div class="kv"><span>Backing</span><b>' + (st ? usd(st.backing.realisableUsd) : '—') + '</b><span>Items</span><b>' + (st ? st.items.count : '—') + '</b></div>';
+    var foot = live ? '<span>trade · play</span><span class="tag live">Live</span>' : p ? '<span>' + pct + '% to graduation · buy on the curve</span><span class="tag mat">Maturing</span>' : '<span>' + esc(st ? st.poolStatus : '—') + '</span><span class="tag">' + esc(st ? st.poolStatus : '—') + '</span>';
+    var banner = v.token && v.token.banner ? ' style="background-image:url(' + esc(v.token.banner) + ')"' : '';
+    return '<a class="tile" href="#/vault/' + v.id + '"><div class="ban"' + banner + '><div class="coin"><img src="' + esc((v.token && v.token.image) || '/token/default.png') + '" alt=""></div><div class="fan" data-strip="' + v.vault + '"></div></div><div class="body"><div class="name"><b>' + esc(v.name) + '</b><span>' + esc(sym) + '</span></div>' + kv + '<div class="foot">' + foot + '</div></div></a>';
   }
   function renderBoard() {
-    $('board').innerHTML = VAULTS.map(tile).join('') + '<a class="vcard empty" href="#/create"><b>Your vault</b><p>Watches, wine, comics, cards. If a custodian you trust has put it on chain, it can back a token.</p><span class="cta sm">Create a vault</span></a>';
+    var live = VAULTS.filter(isLive), mat = VAULTS.filter(function (v) { return !isLive(v); });
+    var createTile = '<a class="tile create" href="#/create"><div class="plus">+</div><b>Create a vault</b><span style="font-size:13px">Put in items a custodian already tokenized. You get half the supply and 40% of every trade.</span></a>';
+    $('shelf-live').style.display = live.length ? '' : 'none';
+    $('board-live').innerHTML = live.map(tile).join('');
+    $('board-mat').innerHTML = mat.map(tile).join('') + createTile;
     VAULTS.forEach(function (v) {
-      get('/v1/vaults/' + v.vault + '/items').then(function (b) {
-        var el = document.querySelector('[data-strip="' + v.vault + '"]'); if (!el) return;
-        el.innerHTML = b.items.slice(0, 5).map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span></span>'; }).join('');
-      });
+      var paint = function (items) { var el = document.querySelector('[data-strip="' + v.vault + '"]'); if (el) el.innerHTML = fanHtml(items.slice().reverse(), 4); };
+      if (STRIPS[v.vault]) paint(STRIPS[v.vault]);
+      else get('/v1/vaults/' + v.vault + '/items').then(function (b) { STRIPS[v.vault] = b.items; paint(b.items); }).catch(function () {});
     });
-    var st0 = VAULTS[0] && VAULTS[0].stats;
-    $('b-live').textContent = VAULTS.length ? VAULTS.length + ' vault' + (VAULTS.length === 1 ? '' : 's') + ' · read from chain' : 'no vaults yet';
-    $('b-pool').textContent = st0 && st0.pool ? 'token: trading' : st0 ? 'token: ' + st0.poolStatus : 'create the first one';
   }
-  // ── vault page ──
+  // ── vault page: the vault's own mini-site (hero · stats · tabs) ──
+  var ITEM_FILTER = 'all';
+  function mine() { return !!(W.addr && META.creator && W.addr === META.creator); }
   function renderVault() {
+    var tk = META.token || {};
+    $('v-crumb').textContent = META.name || 'Vault'; $('tk-name').textContent = META.name || tk.name || 'Vault'; $('tk-sym').textContent = '$' + (tk.symbol || '—'); $('tk-img').src = tk.image || '/token/default.png';
+    $('vh-ban').style.backgroundImage = tk.banner ? 'url(' + tk.banner + ')' : '';
+    $('vh-desc').textContent = META.description || '';
+    $('v-eyebrow').textContent = 'created by ' + (META.operator || '—') + ' · custody ' + short(VAULT) + (META.rulesText ? ' · ' + META.rulesText : '');
+    $('v-send').href = vpath('/send'); $('v-send').style.display = mine() ? '' : 'none';
+    $('p-wallet').textContent = VAULT; $('p-creator').textContent = META.creator || '—'; $('p-fee').textContent = (META.creatorFeePct || 40) + '%'; $('p-rules').textContent = META.rulesText || '—';
     loadStats().then(function (st) {
       if (T.wallet && st.pool && (BAL.wallet !== T.wallet || BAL.usdc == null)) loadBalances();
-      $('v-eyebrow').textContent = (META.name || 'Vault') + ' · operated by ' + (META.operator || '—') + ' · wallet ' + short(VAULT);
-      $('v-crumb').textContent = META.name || 'Vault'; $('v-send').href = vpath('/send'); $('v-send').style.display = (W.addr && META.creator && W.addr === META.creator) ? '' : 'none'; $('t-sym').textContent = SYM();
-      $('v-n').textContent = st.items.count; $('v-n2').textContent = st.items.count; $('v-what').textContent = (st.items.count === 1 ? 'graded card' : 'graded cards') + (META.rulesText ? ' · ' + META.rulesText.replace(/ from .*$/, '').toLowerCase() : '');
-      var tk = META.token || {};
-      if (tk.name) $('tk-name').textContent = tk.name; if (tk.symbol) $('tk-sym').textContent = '$' + tk.symbol; if (tk.image) $('tk-img').src = tk.image;
-      $('tk-tags').innerHTML = st.pool
-        ? '<span class="tag live">trading</span><a class="tag" href="https://solscan.io/token/' + st.pool.baseMint + '" target="_blank" rel="noopener">mint ' + short(st.pool.baseMint) + '</a><a class="tag" href="https://solscan.io/account/' + st.pool.address + '" target="_blank" rel="noopener">pool ' + short(st.pool.address) + '</a><span class="tag">10% of every trade feeds the vault</span>'
-        : '<span class="tag">' + st.poolStatus + '</span>';
-      var p = st.pool, gq = p && p.graduationUsdc;
-      $('m-grad').textContent = gq ? usd2(gq) + ' USDC' : '—';
-      $('m-head').textContent = p && st.poolStatus === 'migrated' ? 'Graduated — trading on the open market' : 'Opens to the whole market when';
-      $('m-grad').style.display = p && st.poolStatus === 'migrated' ? 'none' : ''; $('m-tail').style.display = p && st.poolStatus === 'migrated' ? 'none' : '';
-      if (p) {
-        var pr = Math.round((p.graduationProgress || 0) * 100);
-        $('m-pct').textContent = pr + '%'; $('m-prog').style.width = pr + '%';
-        $('m-raised').textContent = usd2(p.raisedUsd || 0); $('m-left').textContent = gq ? usd2(Math.max(0, gq - (p.raisedUsd || 0))) : '—';
-        $('m-mcap').textContent = usd(p.mcapUsd); $('m-open').textContent = p.openingMcapUsd ? 'opened at ' + usd(p.openingMcapUsd) : '';
-        $('m-fees').textContent = usd2(p.feesLifetimeUsd);
-        var mine = W.addr && META.creator && W.addr === META.creator, lk = p.locked;
-        $('m-share').style.display = lk ? '' : 'none';
-        if (lk) {
-          var cre = lk.creatorPct != null ? Math.round(p.supply * lk.creatorPct / 100) : lk.tokens;
-          $('m-share-t').textContent = (mine ? 'Your share: ' : 'Creator\'s share: ') + cre.toLocaleString('en-US') + ' ' + SYM() + (lk.creatorPct != null ? ' (' + lk.creatorPct + '%)' : '');
-          var lkr = lk.locker;
-          if (st.poolStatus === 'migrated' && lkr) $('m-share-s').innerHTML = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · vesting over ' + (lk.vestingMonths || 6) + ' months in <a href="' + esc(lkr.url) + '" target="_blank" rel="noopener">' + esc(lkr.program) + '</a>' + (mine ? ' — <a href="' + esc(lkr.url) + '" target="_blank" rel="noopener"><b>claim what has vested</b></a>' : '') + ' · <a href="https://solscan.io/account/' + esc(lkr.escrow) + '" target="_blank" rel="noopener">escrow</a>';
-          else $('m-share-s').textContent = 'worth ' + usd(cre * p.priceUsd) + ' at today\'s price · released when trading opens to the whole market' + (lk.vestingMonths ? ', then over ' + lk.vestingMonths + ' months' : '');
-        }
-      } else { $('m-pct').textContent = '—'; $('m-prog').style.width = '0%'; $('m-raised').textContent = '—'; $('m-left').textContent = '—'; $('m-mcap').textContent = '—'; $('m-open').textContent = ''; $('m-fees').textContent = '—'; $('m-share').style.display = 'none'; }
-      $('v-idx').textContent = st.backing.indexUsd.toLocaleString('en-US'); $('v-mult').textContent = st.backing.multiplier;
-      $('v-back').textContent = usd(st.backing.realisableUsd);
-      $('v-age').textContent = ago(st.ageMs);
-      $('p-wallet').textContent = VAULT; $('p-creator').textContent = META.creator || '—';
-      tradePanel(st);
-      if (st.pool) {
-        $('v-mcap').textContent = usd(st.pool.mcapUsd);
-        $('v-mcap-sub').textContent = 'Token price ' + price(st.pool.priceUsd) + ' × ' + st.pool.supply.toLocaleString('en-US') + ' tokens in circulation.';
-        var r = st.pool.ratio; $('v-ratio').textContent = r != null ? r.toFixed(2) + '×' : '—';
-        var pin = $('v-pin'); if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; }
-        $('p-pool').textContent = 'Pool ' + st.pool.address + ' · mint ' + st.pool.baseMint + ' · fees so far ' + usd2(st.pool.feesLifetimeUsd) + '.';
+      var p = st.pool, live = p && st.poolStatus === 'migrated', b = st.backing;
+      $('vh-chip').textContent = live ? 'Live' : p ? 'Maturing' : st.poolStatus; $('vh-chip').className = 'tag ' + (live ? 'live' : p ? 'mat' : '');
+      $('vh-play').textContent = live ? 'Play' : 'Buy on the curve'; $('vh-play').dataset.go = live ? 'play' : 'trade'; $('vh-trade').style.display = live ? '' : 'none';
+      var S = function (k, v, s) { return '<div><div class="k">' + k + '</div><div class="v">' + v + '</div><div class="s">' + (s || '') + '</div></div>'; };
+      var backing = S('Backing', usd(b.realisableUsd), st.items.count + ' item' + (st.items.count === 1 ? '' : 's') + ' · ' + usd(b.indexUsd) + ' insured × ' + b.multiplier + ' · ' + ago(st.ageMs));
+      var html;
+      if (!p) html = backing + S('Token', '—', st.poolStatus);
+      else if (live) {
+        var lk = p.locked, cre = lk ? (lk.creatorPct != null ? Math.round(p.supply * lk.creatorPct / 100) : lk.tokens) : null;
+        html = S('Price', price(p.priceUsd), 'Meteora pool' + (p.damm ? ' · <a href="https://app.meteora.ag/dammv2/' + esc(p.damm.address) + '" target="_blank" rel="noopener">' + short(p.damm.address) + '</a>' : ''))
+          + backing
+          + S('Market cap', usd(p.mcapUsd) + (p.ratio != null ? '<small>' + p.ratio.toFixed(2) + '× backing</small>' : ''), 'price × ' + p.supply.toLocaleString('en-US'))
+          + S('Fees so far', usd2(p.feesLifetimeUsd), 'on the curve · 1% on the pool')
+          + (cre != null ? S((mine() ? 'Your' : 'Creator') + ' share', Math.round(cre / 1e6 * 100) / 100 + 'M<small>locked</small>', (lk.locker ? '<a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener">' + esc(lk.locker.program) + '</a> · ' + (lk.vestingMonths || 6) + ' months' : 'releases over ' + (lk.vestingMonths || 6) + ' months') + (mine() && lk.locker ? ' · <a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener"><b>claim</b></a>' : '')) : '');
       } else {
-        $('v-mcap').textContent = '—'; $('v-mcap-sub').textContent = 'The token has ' + st.poolStatus + '. No price yet, so no number here: we do not make one up.';
-        $('v-ratio').textContent = '—'; $('v-pin').style.display = 'none';
-        $('p-pool').textContent = 'No pool yet: ' + st.poolStatus + '.';
+        var gq = p.graduationUsdc, raised = p.raisedUsd || 0;
+        html = S('Raised', usd2(raised) + (gq ? '<small>of ' + usd(gq) + '</small>' : ''), 'USDC on the curve')
+          + backing
+          + S('Price', price(p.priceUsd), 'on the curve · fee 10%')
+          + S('Market cap', usd(p.mcapUsd) + (p.ratio != null ? '<small>' + p.ratio.toFixed(2) + '× backing</small>' : ''), p.openingMcapUsd ? 'opened at ' + usd(p.openingMcapUsd) : '')
+          + S('Graduates at', usd(META.graduationUsd || (p.openingMcapUsd ? p.openingMcapUsd * (META.gradMult || 2.5) : null)), 'market cap · ' + (META.gradMult || 2.5) + '× the opening');
+        var pr = Math.round((p.graduationProgress || 0) * 100);
+        $('m-pct').textContent = pr + '%'; $('m-prog').style.width = pr + '%'; $('m-left').textContent = gq ? usd2(Math.max(0, gq - raised)) : '—';
       }
+      $('vh-stats').innerHTML = html;
+      $('vh-mature').style.display = p && !live ? '' : 'none';
+      var pin = $('v-pin'), r = p ? p.ratio : null;
+      if (r != null) { pin.style.display = ''; pin.textContent = r.toFixed(2); pin.style.left = (28 + Math.max(-0.2, Math.min(1.2, (r - 0.87) / (1.25 - 0.87))) * 50) + '%'; } else pin.style.display = 'none';
+      $('p-pool').textContent = p ? 'Curve ' + p.address + ' · mint ' + p.baseMint + (p.damm ? ' · pool ' + p.damm.address : '') + '.' : 'No pool yet: ' + st.poolStatus + '.';
+      $('tab-play-btn').classList.toggle('lock', !live); $('tab-play-n').textContent = live ? '' : 'locked';
+      tradePanel(st); renderExplain(st);
     });
     loadItems().then(function (items) {
-      $('grid').innerHTML = items.map(function (c) {
-        var st = c.status === 'reserved' ? '<span class="st res">reserved</span>' : '';
-        var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span class="faint" style="font-size:11px">no image</span>';
-        return '<a class="item" href="#/item/' + c.mint + '"><div class="ph">' + ph + st + '</div>'
-          + '<div class="tx"><span class="nm">' + esc(c.name || c.mint) + '</span><span class="gr">' + esc((c.gradingCompany || '') + ' ' + (c.grade || '')) + '</span>'
-          + '<div class="pr"><b>' + usd(c.exitPriceUsd) + '</b><span>redeem ' + usd2(c.redeemPriceUsd) + '</span></div></div></a>';
-      }).join('');
+      $('vh-fan').innerHTML = fanHtml(items.slice().reverse(), 5);
+      $('tab-items-n').textContent = items.length || '';
+      renderItems(items);
     });
     get('/v1/vaults/' + VAULT + '/activity').then(function (b) {
       var rows = b.activity;
@@ -137,6 +133,34 @@
         return '<div class="row"><span class="k">' + k + '</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · ' + what + '</span><span class="sig">' + sigs + '</span></div>';
       }).join('');
     });
+  }
+  var BANDS_DEF = [{ id: 'b1', label: 'under $25', min: 0, max: 25 }, { id: 'b2', label: '$25 – $60', min: 25, max: 60 }, { id: 'b3', label: '$60 – $150', min: 60, max: 150 }, { id: 'b4', label: '$150 and up', min: 150, max: Infinity }];
+  function bandOf(v) { for (var i = 0; i < BANDS_DEF.length; i++) if (v >= BANDS_DEF[i].min && v < BANDS_DEF[i].max) return BANDS_DEF[i].id; return 'b4'; }
+  function renderItems(items) {
+    var counts = {}; items.forEach(function (c) { var b = bandOf(c.custodianValueUsd || 0); counts[b] = (counts[b] || 0) + 1; });
+    $('item-filters').innerHTML = '<button type="button" data-f="all" class="' + (ITEM_FILTER === 'all' ? 'on' : '') + '">All ' + items.length + '</button>' + BANDS_DEF.filter(function (b) { return counts[b.id]; }).map(function (b) { return '<button type="button" data-f="' + b.id + '" class="' + (ITEM_FILTER === b.id ? 'on' : '') + '">' + b.label + ' · ' + counts[b.id] + '</button>'; }).join('');
+    var shown = ITEM_FILTER === 'all' ? items : items.filter(function (c) { return bandOf(c.custodianValueUsd || 0) === ITEM_FILTER; });
+    $('grid').innerHTML = shown.slice().sort(function (a, b) { return (b.custodianValueUsd || 0) - (a.custodianValueUsd || 0); }).map(function (c) {
+      var st = c.status === 'reserved' ? '<span class="st res">reserved</span>' : '';
+      var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span class="faint" style="font-size:11px">no image</span>';
+      return '<a class="item" href="#/item/' + c.mint + '"><div class="ph">' + ph + st + '</div>'
+        + '<div class="tx"><span class="nm">' + esc(c.name || c.mint) + '</span><span class="gr">' + esc((c.gradingCompany || '') + ' ' + (c.grade || '')) + '</span>'
+        + '<div class="pr"><b>' + usd(c.custodianValueUsd) + '</b><span>insured</span></div></div></a>';
+    }).join('') || '<p class="faint">Nothing in custody right now.</p>';
+  }
+  $('item-filters').addEventListener('click', function (e) { var b = e.target.closest('button[data-f]'); if (!b) return; ITEM_FILTER = b.dataset.f; if (ITEMS) renderItems(ITEMS); });
+  function renderExplain(st) {
+    var p = st.pool, live = p && st.poolStatus === 'migrated', b = st.backing, fee = META.creatorFeePct || 40;
+    var boxes = ['<div class="box"><h3>What a token is</h3><p>One of ' + (p ? p.supply.toLocaleString('en-US') : '10,000,000') + ' shares of what sits in the custody wallet. Backing today: <b>' + usd(b.realisableUsd) + '</b> = ' + usd(b.indexUsd) + ' insured × ' + b.multiplier + ' realisable. Market cap is price × supply and is shown separately. They are never added.</p></div>'];
+    if (live) {
+      var lk = p.locked;
+      boxes.push('<div class="box"><h3>Where each trade goes</h3><p>The pool charges 1% per trade; it goes to the pool\'s locked liquidity. On the curve, 10% went: 2% Meteora · ' + (fee * 0.08).toFixed(1) + '% creator · the rest to this vault\'s treasury and Onix.</p></div>');
+      boxes.push('<div class="box"><h3>Creator unlock</h3><p>' + (lk ? Math.round((lk.creatorPct != null ? p.supply * lk.creatorPct / 100 : lk.tokens) / 1e6 * 100) / 100 + 'M ' + SYM() + ' are in Jupiter Lock, releasing monthly over ' + (lk.vestingMonths || 6) + ' months from graduation.' : 'The creator\'s share is in Jupiter Lock.') + '</p><div class="links">' + (lk && lk.locker ? '<a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener">Jupiter Lock ↗</a><a href="https://solscan.io/account/' + esc(lk.locker.escrow) + '" target="_blank" rel="noopener">escrow ↗</a>' : '') + (p.damm ? '<a href="https://app.meteora.ag/dammv2/' + esc(p.damm.address) + '" target="_blank" rel="noopener">Pool on Meteora ↗</a>' : '') + '<a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">Mint on Solscan ↗</a></div></div>');
+    } else if (p) {
+      boxes.push('<div class="box"><h3>Where each trade goes</h3><p>Fee 10% per trade: 2% Meteora · ' + (fee * 0.08).toFixed(1) + '% creator (on chain, from the first trade) · the rest to this vault\'s treasury and Onix. The treasury buys the next item. The first 60 seconds after opening charge 99%→10% to keep bots out.</p></div>');
+      boxes.push('<div class="box"><h3>At graduation</h3><p>The USDC raised moves to a Meteora pool with the token (locked for good), 30% of it goes to this vault\'s treasury, the creator\'s 50% start a 6-month unlock, and Play opens.</p><div class="links"><a href="https://solscan.io/account/' + esc(p.address) + '" target="_blank" rel="noopener">Curve on Solscan ↗</a><a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">Mint ↗</a></div></div>');
+    }
+    $('t-explain').innerHTML = boxes.join('');
   }
   // ── the trade panel: quote on the API, sign & send in the wallet (never here) ──
   var T = { side: 'buy', wallet: null, timer: null, busy: false };
@@ -192,18 +216,13 @@
     var migrated = p && st.poolStatus === 'migrated';
     el.classList.toggle('off', !p);
     el.classList.toggle('graduated', !!migrated);
-    $('t-state').textContent = p ? (st.poolStatus === 'live' ? 'trading' : st.poolStatus) : 'not launched';
-    if (migrated) {
-      var mint = p.baseMint, damm = p.damm && p.damm.address;
-      $('t-grad').innerHTML = '<p class="muted" style="font-size:13.5px">The curve filled and the token moved to the open market. Trade it there:</p>'
-        + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (damm ? '<a class="cta sm" href="https://app.meteora.ag/dammv2/' + damm + '" target="_blank" rel="noopener">Trade on Meteora</a>' : '')
-        + '<a class="cta ghost sm" href="https://jup.ag/swap/USDC-' + mint + '" target="_blank" rel="noopener">Swap on Jupiter</a></div>';
-    }
+    $('t-state').textContent = p ? (migrated ? 'on the pool' : 'on the curve') : 'not launched';
     $('t-state').className = 'tag' + (p ? ' live' : '');
-    $('t-price').textContent = p ? price(p.priceUsd) : '—';
-    $('t-mcap').textContent = p ? usd(p.mcapUsd) : '—';
-    $('t-fees2').textContent = p ? usd2(p.feesLifetimeUsd) : '—';
-    $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? 'Buy' : 'Sell') : 'Connect wallet') : 'Opens when the token launches';
+    $('t-grad').innerHTML = '';
+    $('t-venue').textContent = !p ? '' : migrated
+      ? 'The swap is built against this vault\'s Meteora pool and signed in your wallet; the page never leaves. Jupiter becomes a second route once the pool is listed there.'
+      : 'Buys fill up to the graduation threshold and return the rest. Signed in your wallet; the server never holds your keys.';
+    $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? 'Buy ' : 'Sell ') + SYM() : 'Connect wallet') : 'Opens when the token launches';
     $('t-unit').textContent = T.side === 'buy' ? 'USDC' : SYM();
   }
   function quoteNow() {
@@ -223,7 +242,7 @@
           else $('t-quote').textContent = q.error;
           return;
         }
-        $('t-quote').textContent = (q.partial ? 'The curve takes ' + usd2(q.amountInUsed) + ' of this and graduates; ' + usd2(q.amountInLeft) + ' stays with you. ' : '') + 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2(q.tradingFeeUsd + q.protocolFeeUsd) + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
+        $('t-quote').textContent = (q.partial ? 'The curve takes ' + usd2(q.amountInUsed) + ' of this and graduates; ' + usd2(q.amountInLeft) + ' stays with you. ' : '') + 'You receive ≈ ' + (T.side === 'buy' ? Math.round(q.amountOut).toLocaleString('en-US') + ' ' + SYM() : usd2(q.amountOut)) + ' · fee ' + usd2((q.tradingFeeUsd || 0) + (q.protocolFeeUsd || 0)) + (q.priceImpactPct != null ? ' · impact ' + q.priceImpactPct.toFixed(1) + '%' : '') + ' · min ' + (T.side === 'buy' ? Math.round(q.minimumAmountOut).toLocaleString('en-US') : usd2(q.minimumAmountOut)) + ' (1% slippage)';
       }).catch(function (e) { $('t-quote').textContent = 'Could not quote: ' + e.message; });
   }
   Array.prototype.forEach.call(document.querySelectorAll('.tabs2 button'), function (b) {
@@ -257,48 +276,76 @@
       .then(function () { T.busy = false; tradePanel(STATS); });
   });
 
-  var tabs = document.querySelectorAll('.tabs button');
-  Array.prototype.forEach.call(tabs, function (b) {
-    b.addEventListener('click', function () {
-      Array.prototype.forEach.call(tabs, function (x) { x.classList.remove('on'); });
-      b.classList.add('on');
-      ['items', 'play', 'activity', 'proof'].forEach(function (t) { $('tab-' + t).style.display = t === b.dataset.tab ? '' : 'none'; });
-      if (b.dataset.tab === 'play') renderPlay();
-    });
-  });
+  var tabs = document.querySelectorAll('.vtabs button');
+  function showTab(name) {
+    Array.prototype.forEach.call(tabs, function (x) { x.classList.toggle('on', x.dataset.tab === name); });
+    ['trade', 'play', 'items', 'activity', 'proof'].forEach(function (t) { $('tab-' + t).style.display = t === name ? '' : 'none'; });
+    if (name === 'play') renderPlay();
+    if (name === 'trade' && STATS) { tradePanel(STATS); if (BAL.wallet !== T.wallet) loadBalances(); }
+  }
+  Array.prototype.forEach.call(tabs, function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
+  $('vh-acts').addEventListener('click', function (e) { var b = e.target.closest('button[data-go]'); if (!b) return; showTab(b.dataset.go); var el = $('tab-' + b.dataset.go); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
-  // ── play ──
+  // ── play: one machine per band that has items; the reason a button is off is written before the click ──
   var PL = { busy: false, bands: null };
+  function fanBig(preview) { var n = Math.min(preview.length, 7), s = preview.slice(0, n); return s.map(function (c, i) { var k = i - (n - 1) / 2; return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy" style="--x:' + (k * 34) + 'px;--rot:' + (k * 9) + 'deg;z-index:' + (10 - Math.abs(k)) + '">' : ''; }).join(''); }
   function renderPlay() {
     $('bands').innerHTML = '<p class="faint">Reading the vault…</p>';
-    get('/v1/vaults/' + VAULT + '/play').then(function (b) {
-      PL.bands = b;
-      $('bands').innerHTML = b.bands.map(function (x) {
-        var thumbs = x.preview.map(function (c) { return c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : ''; }).join('');
-        var note = x.kind === 'empty' ? 'nothing in this band' : x.kind === 'pick' ? x.items + ' item' + (x.items === 1 ? '' : 's') + ' · below 3 it is a pick, not a draw' : x.items + ' items · 1 in ' + x.items + ' each';
-        var acts = x.kind === 'empty' ? '' : '<button type="button" class="cta" data-band="' + x.id + '" data-cur="usdc">Play ' + usd2(x.priceUsdc) + ' USDC</button>'
-          + (x.priceTokens ? '<button type="button" class="cta ghost" data-band="' + x.id + '" data-cur="token">Play ' + x.priceTokens.toLocaleString('en-US') + ' ' + SYM() + '</button>' : '');
-        return '<div class="band' + (x.kind === 'empty' ? ' empty' : '') + '"><div class="bh"><b>' + esc(x.label) + '</b><span>' + note + '</span></div><div class="thumbs">' + thumbs + '</div><div class="acts">' + acts + '</div></div>';
+    var pBands = get('/v1/vaults/' + VAULT + '/play'), pBal = (W.addr && STATS && STATS.pool) ? get('/v1/vaults/' + VAULT + '/trades/balances?wallet=' + encodeURIComponent(W.addr)).catch(function () { return null; }) : Promise.resolve(null);
+    Promise.all([pBands, pBal]).then(function (r) {
+      var b = r[0], bal = r[1]; PL.bands = b;
+      if (bal) BAL = { usdc: bal.usdc, token: bal.token, wallet: W.addr };
+      var withItems = b.bands.filter(function (x) { return x.kind !== 'empty'; });
+      if (!b.open) {
+        $('play-h').textContent = 'Play opens at graduation';
+        $('bands').innerHTML = '<div class="locked"><div class="lk">🔒</div><h3>' + esc(b.lockedReason || 'Play is not open yet') + '</h3><p>' + (STATS && STATS.pool && STATS.pool.graduationUsdc ? usd2(Math.max(0, STATS.pool.graduationUsdc - (STATS.pool.raisedUsd || 0))) + ' more USDC on the curve and the items below become machines. ' : '') + 'Until then the vault only grows: nothing leaves custody.</p>' + (withItems.length ? '<div class="ghosts">' + withItems.map(function (x) { return '<span>' + esc(x.label) + ' · ' + x.items + ' item' + (x.items === 1 ? '' : 's') + '</span>'; }).join('') + '</div>' : '') + '</div>';
+        return;
+      }
+      $('play-h').textContent = 'Pick a machine';
+      if (!withItems.length) { $('bands').innerHTML = '<div class="locked"><h3>Nothing to draw right now</h3><p>The vault has no free items in custody. The treasury buys the next one; the creator can add more.</p></div>'; return; }
+      $('bands').innerHTML = withItems.map(function (x) {
+        var n = x.items, hold = BAL.token, cash = BAL.usdc;
+        var canUsd = !!W.addr && cash != null && cash >= x.priceUsdc, canTok = !!W.addr && x.priceTokens != null && hold != null && hold >= x.priceTokens;
+        var usdcWhy = !W.addr ? 'Connect wallet to play' : cash == null ? 'Reading your balance…' : !canUsd ? 'You have ' + usd2(cash) + ' USDC' : '';
+        var tokWhy = !W.addr ? 'Connect wallet to play' : x.priceTokens == null ? 'Token plays open when the token trades' : hold == null ? 'Reading your balance…' : !canTok ? 'You hold ' + Math.floor(hold).toLocaleString('en-US') + ' ' + SYM() : '';
+        var top = Math.max.apply(null, x.preview.map(function (c) { return c.custodianValueUsd || 0; }));
+        return '<div class="machine ' + x.kind + '" data-band="' + x.id + '"><div class="mh"><b>' + esc(x.label) + '</b><span>' + n + ' item' + (n === 1 ? '' : 's') + (x.kind === 'pick' ? ' · pick, not a draw' : '') + '</span></div>'
+          + '<div class="fanbig">' + fanBig(x.preview) + '</div>'
+          + '<div class="odds"><span><b>1 in ' + n + '</b> each</span><span>avg value <b>' + usd(x.avgIndexUsd) + '</b></span>' + (x.preview.length === n ? '<span>top <b>' + usd(top) + '</b></span>' : '') + '</div>'
+          + '<div class="pay"><button type="button" class="usdc" data-band="' + x.id + '" data-cur="usdc"' + (canUsd ? '' : ' disabled') + '><b>' + usd2(x.priceUsdc) + '</b><span>USDC · stays in the vault</span>' + (usdcWhy ? '<small>' + esc(usdcWhy) + '</small>' : '') + '</button>'
+          + '<button type="button" data-band="' + x.id + '" data-cur="token"' + (canTok ? '' : ' disabled') + '><b>' + (x.priceTokens != null ? x.priceTokens.toLocaleString('en-US') + ' ' + SYM() : '—') + '</b><span>burned · ' + usd(x.avgIndexUsd * 1.10) + ' of backing</span>' + (tokWhy ? '<small>' + esc(tokWhy) + '</small>' : '') + '</button></div></div>';
       }).join('');
     }).catch(function (e) { $('bands').innerHTML = '<p class="faint">Play is not open on this vault: ' + esc(e.message) + '</p>'; });
   }
-  function playMsg(html) { $('play-res').style.display = ''; $('play-res').innerHTML = html; }
+  // the reveal overlay: four steps, the card flips, the proof folded under "Verify the draw"
+  function revealFrame(step, items, p, won) {
+    var steps = ['Commit published before you pay' + (p && p.serverSeedHash ? ' <span class="mono faint">' + esc(p.serverSeedHash.slice(0, 12)) + '…</span>' : ''), 'Payment signed' + (p && p.paymentSignature ? ' · <a href="https://solscan.io/tx/' + p.paymentSignature + '" target="_blank" rel="noopener">' + short(p.paymentSignature) + '</a>' : ''), 'Finalized on chain · drawing from ' + items + ' item' + (items === 1 ? '' : 's'), 'Sent to your wallet from custody'];
+    var done = step >= 4;
+    $('veil').style.display = '';
+    $('reveal').innerHTML = '<div class="steps">' + steps.map(function (t, i) { return '<div class="' + (i < step ? 'done' : i === step ? 'now' : '') + '"><i>' + (i < step ? '✓' : i + 1) + '</i><span>' + t + '</span></div>'; }).join('') + '</div>'
+      + '<div class="stage">' + (won && won.img ? '<img src="' + esc(won.img) + '" alt="">' : '<div class="back' + (step === 0 ? ' still' : '') + '">?</div>') + '</div>'
+      + (won ? '<div class="won"><b>' + esc(won.title) + '</b><span>' + won.sub + '</span></div>' : '')
+      + (won && won.proof ? '<details><summary>Verify the draw</summary><div class="proof">' + won.proof + '</div></details>' : '')
+      + '<div class="ra">' + (done ? (p && p.deliverySignature ? '<a class="cta ghost sm" href="https://solscan.io/tx/' + p.deliverySignature + '" target="_blank" rel="noopener">Delivery on Solscan ↗</a>' : '') + '<button type="button" class="cta sm" id="rv-close">Done</button>' : '<button type="button" class="cta ghost sm" id="rv-close">' + (step === 0 ? 'Cancel' : 'Hide') + '</button>') + '</div>';
+    $('rv-close').onclick = function () { $('veil').style.display = 'none'; };
+  }
   $('bands').addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-band]'); if (!b || PL.busy) return;
-    var w = provider(); if (!w) { playMsg('<div></div><div class="muted">No Solana wallet found in this browser.</div>'); return; }
+    var b = e.target.closest('button[data-band]'); if (!b || b.disabled || PL.busy) return;
+    var w = provider(); if (!w) { alert('No Solana wallet found in this browser.'); return; }
     if (!W.addr) { connectWallet().catch(function () {}); return; }
-    var band = b.dataset.band, cur = b.dataset.cur, clientSeed = Math.random().toString(36).slice(2, 10);
-    PL.busy = true; playMsg('<div></div><div class="muted">Opening a play · your seed <span class="mono">' + clientSeed + '</span>…</div>');
-    var playId = null;
+    var band = b.dataset.band, cur = b.dataset.cur, clientSeed = Math.random().toString(36).slice(2, 10), m = b.closest('.machine');
+    var items = (PL.bands && PL.bands.bands.filter(function (x) { return x.id === band; })[0] || {}).items || 0;
+    PL.busy = true; revealFrame(0, items, null, null);
+    var playId = null, P = null;
     post('/v1/vaults/' + VAULT + '/plays', { band: band, player: W.addr, currency: cur, clientSeed: clientSeed })
       .then(function (x) {
         if (x.status !== 201) throw new Error(x.body.error || 'could not open the play');
-        playId = x.body.playId;
-        playMsg('<div></div><div class="muted">Commit published: <span class="mono">' + x.body.serverSeedHash.slice(0, 16) + '…</span> · ' + x.body.items + ' item' + (x.body.items === 1 ? '' : 's') + ' in the band. Sign the payment in your wallet…</div>');
+        playId = x.body.playId; P = { serverSeedHash: x.body.serverSeedHash }; items = x.body.items;
+        revealFrame(1, items, P, null);
         return signAndSend(w, x.body.paymentTransaction);
       })
       .then(function (sig) {
-        playMsg('<div></div><div class="muted">Paid: <a href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + short(sig) + '</a> · waiting for finality, then the draw…</div>');
+        P.paymentSignature = sig; revealFrame(2, items, P, null); m.classList.add('drawing');
         return post('/v1/vaults/' + VAULT + '/plays/' + playId + '/submit', { signature: sig });
       })
       .then(function () {
@@ -306,22 +353,25 @@
         return (function poll() {
           tries++;
           return get('/v1/vaults/' + VAULT + '/plays/' + playId).then(function (p) {
-            if (['delivered', 'delivery_failed', 'payment_rejected', 'payment_missing'].indexOf(p.status) >= 0 || tries > 60) return p;
+            if (p.status === 'drawn' || p.status === 'delivering') revealFrame(3, items, p, null);
+            if (['delivered', 'delivery_failed', 'payment_rejected', 'payment_missing'].indexOf(p.status) >= 0 || tries > 80) return p;
             return new Promise(function (r) { setTimeout(r, 3000); }).then(poll);
           });
         })();
       })
       .then(function (p) {
-        return loadItems(true).then(function (items) {
-          var it = (items || []).filter(function (c) { return c.mint === p.mint; })[0] || {};
-          var img = it.imageUrl ? '<img src="' + esc(it.imageUrl) + '" alt="">' : '<div></div>';
-          var head = p.status === 'delivered' ? '<b style="font-size:18px">You drew ' + esc(it.name || short(p.mint)) + '</b>' : p.status === 'delivery_failed' ? '<b>Drawn: ' + esc(it.name || short(p.mint)) + ' — delivery is being retried by the operator (your payment is recorded)</b>' : '<b>' + esc(p.status.replace(/_/g, ' ')) + (p.failReason ? ' — ' + esc(p.failReason) : '') + '</b>';
-          var proof = '<div class="proof"><span>commit (before you paid): ' + esc(p.serverSeedHash) + '</span>' + (p.serverSeed ? '<span>server seed (revealed): ' + esc(p.serverSeed) + '</span>' : '') + '<span>your seed: ' + esc(p.clientSeed) + ' · nonce ' + p.nonce + '</span>' + (p.digest ? '<span>digest = HMAC(seed, play|yourSeed|nonce): ' + esc(p.digest) + ' → index ' + p.index + ' of ' + p.snapshot.length + ' (sorted by mint)</span>' : '') + '<span>' + (p.paymentSignature ? '<a href="https://solscan.io/tx/' + p.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (p.deliverySignature ? ' · <a href="https://solscan.io/tx/' + p.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span></div>';
-          playMsg(img + '<div>' + head + '<p class="muted" style="margin:6px 0 10px">' + (p.status === 'delivered' ? 'Sent to your wallet from custody.' : '') + '</p>' + proof + '</div>');
-          renderPlay(); loadStats(true).then(function (st) { tradePanel(st); renderVault(); });
+        m.classList.remove('drawing');
+        return loadItems(true).then(function (list) {
+          var it = (STRIPS[VAULT] || []).concat(list || []).filter(function (c) { return c.mint === p.mint; })[0] || {};
+          var proof = '<span>commit (before you paid): sha256 = ' + esc(p.serverSeedHash) + '</span>' + (p.serverSeed ? '<span>server seed (revealed): ' + esc(p.serverSeed) + '</span>' : '') + '<span>your seed: ' + esc(p.clientSeed) + ' · nonce ' + p.nonce + '</span>' + (p.digest ? '<span>digest = HMAC(seed, play|yourSeed|nonce) = ' + esc(p.digest) + ' → index ' + p.index + ' of ' + p.snapshot.length + ' (sorted by mint)</span>' : '') + '<span>' + (p.paymentSignature ? '<a href="https://solscan.io/tx/' + p.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (p.deliverySignature ? ' · <a href="https://solscan.io/tx/' + p.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span>';
+          var won = p.status === 'delivered' ? { img: it.imageUrl, title: it.name || short(p.mint), sub: esc([it.gradingCompany, it.grade].filter(Boolean).join(' ')) + (it.custodianValueUsd ? ' · insured ' + usd(it.custodianValueUsd) : '') + ' · now in your wallet', proof: proof }
+            : p.status === 'delivery_failed' ? { img: it.imageUrl, title: 'Drawn: ' + (it.name || short(p.mint)), sub: 'delivery is being retried by the operator; your payment is recorded', proof: proof }
+            : { img: null, title: p.status.replace(/_/g, ' '), sub: esc(p.failReason || ''), proof: proof };
+          revealFrame(p.status === 'delivered' ? 4 : 3, items, p, won);
+          STRIPS[VAULT] = null; renderPlay(); loadStats(true).then(function (st) { STATS = st; renderVault(); });
         });
       })
-      .catch(function (e) { playMsg('<div></div><div class="muted">' + esc((e && e.message) || String(e)) + '</div>'); })
+      .catch(function (e) { m.classList.remove('drawing'); revealFrame(0, items, P, { img: null, title: 'Not played', sub: esc((e && e.message) || String(e)), proof: null }); })
       .then(function () { PL.busy = false; });
   });
 
@@ -445,11 +495,25 @@
     }).catch(function (e) { cmsg((e && e.message) || String(e)); })
       .then(function () { CR.busy = false; $('c-launch').disabled = false; });
   }
+  var UP = { image: null, banner: null };
+  function wireUpload(kind) {
+    $('f-' + kind).addEventListener('change', function () {
+      var f = this.files && this.files[0]; if (!f) return;
+      var msg = $('up-' + kind + '-msg'), pv = $('pv-' + kind);
+      if (f.size > 1024 * 1024) { msg.textContent = 'that file is ' + Math.round(f.size / 1024) + ' KB — up to 1024 KB'; return; }
+      msg.textContent = 'uploading…';
+      f.arrayBuffer().then(function (buf) { return fetch('/v1/vaults/create/upload', { method: 'POST', headers: { 'content-type': f.type || 'application/octet-stream' }, body: buf }); })
+        .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; }); })
+        .then(function (b) { UP[kind] = b.uploadId; msg.textContent = Math.round(b.bytes / 1024) + ' KB · ' + b.type.replace('image/', ''); pv.style.backgroundImage = 'url(' + b.url + ')'; pv.textContent = ''; })
+        .catch(function (e) { UP[kind] = null; msg.textContent = e.message; });
+    });
+  }
+  wireUpload('image'); wireUpload('banner');
   $('c-launch').addEventListener('click', function () {
     if (CR.busy || !CQ || !W.addr) return;
     var w = provider(); if (!w) { cmsg('No Solana wallet found in this browser.'); return; }
     var name = $('f-name').value.trim(), sym = $('f-sym').value.trim().toUpperCase();
-    var body = { owner: W.addr, name: name, symbol: sym, mints: Object.keys(CSEL).filter(function (m) { return CSEL[m]; }), rules: rulesFromForm(), description: $('f-desc').value.trim() || null, links: $('f-x').value.trim() ? { x: $('f-x').value.trim() } : {} };
+    var body = { owner: W.addr, name: name, symbol: sym, mints: Object.keys(CSEL).filter(function (m) { return CSEL[m]; }), rules: rulesFromForm(), description: $('f-desc').value.trim() || null, links: $('f-x').value.trim() ? { x: $('f-x').value.trim() } : {}, imageId: UP.image || null, bannerId: UP.banner || null };
     CR.busy = true; $('c-launch').disabled = true; cmsg('Opening the vault (custody wallet)…', 5);
     post('/v1/vaults/create/open', body).then(function (x) {
       if (x.status !== 201) throw new Error(x.body.error || 'could not open');
@@ -577,7 +641,7 @@
     var h = location.hash || '#/', m, id = 'home';
     if (h.indexOf('#/app') === 0) id = 'home';
     else if ((m = h.match(/^#\/vault\/([^\/]+)\/send$/))) { id = 'send'; selectVault(m[1]); $('sd-crumb-vault').textContent = META.name; $('sd-crumb-vault').href = vpath(); $('sd-back').href = vpath(); $('sd-sym').textContent = SYM(); if (META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); SD.items = { eligible: [], ineligible: [] }; SD.pick = null; sdRender(); }
-    else if ((m = h.match(/^#\/vault\/([^\/]+)/))) { id = 'vault'; selectVault(m[1]); renderVault(); }
+    else if ((m = h.match(/^#\/vault\/([^\/]+)(?:\/(trade|play|items|activity|proof))?$/))) { id = 'vault'; selectVault(m[1]); renderVault(); showTab(m[2] || 'items'); }
     else if ((m = h.match(/^#\/item\/(.+)$/))) { id = 'item'; renderItem(m[1]); }
     else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); if (W.addr) { scan(W.addr); checkResume(); } }
     else if (h.indexOf('#/integrate') === 0) id = 'integrate';

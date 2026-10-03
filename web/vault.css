@@ -197,7 +197,7 @@ main{max-width:var(--shell-max); margin:0 auto; padding:clamp(24px,4vh,40px) var
 .trade{background:var(--wash),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:16px; display:flex; flex-direction:column; gap:12px; box-shadow:var(--glow-card); position:sticky; top:72px}
 .trade-top{display:flex; justify-content:space-between; align-items:center}
 .trade-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
-.tgrad{display:none; flex-direction:column; gap:10px} .trade.graduated .tgrad{display:flex} .trade.graduated .tabs2, .trade.graduated .amt, .trade.graduated .bal, .trade.graduated .q, .trade.graduated #t-go, .trade.graduated #t-msg{display:none}
+.tgrad:empty{display:none}
 .trade-stats div{display:flex; flex-direction:column; gap:4px} .trade-stats .lab{margin:0}
 .trade-stats b{font:600 15px/1 var(--mono); font-variant-numeric:tabular-nums}
 .mature{display:flex; flex-direction:column; gap:7px; padding:10px 0; border-top:1px solid var(--border); border-bottom:1px solid var(--border)}
@@ -337,3 +337,93 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .terms>div{display:grid; grid-template-columns:minmax(140px,220px) 1fr; gap:14px; padding:12px 14px; background:var(--surface); font-size:13.5px}
 .terms b{color:var(--text); font-weight:600} .terms span{color:var(--text-muted)}
 @media(max-width:560px){ .terms>div{grid-template-columns:1fr; gap:4px} }
+
+
+/* ── v2 (3 Oct 2026): board shelves · the vault as its own mini-site · machines · reveal · uploads ── */
+.tiles{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px}
+.tile{position:relative; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; display:flex; flex-direction:column; min-height:280px; color:var(--text); text-decoration:none; box-shadow:var(--glow-card); transition:border-color .15s,transform .15s,box-shadow .15s}
+.tile:hover{border-color:var(--border-active); transform:translateY(-1px); box-shadow:var(--glow-card-hover); color:var(--text)}
+.tile .ban{height:92px; background:linear-gradient(135deg,#0b2a2a,#061416 60%,#0b1f30); background-size:cover; background-position:center; position:relative}
+.tile .ban .fan{position:absolute; right:10px; bottom:-26px; display:flex}
+.tile .ban .fan img{width:46px; aspect-ratio:3/4; object-fit:cover; border-radius:4px; border:1px solid rgba(0,0,0,.5); box-shadow:0 4px 12px rgba(0,0,0,.5); margin-left:-14px; transform:rotate(var(--rot))}
+.tile .coin{position:absolute; left:14px; bottom:-22px; width:52px; height:52px; border-radius:50%; border:3px solid var(--surface); background:var(--surface2); overflow:hidden}
+.tile .coin img{width:100%; height:100%; object-fit:cover; display:block}
+.tile .body{padding:30px 14px 14px; display:flex; flex-direction:column; gap:8px; flex:1}
+.tile .name{display:flex; justify-content:space-between; align-items:baseline; gap:8px} .tile .name b{font-size:16px} .tile .name span{font:500 12px var(--mono); color:var(--text-muted)}
+.tile .kv{display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; font-size:13px} .tile .kv span{color:var(--text-faint)} .tile .kv b{font-weight:600; font-variant-numeric:tabular-nums}
+.tile .foot{margin-top:auto; display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:13px; color:var(--text-muted)}
+.tile.create{align-items:center; justify-content:center; border-style:dashed; text-align:center; gap:8px; padding:20px; box-shadow:none; color:var(--text-muted)} .tile.create b{color:var(--text); font-size:16px}
+.tile.create .plus{width:46px; height:46px; border-radius:50%; border:1px dashed var(--border2); display:grid; place-items:center; font-size:26px; color:var(--brand)}
+.chip,.tag.live2{display:inline-flex; align-items:center; gap:6px}
+.tag.live::before{content:""; width:6px; height:6px; border-radius:50%; background:var(--aura); box-shadow:0 0 8px var(--aura); display:inline-block; margin-right:5px}
+.tag.mat{color:var(--warning); border-color:rgba(255,184,64,.35); background:rgba(255,184,64,.06)}
+.vhero{position:relative; border:1px solid var(--border); border-radius:var(--r-lg); overflow:hidden; background:var(--surface); box-shadow:var(--glow-card)}
+.vhero .ban{height:150px; background:linear-gradient(120deg,#0a2a2a 0%,#061416 45%,#0a1c2c 100%); background-size:cover; background-position:center; position:relative}
+.vhero .ban::after{content:""; position:absolute; inset:0; background:radial-gradient(60% 120% at 80% 100%,rgba(var(--aura-rgb),.18),transparent 60%); pointer-events:none}
+.vhero .ban .fan{position:absolute; right:22px; bottom:-30px; display:flex; z-index:2}
+.vhero .ban .fan img{width:72px; aspect-ratio:3/4; object-fit:cover; border-radius:5px; border:1px solid rgba(0,0,0,.5); box-shadow:0 8px 20px rgba(0,0,0,.55); margin-left:-22px; transform:rotate(var(--rot))}
+.vhero .id{display:flex; gap:16px; align-items:flex-end; padding:0 20px; margin-top:-34px; position:relative; z-index:3; flex-wrap:wrap}
+.vhero .coin{width:84px; height:84px; border-radius:50%; border:4px solid var(--surface); background:var(--surface2); overflow:hidden; flex:none}
+.vhero .coin img{width:100%; height:100%; object-fit:cover; display:block}
+.vhero .who{padding-bottom:6px; min-width:0; flex:1} .vhero .who h1{display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:clamp(22px,3vw,30px)} .vhero .who p{max-width:640px; margin-top:4px; font-size:14px}
+.vhero .acts{display:flex; gap:8px; padding-bottom:8px; flex-wrap:wrap}
+.vhero .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); border-top:1px solid var(--border); margin-top:14px}
+.vhero .stats>div{padding:14px 20px; border-right:1px solid var(--border); min-width:0} .vhero .stats>div:last-child{border-right:0}
+.vhero .stats .k{font:500 11px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--text-faint)}
+.vhero .stats .v{font-size:20px; font-weight:650; margin-top:6px; font-variant-numeric:tabular-nums; letter-spacing:-.01em} .vhero .stats .v small{font-size:12px; color:var(--text-muted); font-weight:500; margin-left:4px}
+.vhero .stats .s{font-size:12px; color:var(--text-muted); margin-top:3px}
+.vhero .mature.big{border:0; border-top:1px solid var(--border); border-radius:0; background:none; padding:14px 20px}
+.vtabs{margin-top:22px; overflow-x:auto} .vtabs button{white-space:nowrap; font-weight:600} .vtabs button .n{font:500 11px var(--mono); color:var(--text-faint); background:var(--surface2); padding:2px 6px; border-radius:999px; margin-left:4px} .vtabs button .n:empty{display:none} .vtabs button.lock{color:var(--text-faint)}
+.trade2{display:grid; grid-template-columns:minmax(0,420px) 1fr; gap:22px; align-items:start} @media(max-width:760px){.trade2{grid-template-columns:1fr}}
+.trade2 .trade{position:static}
+.explain{display:grid; gap:14px} .explain .box{padding:14px 16px; border:1px solid var(--border); border-radius:var(--r-md); background:var(--surface)} .explain .box h3{margin-bottom:6px} .explain .box p{color:var(--text-muted); font-size:14px}
+.explain .links{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px} .explain .links a{font-size:13px; padding:6px 10px; border:1px solid var(--border); border-radius:8px}
+.playlede{display:flex; justify-content:space-between; gap:16px; align-items:flex-end; margin-bottom:16px; flex-wrap:wrap} .playlede p{max-width:640px}
+.machines{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px}
+.machine{background:radial-gradient(120% 80% at 50% 0%,rgba(var(--aura-rgb),.08),transparent 55%),var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; display:flex; flex-direction:column; gap:14px; position:relative; overflow:hidden}
+.machine.pick{border-style:dashed}
+.machine .mh{display:flex; justify-content:space-between; align-items:baseline; gap:10px} .machine .mh b{font-size:18px; letter-spacing:-.01em} .machine .mh span{font:500 12px var(--mono); color:var(--text-muted)}
+.fanbig{height:170px; position:relative; display:flex; justify-content:center; align-items:flex-end; padding-bottom:6px}
+.fanbig img{position:absolute; bottom:0; width:96px; aspect-ratio:3/4; object-fit:cover; border-radius:6px; border:1px solid rgba(0,0,0,.6); box-shadow:0 10px 26px rgba(0,0,0,.6); transform-origin:50% 120%; transform:translateX(var(--x)) rotate(var(--rot)); transition:transform .3s}
+.machine:hover .fanbig img{transform:translateX(calc(var(--x)*1.12)) rotate(calc(var(--rot)*1.1))}
+.machine.drawing .fanbig img{animation:shuffle .5s ease-in-out infinite alternate}
+@keyframes shuffle{to{transform:translateX(calc(var(--x)*-1)) rotate(calc(var(--rot)*-1))}}
+.odds{display:flex; gap:14px; font-size:13px; color:var(--text-muted); flex-wrap:wrap} .odds b{color:var(--text); font-weight:600}
+.pay{display:grid; grid-template-columns:1fr 1fr; gap:10px} @media(max-width:380px){.pay{grid-template-columns:1fr}}
+.pay button{display:flex; flex-direction:column; align-items:flex-start; gap:3px; padding:12px 14px; min-height:66px; border-radius:var(--r-md); border:1px solid var(--border2); background:var(--surface2); color:var(--text); text-align:left; cursor:pointer; font:inherit}
+.pay button b{font-size:17px; font-variant-numeric:tabular-nums; letter-spacing:-.01em} .pay button span{font-size:12px; color:var(--text-muted)} .pay button small{font-size:11.5px; color:var(--warning)}
+.pay button.usdc{background:var(--cta-green); color:#04140f; border-color:transparent} .pay button.usdc span{color:rgba(4,20,15,.75)} .pay button.usdc small{color:#4a3a00}
+.pay button[disabled]{opacity:.55; cursor:not-allowed} .pay button:not([disabled]):hover{border-color:var(--border-active)}
+.locked{border:1px dashed var(--border2); border-radius:var(--r-lg); padding:26px 20px; text-align:center; display:grid; gap:8px; justify-items:center; background:var(--surface); grid-column:1/-1}
+.locked .lk{width:44px; height:44px; border-radius:50%; background:var(--surface2); display:grid; place-items:center; color:var(--warning); font-size:18px}
+.locked p{color:var(--text-muted); max-width:520px; font-size:14px}
+.locked .ghosts{display:flex; gap:10px; margin-top:8px; opacity:.6; flex-wrap:wrap; justify-content:center} .locked .ghosts span{font:500 12px var(--mono); border:1px solid var(--border); padding:6px 10px; border-radius:8px; color:var(--text-muted)}
+.veil{position:fixed; inset:0; background:rgba(3,7,9,.86); backdrop-filter:blur(8px); z-index:50; display:grid; place-items:center; padding:20px}
+.reveal{width:min(560px,100%); max-height:92vh; overflow:auto; background:var(--surface); border:1px solid var(--border-active); border-radius:18px; padding:22px; display:grid; gap:16px; box-shadow:0 0 80px rgba(var(--aura-rgb),.12)}
+.reveal .steps{display:grid; gap:8px; font-size:13.5px; color:var(--text-muted)} .reveal .steps div{display:flex; gap:10px; align-items:center} .reveal .steps i{width:18px; height:18px; border-radius:50%; border:1px solid var(--border2); display:grid; place-items:center; font-size:11px; font-style:normal; flex:none}
+.reveal .steps div.done{color:var(--text)} .reveal .steps div.done i{background:var(--brand); color:#04140f; border-color:transparent} .reveal .steps div.now i{border-color:var(--aura); animation:pulse 1s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(var(--aura-rgb),.15)}}
+.reveal .stage{display:grid; place-items:center; min-height:250px}
+.reveal .stage .back{width:170px; aspect-ratio:3/4; border-radius:10px; background:repeating-linear-gradient(45deg,#0c2529 0 10px,#12292d 10px 20px); border:1px solid var(--border2); display:grid; place-items:center; color:var(--aura); font:700 28px var(--mono); animation:flip 1.1s ease-in-out infinite}
+.reveal .stage .back.still{animation:none}
+@keyframes flip{50%{transform:rotateY(90deg)}}
+.reveal .stage img{width:190px; border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 50px rgba(var(--aura-rgb),.25); animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{from{transform:scale(.6) rotateY(90deg); opacity:0}}
+.reveal .won{text-align:center; display:grid; gap:4px} .reveal .won b{font-size:22px; letter-spacing:-.02em} .reveal .won span{color:var(--text-muted); font-size:14px}
+.reveal details{border:1px solid var(--border); border-radius:var(--r-md); padding:10px 12px; font-size:12.5px; color:var(--text-muted)} .reveal details summary{cursor:pointer; color:var(--text); font-weight:600; font-size:13px} .reveal details .proof{display:grid; gap:4px; margin-top:8px; word-break:break-all; font:500 11.5px var(--mono)}
+.reveal .ra{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap}
+.filters{display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap} .filters button{border:1px solid var(--border); background:var(--surface); color:var(--text-muted); border-radius:999px; padding:6px 12px; font-size:13px; font-weight:500; cursor:pointer} .filters button.on{color:var(--text); border-color:var(--border-active); background:var(--surface2)}
+.f.wide{grid-column:1/-1} .f textarea{background:var(--bg); border:1px solid var(--border2); color:var(--text); border-radius:8px; padding:10px 12px; font:inherit; width:100%; resize:vertical; min-height:60px}
+.upload{border:1px dashed var(--border2); border-radius:var(--r-md); padding:12px 14px; display:flex; gap:12px; align-items:center; background:var(--bg); cursor:pointer; color:var(--text)} .upload:hover{border-color:var(--brand-a50)}
+.upload .pv{width:56px; height:56px; border-radius:50%; background:var(--surface2); display:grid; place-items:center; color:var(--aura); font:700 14px var(--mono); flex:none; overflow:hidden; background-size:cover; background-position:center} .upload .pv.wide{width:120px; height:44px; border-radius:6px}
+.upload b{font-size:13px; display:block} .upload small{font-size:12px; color:var(--text-faint)}
+@media(prefers-reduced-motion:reduce){.fanbig img,.reveal .stage .back,.reveal .stage img,.reveal .steps i{animation:none!important; transition:none!important}}
+
+.f .upload,.f .upload b,.f .upload small{font-family:var(--font); text-transform:none; letter-spacing:0; font-size:13px} .f .upload small{font-size:12px; display:block; margin-top:2px}
+
+.vhero .who{flex:1 1 260px} .vhero .acts{margin-left:auto}
+.vhero .stats .v{font-size:clamp(15px,4.2vw,20px); overflow-wrap:anywhere}
+@media(max-width:560px){ .vhero .id{margin-top:-28px; gap:12px} .vhero .coin{width:68px; height:68px} .vhero .acts{width:100
+.vhero .who{flex:1 1 260px} .vhero .acts{margin-left:auto}
+.vhero .stats .v{font-size:clamp(15px,4.2vw,20px); overflow-wrap:anywhere}
+@media(max-width:560px){ .vhero .id{margin-top:-28px; gap:12px} .vhero .coin{width:68px; height:68px} .vhero .acts{width:100%; margin-left:0} .vhero .stats>div{padding:12px 14px} }
