@@ -8,6 +8,9 @@
  *   const r = await vault.reserve({ mint, integrator: myWallet, winner: playerWallet, idempotencyKey });
  *   // sign r.paymentTransaction with `integrator`, send it, keep the signature
  *   const settled = await vault.settle(r.reservationId, paymentSignature);   // retry on 409 until finalized
+ *
+ *   // an integrator of EVERY vault: discover them, keep the graduated ones (only those sell)
+ *   const vaults = await listVaults({ baseUrl: 'https://vault.onix.finance' });   // [{ vault, id, name, graduated, … }]
  */
 'use strict';
 
@@ -44,4 +47,15 @@ function createVaultClient({ baseUrl, vault, apiKey = null, fetchImpl = fetch, t
   };
 }
 
-module.exports = { createVaultClient, VaultApiError };
+/** Every vault the server serves, with whether it sells yet (graduated). No address to configure. */
+async function listVaults({ baseUrl, apiKey = null, fetchImpl = fetch, timeoutMs = 15_000 } = {}) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/v1/vaults`, { signal: ctl.signal, headers: apiKey ? { 'x-api-key': apiKey } : {} });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new VaultApiError(res.status, json.error || `HTTP ${res.status}`, json);
+    return (json.vaults || []).map((v) => ({ vault: v.vault, id: v.id, name: v.name, symbol: v.token ? v.token.symbol : null, graduated: Boolean(v.stats && v.stats.poolStatus === 'migrated') }));
+  } finally { clearTimeout(t); }
+}
+
+module.exports = { createVaultClient, listVaults, VaultApiError };

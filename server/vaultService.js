@@ -48,7 +48,7 @@ function exitPriceUsd(item) {
  * @param {function} deps.deliver          ({ mint, toAddress, reservationId }) => Promise<{ sig }>
  * @param {object} deps.config             vaultWallet, usdcMint, memoProgramId, reservationTtlMs, strikesToBlock, redeemPremium
  */
-function createVaultService({ db, readItems, chain, deliver, now = Date.now, config, isMintBusy = () => false }) {
+function createVaultService({ db, readItems, chain, deliver, now = Date.now, config, isMintBusy = () => false, canSell = async () => ({ ok: true }) }) {
   const ttl = config.reservationTtlMs;
   const strikes = config.strikesToBlock ?? 3;
   const premium = config.redeemPremium ?? 1.15;
@@ -96,6 +96,9 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
 
   async function reserve({ mint, integrator, winner, idempotencyKey = null }) {
     if (!mint || !integrator || !winner) throw new VaultError(400, 'mint, integrator and winner are required');
+    // nothing leaves custody while the curve is filling — for integrators as for Play
+    const open = await canSell();
+    if (!open.ok) throw new VaultError(409, open.reason || 'this vault sells once it graduates');
     sweepExpired();
     if (idempotencyKey) {
       const prev = reservationsRepo.byIdempotencyKey(db, idempotencyKey);

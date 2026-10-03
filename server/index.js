@@ -78,8 +78,10 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   };
 
   let play = null;   // assigned below; the two doors share one view of what is busy
+  let statsRef = null;   // assigned below; the gacha door opens at graduation, like Play
   const service = createVaultService({
     db, readItems, chain, deliver, isMintBusy: (mint) => Boolean(play && play.busyMints().includes(mint)),
+    canSell: async () => { if (!def.pool) return { ok: true }; const st = statsRef ? await statsRef.read() : null; return st && st.poolStatus === 'migrated' ? { ok: true } : { ok: false, reason: 'this vault sells to integrators once it graduates' }; },
     config: { vaultWallet, usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID, reservationTtlMs: C.RESERVATION_TTL_MS, strikesToBlock: C.STRIKES_TO_BLOCK, redeemPremium: C.REDEEM_PREMIUM },
   });
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
@@ -110,6 +112,7 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   // one Buy door for the token's whole life: the curve while live, the graduated DAMM v2 pool once migrated
   const curveTrader = def.pool ? createCurveTrader({ pool: def.pool, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, quoteMint: C.USDC_MINT, baseMint: def.baseMint, referralTokenAccount: C.REFERRAL_USDC_ACCOUNT, ...curveDeps }) : null;
   const dammDeps = productionDammDeps({ rpcUrl: C.RPC_URL, chain });
+  statsRef = stats;
   const trader = def.pool ? createRoutedTrader({
     curve: curveTrader,
     makeDamm: (pool) => createDammTrader({ pool, baseMint: def.baseMint, quoteMint: C.USDC_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, referralTokenAccount: C.REFERRAL_USDC_ACCOUNT, ...dammDeps }),

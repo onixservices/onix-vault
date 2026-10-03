@@ -66,6 +66,14 @@ describe('list', () => {
     const [i] = await svc.listItems();
     assert.equal(i.status, 'reserved'); assert.equal(i.reservedUntil, T0 + 600_000);
   });
+  test('before graduation the vault does not sell to integrators (409 with the reason); after, it does', async () => {
+    const db = getTestDb(); let open = { ok: false, reason: 'this vault sells to integrators once it graduates' };
+    const svc = createVaultService({ db, readItems: async () => [item()], chain: { getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58() }, deliver: async () => ({}), now: () => T0, canSell: async () => open,
+      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+    await rejectsWith(svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER }), 409);
+    open = { ok: true };
+    assert.ok((await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER })).reservationId);
+  });
   test('an item a play is holding shows reserved too (an integrator never buys it underneath the draw)', async () => {
     const db = getTestDb();
     const svc = createVaultService({ db, readItems: async () => [item()], chain: {}, deliver: async () => ({}), now: () => T0, isMintBusy: (m) => m === MINT,
