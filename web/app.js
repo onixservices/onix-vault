@@ -102,7 +102,7 @@
           + backing
           + S('Price', price(p.priceUsd), 'on the curve · fee 10%')
           + S('Market cap', usd(p.mcapUsd) + (p.ratio != null ? '<small>' + p.ratio.toFixed(2) + '× backing</small>' : ''), p.openingMcapUsd ? 'opened at ' + usd(p.openingMcapUsd) : '')
-          + S('Graduates at', usd(META.graduationUsd || (p.openingMcapUsd ? p.openingMcapUsd * (META.gradMult || 2.5) : null)), 'market cap · ' + (META.gradMult || 2.5) + '× the opening');
+          + S('To graduate', (gq ? usd(gq) : '—') + '<small>USDC on the curve</small>', 'market cap then ' + usd(META.graduationUsd || (p.openingMcapUsd ? p.openingMcapUsd * (META.gradMult || 2.5) : null)) + ' · ' + (META.gradMult || 2.5) + '× the opening');
         var pr = Math.round((p.graduationProgress || 0) * 100);
         $('m-pct').textContent = pr + '%'; $('m-prog').style.width = pr + '%'; $('m-left').textContent = gq ? usd2(Math.max(0, gq - raised)) : '—';
       }
