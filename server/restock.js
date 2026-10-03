@@ -34,6 +34,7 @@ const RESTOCK = Object.freeze({
   pages: 3,                  // listing pages scanned, cheapest first
   minIntervalMs: 60 * 60_000,// one purchase an hour per vault at most
   pendingTtlMs: 30 * 60_000, // a sent purchase that never lands is marked failed after this
+  minSol: 0.05,              // below this the venue hands a sponsored, two-signer transaction (measured ~0.02–0.09 SOL, Jul 2026)
 });
 
 /** A CC marketplace row → the shape the rules read. Exported for the tests and the script. */
@@ -97,7 +98,7 @@ function decide({ budgetUsd, rules, listings, exclude = new Set(), limits = REST
  * @param {function} deps.getUsdcBalance  async (wallet) => number (ui)
  * @param {function} deps.ownerOf         async (mint) => owner wallet (DAS) or null
  */
-function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, ownerOf, now = Date.now, limits = RESTOCK, log = console }) {
+function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, getSolBalance = null, ownerOf, now = Date.now, limits = RESTOCK, log = console }) {
   const categoriesParam = rules.category && rules.category !== 'mixed' ? { pokemon: 'Pokemon', 'one-piece': 'One Piece', sports: 'Sports' }[rules.category] : undefined;
 
   async function market() {
@@ -116,6 +117,8 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
     const last = db.prepare("SELECT MAX(created_at) t FROM vault_purchases WHERE vault = ? AND status IN ('sent','landed')").get(vaultWallet).t || 0;
     const treasuryUsd = await getUsdcBalance(vaultWallet);
     const budgetUsd = Math.max(0, r2(treasuryUsd - limits.reserveUsd));
+    const sol = getSolBalance ? await getSolBalance(vaultWallet) : null;
+    if (sol != null && sol < limits.minSol) return { treasuryUsd, budgetUsd, sol, pick: null, why: `custody has ${sol.toFixed(4)} SOL; the venue needs ≥ ${limits.minSol} SOL in the buyer's wallet (below that it hands a sponsored two-signer transaction we refuse)`, considered: 0, rejected: {} };
     const inCustody = new Set((await readItems()).map((it) => it.mint));
     for (const r of db.prepare("SELECT mint FROM vault_purchases WHERE vault = ? AND status = 'sent'").all(vaultWallet)) inCustody.add(r.mint);
     if (t - last < limits.minIntervalMs) return { treasuryUsd, budgetUsd, pick: null, why: `last purchase ${Math.round((t - last) / 60000)} min ago; one an hour`, considered: 0, rejected: {} };
@@ -195,6 +198,7 @@ function productionRestockDeps({ ccApiBase = 'https://api.collectorcrypt.com', r
       if (!r.ok) throw new Error(`CC buy ${r.status}: ${(await r.text()).slice(0, 200)}`);
       return (await r.text()).trim().replace(/^"|"$/g, '');
     },
+    getSolBalance: async (wallet) => (await chain.getBalanceLamports(wallet)) / 1e9,
     getUsdcBalance: async (wallet) => {
       const r = await chain.rpc('getTokenAccountsByOwner', [wallet, { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' }, { encoding: 'jsonParsed' }]);
       return (r.value || []).reduce((s, a) => s + (a.account.data.parsed.info.tokenAmount.uiAmount || 0), 0);

@@ -68,6 +68,12 @@ function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], spon
 }
 
 describe('restock — execute and confirm', () => {
+  test('custody without enough SOL buys nothing and says so (the venue would hand a sponsored transaction)', async () => {
+    const w = make(); const db = w.db;
+    const rs = createRestock({ db, chain: w.chain, vaultWallet: CUSTODY, signer: fromKeypair(custodyKp), rules: RULES, readItems: async () => [], fetchListings: async () => ({ filterNFtCard: [] }), buildBuyTx: async () => '', getUsdcBalance: async () => 40, getSolBalance: async () => 0.017, ownerOf: async () => null, log: { warn: () => {} } });
+    const p = await rs.plan();
+    assert.equal(p.pick, null); assert.match(p.why, /0\.0170 SOL; the venue needs ≥ 0\.05 SOL/);
+  });
   test('plan reads the treasury, excludes custody, picks; dry execute asserts and simulates but signs nothing', async () => {
     const w = make({ inCustody: ['b'] });
     const p = await w.rs.plan();
