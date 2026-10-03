@@ -66,6 +66,14 @@ describe('list', () => {
     const [i] = await svc.listItems();
     assert.equal(i.status, 'reserved'); assert.equal(i.reservedUntil, T0 + 600_000);
   });
+  test('an item a play is holding shows reserved too (an integrator never buys it underneath the draw)', async () => {
+    const db = getTestDb();
+    const svc = createVaultService({ db, readItems: async () => [item()], chain: {}, deliver: async () => ({}), now: () => T0, isMintBusy: (m) => m === MINT,
+      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+    const [i] = await svc.listItems();
+    assert.equal(i.status, 'reserved'); assert.equal(i.reservedUntil, null);
+    await rejectsWith(svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER }), 409);
+  });
 });
 
 describe('reserve', () => {

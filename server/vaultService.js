@@ -70,7 +70,8 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
         exitPriceUsd: it.exitPriceUsd,
         exitPriceBasis: it.marketRefUsd != null && it.marketRefUsd > it.custodianValueUsd ? 'market' : 'custodian',
         redeemPriceUsd: Math.round(it.exitPriceUsd * premium * 100) / 100,
-        status: res ? 'reserved' : 'available',
+        // reserved by an integrator, or held by a play on its way out: either way not for sale
+        status: res ? 'reserved' : isMintBusy(it.mint) ? 'reserved' : 'available',
         reservedUntil: res ? res.expires_at : null,
       };
     });
