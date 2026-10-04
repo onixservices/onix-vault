@@ -1,0 +1,36 @@
+const { test, describe } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawnSync } = require('child_process');
+
+// The pre-commit hook is the last door before a PUBLIC repository: run it against staged files in a throwaway
+// git repo and check what it refuses. Values below are fake (repeated bytes), never a real key.
+const HOOK = path.join(__dirname, '..', '.githooks', 'pre-commit');
+const hasTools = spawnSync('git', ['--version']).status === 0 && spawnSync('bash', ['--version']).status === 0;
+
+function hookOn(files) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-hook-'));
+  const git = (...a) => spawnSync('git', a, { cwd: dir, encoding: 'utf8' });
+  git('init', '-q');
+  for (const [name, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true }); fs.writeFileSync(path.join(dir, name), body); git('add', name); }
+  const r = spawnSync('bash', [HOOK], { cwd: dir, encoding: 'utf8' });
+  return { blocked: r.status !== 0, out: r.stdout + r.stderr };
+}
+
+const HEX64 = 'ab'.repeat(32);
+
+describe('pre-commit — what never reaches the public repository', { skip: !hasTools && 'git/bash not available' }, () => {
+  test('a master seed or draw key assigned a hex value is refused', () => {
+    assert.ok(hookOn({ 'scripts/x.sh': `VAULT_MASTER_SEED=${HEX64}\n` }).blocked);
+    assert.ok(hookOn({ 'scripts/y.js': `const DRAW_KEY = '${HEX64}';\n` }).blocked);
+  });
+  test('32 bytes of hex on their own, outside a test file, are refused', () => {
+    assert.ok(hookOn({ 'server/z.js': `module.exports = '${HEX64}';\n` }).blocked);
+  });
+  test('reading the seed from the environment, and throwaway seeds in tests, pass', () => {
+    const r = hookOn({ 'server/config.js': "module.exports = { KEYRING_SEED: env('VAULT_MASTER_SEED') };\n", 'server/k.test.js': `const SEED = '${HEX64}';\n` });
+    assert.equal(r.blocked, false, r.out);
+  });
+});

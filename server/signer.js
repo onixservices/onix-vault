@@ -6,10 +6,13 @@
 const { Keypair } = require('@solana/web3.js');
 const C = require('./config');
 
+// the parsers' own messages can quote their input (Node's JSON.parse does), so none of them ever leaves this function
 function parseSecret(secret) {
-  const s = String(secret).trim();
-  if (s.startsWith('[')) return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(s)));
-  const bs58 = require('bs58'); return Keypair.fromSecretKey((bs58.decode || bs58.default.decode)(s));
+  try {
+    const s = String(secret).trim();
+    if (s.startsWith('[')) return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(s)));
+    const bs58 = require('bs58'); return Keypair.fromSecretKey((bs58.decode || bs58.default.decode)(s));
+  } catch { throw new Error('VAULT_SECRET_KEY is malformed (expected a JSON byte array or base58) — its value is not shown'); }
 }
 
 let kp = null;
@@ -31,6 +34,8 @@ module.exports = {
  * key is throwaway and generated at runtime. Production never calls this: its
  * key comes from the environment through the default export above.
  */
+module.exports.parseSecret = parseSecret;
+
 module.exports.fromKeypair = (keypair) => ({
   configured: () => true,
   publicKey: () => keypair.publicKey.toBase58(),

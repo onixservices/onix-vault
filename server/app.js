@@ -28,6 +28,7 @@
  */
 'use strict';
 const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const { VaultError } = require('./vaultService');
 
@@ -229,12 +230,18 @@ function buildApp(deps) {
     app.get(/^\/(?!v1\/).*/, (req, res) => { noStale(res); res.sendFile(path.join(webDir, 'index.html')); });
   }
 
-  // errors carry the service's status; never a bare 500 with no reason
+  // errors: a known status keeps its message (minus any API key in a URL); anything unexpected is logged with a
+  // reference and answers a generic 500 — RPC URLs, SQLite and stack text never leave the server
+  const scrub = (s) => String(s).replace(/(api[-_]?key=)[^&\s"']+/gi, '$1…');
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
-    const code = err.statusCode || 500;
-    if (code === 500) console.error('[vault]', err.stack || err);
-    res.status(code).json({ error: err.message, code });
+    const code = Number.isInteger(err.statusCode) && err.statusCode >= 400 && err.statusCode < 600 && err.statusCode !== 500 ? err.statusCode : 500;
+    if (code === 500) {
+      const ref = crypto.randomBytes(4).toString('hex');
+      console.error(`[vault] ${ref}`, scrub(err.stack || err));
+      return res.status(500).json({ error: `internal error (ref ${ref}) — nothing was lost; try again`, code, ref });
+    }
+    res.status(code).json({ error: scrub(err.message), code });
   });
   return app;
 }

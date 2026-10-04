@@ -30,6 +30,8 @@ chave de API do Helius no URL	helius-rpc\.com[^"'"'"' ]*api-key=[A-Za-z0-9-]
 segredo atribuído a variável	(PRIVATE_KEY|SECRET_KEY|MNEMONIC|SEED_PHRASE|OPERATOR_SECRET)[[:space:]]*[:=]
 chave de API com valor	(api[_-]?key|apikey|access[_-]?token|bearer)[[:space:]]*[:=][[:space:]]*['"'"'"][A-Za-z0-9_-]{16,}
 bloco de chave privada PEM	-----BEGIN[A-Z ]*PRIVATE KEY-----
+seed ou chave do sorteio com valor	(MASTER_SEED|_SEED|DRAW_KEY)[[:space:]]*[:=][[:space:]]*['"'"'"]?[0-9a-fA-F]{32,}
+hex de 32 bytes isolado (seed ou chave)	(^|[^0-9A-Za-z])[0-9a-fA-F]{64}([^0-9A-Za-z]|$)
 PATTERNS
 )
 
@@ -38,6 +40,8 @@ while IFS= read -r f; do
   case "$f" in *.example|*.md) continue ;; esac   # exemplos e docs falam de chaves sem as ter
   while IFS=$'\t' read -r label rx; do
     [ -z "${rx:-}" ] && continue
+    # sementes descartáveis dos testes (vectores, 0102…) são hex de 32 bytes por natureza
+    case "$label" in hex*) case "$f" in *.test.js) continue ;; esac ;; esac
     if git show ":$f" 2>/dev/null | grep -nEq -- "$rx"; then
       red "BLOQUEADO  $f"
       red "           $label"
