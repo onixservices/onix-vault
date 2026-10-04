@@ -136,6 +136,9 @@ describe('routes — what the page reads', () => {
     db.prepare(`INSERT INTO vaults (id, name, operator, wallet, pool, base_mint, config, graduation_usd, token_name, token_symbol, rules, created_by, created_at, image) VALUES ('t','T','o','W','P','MINT1','C',1,'T','T','custom','x',1,?)`).run(u.uploadId);
     const im = await fetch(bU + '/token/MINT1.png'); assert.equal(im.status, 200); assert.equal(im.headers.get('content-type'), 'image/png');
     assert.equal((await fetch(bU + '/token/MINT1-banner.png')).status, 404);
+    // fetch drops a custom Host header; http.get sends it for real
+    const spoof = await new Promise((ok, ko) => require('http').get({ host: '127.0.0.1', port: sU.address().port, path: '/token/MINT1.json', headers: { Host: 'evil.test' } }, (r) => { let d = ''; r.on('data', (c) => { d += c; }); r.on('end', () => ok(JSON.parse(d))); }).on('error', ko));
+    assert.ok(!JSON.stringify(spoof).includes('evil.test'), 'the token metadata never takes its URLs from the Host header');
     const meta = await (await fetch(bU + '/token/MINT1.json')).json(); assert.match(meta.image, /\/token\/MINT1\.png$/); assert.equal(meta.banner, undefined); assert.match(meta.external_url, /#\/vault\/t$/); assert.equal(meta.extensions.website, meta.external_url); assert.equal(meta.twitter, undefined);
     sU.close();
   });
@@ -150,6 +153,21 @@ describe('routes — what the page reads', () => {
     assert.equal(await jp('/v1/vaults/' + VAULT + '/trades/quote', { side: 'buy', amount: 1 }), 200);
     assert.equal((await fetch(bF + '/v1/vaults/' + VAULT + '/items')).status, 200);
     sF.close();
+  });
+  test('fences reach every route that signs, settles or reads the chain on demand; reads served from cache stay open', async () => {
+    const appR = buildApp({ service, stats, readWallet, trader, admissions, vaultWallet: VAULT, signerConfigured: () => false, itemsAge: () => 0, vaultMeta: {}, webDir: null, creator: {}, limits: { play: () => false, build: () => false, create: () => false, read: () => false } });
+    const sR = await new Promise((r) => { const x = appR.listen(0, '127.0.0.1', () => r(x)); });
+    const bR = 'http://127.0.0.1:' + sR.address().port;
+    const st = async (m, p, body) => (await fetch(bR + p, { method: m, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })).status;
+    for (const p of ['/v1/vaults/create/deposited', '/v1/vaults/create/submit', '/v1/vaults/create/confirm', '/v1/vaults/create/abandon', '/v1/vaults/' + VAULT + '/plays/x/submit', '/v1/vaults/' + VAULT + '/reservations/x/settle', '/v1/vaults/' + VAULT + '/redemptions', '/v1/vaults/' + VAULT + '/trades/quote']) assert.equal(await st('POST', p, {}), 429, p);
+    for (const p of ['/v1/wallets/W/eligible-items', '/v1/vaults/' + VAULT + '/eligible-items?wallet=W', '/v1/vaults/' + VAULT + '/trades/balances?wallet=W', '/v1/vaults/create/quote?wallet=W']) assert.equal(await st('GET', p), 429, p);
+    assert.equal(await st('GET', '/v1/vaults/' + VAULT + '/stats?fresh=1'), 200, 'a fresh read over the fence is served from the cache, not refused');
+    assert.equal(await st('GET', '/v1/vaults/' + VAULT + '/items'), 200);
+    sR.close();
+  });
+  test('slippageBps outside 1–500 → 400', async () => {
+    for (const s of [0, 501, -5, 1.5, 'x']) assert.equal((await post('/v1/vaults/' + VAULT + '/trades/quote', { side: 'buy', amount: 1, slippageBps: s })).status, 400, String(s));
+    assert.equal((await post('/v1/vaults/' + VAULT + '/trades/quote', { side: 'buy', amount: 1, slippageBps: 300 })).status, 200);
   });
   test('GET /v1/vaults/:vault/trades/balances?wallet= — the two balances the panel shows', async () => {
     const b = await j('/v1/vaults/' + VAULT + '/trades/balances?wallet=W1');

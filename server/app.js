@@ -74,6 +74,9 @@ function buildApp(deps) {
   const need = (x, what) => { if (!x) throw new VaultError(503, `${what} not configured for this vault`); return x; };
   const summary = async (v) => ({ vault: v.wallet, ...v.meta, rules: v.admissions ? v.admissions.rules : null, stats: v.stats ? await v.stats.read() : null });
   const swapUrl = deps.swapUrl || 'https://onix.finance';
+  const publicUrl = deps.publicUrl || 'https://vault.onix.finance';   // token metadata never builds URLs from the Host header
+  // what a trade may slip: 1–500 bps (5%); a wider band only helps whoever trades against the user
+  const slippageOf = (v) => { if (v == null) return 100; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > 500) throw new VaultError(400, 'slippageBps: an integer from 1 to 500'); return n; };
 
   app.get('/v1/health', (req, res) => res.json({ ok: true, paused: pause.state(), keyring: keyringConfigured(), vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), ...(vaults[0] ? { vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() } : {}) }));
 
@@ -83,7 +86,7 @@ function buildApp(deps) {
   }));
   // ── the Create door: items go into a derived custody wallet; the creator is the pool's creator; Onix is the partner ──
   const needCreator = () => { if (!creator) throw new VaultError(503, 'vault creation not configured'); return creator; };
-  app.get('/v1/vaults/create/quote', wrap(async (req, res) => {
+  app.get('/v1/vaults/create/quote', fence('read'), wrap(async (req, res) => {
     let rules = {}; if (req.query.rules) { try { rules = JSON.parse(String(req.query.rules)); } catch { throw new VaultError(400, 'rules must be JSON'); } }
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || ''), rules })) });
   }));
@@ -107,33 +110,33 @@ function buildApp(deps) {
   app.get('/v1/vaults/create/uploads/:id', (req, res) => sendUpload(res, req.params.id));
   app.get('/token/:mint-banner.png', (req, res, next) => { const r = db ? db.prepare('SELECT banner FROM vaults WHERE base_mint = ?').get(req.params.mint) : null; if (!r || !r.banner) return next(); sendUpload(res, r.banner); });
   app.get('/token/:mint.png', (req, res, next) => { const r = db ? db.prepare('SELECT image FROM vaults WHERE base_mint = ?').get(req.params.mint) : null; if (!r || !r.image) return next(); sendUpload(res, r.image); });
-  app.post('/v1/vaults/create/deposited', halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/create/deposited', halt, fence('build'), wrap(async (req, res) => {
     const { creationId } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().deposited({ creationId })) });
   }));
-  app.post('/v1/vaults/create/submit', halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/create/submit', halt, fence('build'), wrap(async (req, res) => {
     const { creationId, signedTransaction } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().submit({ creationId, signedTransaction })) });
   }));
-  app.post('/v1/vaults/create/confirm', halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/create/confirm', halt, fence('build'), wrap(async (req, res) => {
     const { creationId, signature } = req.body || {};
     const def = await needCreator().confirm({ creationId, signature });
     const already = vaults.find((x) => x.wallet === def.wallet);
     const b = already || (addVault ? addVault(def) : null);
     res.status(201).json({ readAt: new Date().toISOString(), vault: b ? await summary(b) : def });
   }));
-  app.post('/v1/vaults/create/abandon', halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/create/abandon', halt, fence('build'), wrap(async (req, res) => {
     const { creationId, owner } = req.body || {};
     if (!owner) throw new VaultError(400, 'owner is required');
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().abandon({ creationId, owner })) });
   }));
-  app.get('/v1/vaults/create/:creationId', wrap(async (req, res) => {
+  app.get('/v1/vaults/create/:creationId', fence('read'), wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().status({ creationId: req.params.creationId })) });
   }));
   app.get('/token/:mint.json', (req, res, next) => {
     const r = db ? db.prepare('SELECT * FROM vaults WHERE base_mint = ?').get(req.params.mint) : null;
     if (!r) return next();
-    const base = `${req.protocol}://${req.get('host')}`;
+    const base = publicUrl;
     // socials the scanners read (Meteora, RugCheck, Jupiter): the creator's X and the vault page as the website
     let links = {}; try { links = r.links_json ? JSON.parse(r.links_json) : {}; } catch { links = {}; }
     const website = links.site || `${base}/#/vault/${r.id}`;
@@ -142,7 +145,9 @@ function buildApp(deps) {
   });
   app.get('/v1/vaults/:vault/stats', pick, wrap(async (req, res) => {
     const st = need(req.vb.stats, 'stats');
-    res.json({ ...(await st.read({ fresh: req.query.fresh === '1' })), ageMs: st.ageMs() });
+    // a fresh read goes to the chain: over the read fence it is served from the cache instead of refused
+    const fresh = req.query.fresh === '1' && (!limits.read || limits.read(req.ip));
+    res.json({ ...(await st.read({ fresh })), ageMs: st.ageMs() });
   }));
   app.get('/v1/vaults/:vault/activity', pick, wrap(async (req, res) => {
     const doors = req.vb.service.listActivity({ limit: 50 });
@@ -152,13 +157,13 @@ function buildApp(deps) {
     const fees = req.vb.feeclaim ? req.vb.feeclaim.list({ limit: 50 }).map((f) => ({ type: 'fees', at: f.at, treasuryUsd: f.treasuryUsd, onixUsd: f.onixUsd, curveUsd: f.curveUsd, poolUsd: f.poolUsd, status: f.status, signature: f.signature })) : [];
     res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays, ...bought, ...fees].sort((x, y) => y.at - x.at).slice(0, 50) });
   }));
-  app.get('/v1/wallets/:wallet/eligible-items', wrap(async (req, res) => {
+  app.get('/v1/wallets/:wallet/eligible-items', fence('read'), wrap(async (req, res) => {
     if (!readWallet) throw new VaultError(503, 'wallet reader not configured');
     res.json({ readAt: new Date().toISOString(), ...(await readWallet(req.params.wallet)) });
   }));
 
   // ── the Admit door ("Send a card") ──
-  app.get('/v1/vaults/:vault/eligible-items', pick, wrap(async (req, res) => {
+  app.get('/v1/vaults/:vault/eligible-items', pick, fence('read'), wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), ...(await need(req.vb.admissions, 'admissions').eligible(String(req.query.wallet || ''))) });
   }));
   app.post('/v1/vaults/:vault/admissions/build', pick, halt, fence('build'), wrap(async (req, res) => {
@@ -176,16 +181,16 @@ function buildApp(deps) {
 
   // ── the Buy door: quote on the live pool; build the swap for the USER to sign (never signed here) ──
   const trader = (req) => { if (!req.vb.trader) throw new VaultError(409, 'token not launched — there is no pool to trade on yet'); return req.vb.trader; };
-  app.post('/v1/vaults/:vault/trades/quote', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/trades/quote', pick, fence('read'), wrap(async (req, res) => {
     const { side, amount, slippageBps } = req.body || {};
-    res.json({ readAt: new Date().toISOString(), ...(await trader(req).quote({ side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
+    res.json({ readAt: new Date().toISOString(), ...(await trader(req).quote({ side, amount: Number(amount), slippageBps: slippageOf(slippageBps) })) });
   }));
-  app.get('/v1/vaults/:vault/trades/balances', pick, wrap(async (req, res) => {
+  app.get('/v1/vaults/:vault/trades/balances', pick, fence('read'), wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), wallet: String(req.query.wallet || ''), ...(await trader(req).balances(String(req.query.wallet || ''))) });
   }));
   app.post('/v1/vaults/:vault/trades/build', pick, fence('build'), wrap(async (req, res) => {
     const { owner, side, amount, slippageBps } = req.body || {};
-    res.json({ readAt: new Date().toISOString(), ...(await trader(req).build({ owner, side, amount: Number(amount), slippageBps: slippageBps == null ? 100 : Number(slippageBps) })) });
+    res.json({ readAt: new Date().toISOString(), ...(await trader(req).build({ owner, side, amount: Number(amount), slippageBps: slippageOf(slippageBps) })) });
   }));
 
   // ── the Play door ──
@@ -195,7 +200,7 @@ function buildApp(deps) {
     const { band, player, currency, clientSeed } = req.body || {};
     res.status(201).json({ readAt: new Date().toISOString(), ...(await playOf(req).start({ band, player, currency, clientSeed })) });
   }));
-  app.post('/v1/vaults/:vault/plays/:id/submit', pick, halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/plays/:id/submit', pick, halt, fence('build'), wrap(async (req, res) => {
     res.status(202).json(playOf(req).submit({ playId: req.params.id, signature: req.body?.signature }));
   }));
   app.get('/v1/vaults/:vault/plays/:id', pick, wrap(async (req, res) => { res.json(playOf(req).get(req.params.id)); }));
@@ -214,13 +219,13 @@ function buildApp(deps) {
     const { mint, integrator, winner } = req.body || {};
     res.status(201).json(await req.vb.service.reserve({ mint, integrator, winner, idempotencyKey: req.get('Idempotency-Key') || null }));
   }));
-  app.post('/v1/vaults/:vault/reservations/:id/settle', pick, halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/reservations/:id/settle', pick, halt, fence('build'), wrap(async (req, res) => {
     res.json(await req.vb.service.settle({ reservationId: req.params.id, paymentSignature: req.body?.paymentSignature }));
   }));
   app.get('/v1/vaults/:vault/reservations/:id', pick, wrap(async (req, res) => {
     res.json(req.vb.service.status({ reservationId: req.params.id }));
   }));
-  app.post('/v1/vaults/:vault/redemptions', pick, halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/redemptions', pick, halt, fence('build'), wrap(async (req, res) => {
     const { mint, burnSignature, recipient } = req.body || {};
     res.status(202).json(req.vb.service.recordRedemption({ mint, burnSignature, recipient }));
   }));

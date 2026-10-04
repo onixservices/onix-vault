@@ -156,7 +156,7 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
   const partner = signer || defaultSigner;
   const uploads = createUploads({ dir: C.UPLOADS_DIR });
   const uploadLimiter = createRateLimiter({ capacity: 20, perMs: 3_600_000 });
-  const fences = { create: createRateLimiter({ capacity: 6, perMs: 3_600_000 }), play: createRateLimiter({ capacity: 30, perMs: 3_600_000 }), build: createRateLimiter({ capacity: 120, perMs: 3_600_000 }) };
+  const fences = { create: createRateLimiter({ capacity: 6, perMs: 3_600_000 }), play: createRateLimiter({ capacity: 30, perMs: 3_600_000 }), build: createRateLimiter({ capacity: 120, perMs: 3_600_000 }), read: createRateLimiter({ capacity: 600, perMs: 3_600_000 }) };
   const limits = Object.fromEntries(Object.entries(fences).map(([k, rl]) => [k, (ip) => rl.take(ip)]));
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
   const transferForCreation = createTransferBuilder(productionDeps(chain));
@@ -166,7 +166,7 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
   const pause = opts.pause || createPause({ dir: path.dirname(C.DB_PATH) });
-  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, swapUrl: C.SWAP_URL, keyringConfigured: keyring.configured, pause });
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, swapUrl: C.SWAP_URL, publicUrl: C.PUBLIC_URL, keyringConfigured: keyring.configured, pause });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
   return { app, db, vaults: bundles, addVault, creator, uploads, pause, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
