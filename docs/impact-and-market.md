@@ -4,6 +4,13 @@
 > source; none is a projection.** Where we have no number, it says so. Drafted 22 September
 > 2026; rewritten 3 October 2026 for the model that runs.
 
+## Who this is for
+
+**Your collection. A business in minutes.** A collector with graded cards today sells them one at a time, on someone
+else's marketplace, and waits for each buyer. With a vault the same collection becomes a token people trade, a gacha
+people play, a supplier to every gacha on chain, and an income line for the collector, all from one launch. The impact
+is on the supply side of a market that already has the demand: card gacha alone moves hundreds of millions a month.
+
 ## The precondition, and the first asset class that meets it
 
 Onix.Vault works on any real-world asset that meets three conditions: possession is provable
@@ -47,7 +54,7 @@ the trading actually lands.
 ## Who this is for
 
 - **The creator** — a collector with graded cards a custodian already tokenized. They open a vault on them, keep half the
-  token (released over 6 months from graduation) and 40% of every trade fee on chain. Compared with the launchpads
+  token (released over 6 months from graduation) and 40% of the trading fee on the curve. Compared with the launchpads
   creators already use (Clanker 40% of fees, Jupiter Studio 50% + anti-sniper, Believe 50%), the difference is that their
   half is backed by their own items from day one.
 - **The holder** — exposure to a collection whose backing is counted from a wallet, which grows with every trade fee

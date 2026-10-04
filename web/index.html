@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Onix.Vault</title>
-<meta name="description" content="Auditable vaults for real-world assets on Solana. Create a vault from items a custodian holds, trade its token on a Meteora curve, and once it graduates play for the items.">
+<title>Onix.Vault · Your collection. A business in minutes.</title>
+<meta name="description" content="Your collection. A business in minutes. Put real graded cards in a vault on Solana and launch: a token on Meteora, a gacha machine and a shop on other sites, all running by itself.">
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/vault.css">
@@ -17,6 +17,7 @@
     <nav>
       <a href="#/" data-nav="home">Vaults</a>
       <a href="#/create" data-nav="create">Create</a>
+      <a href="#/why" data-nav="why">Why</a>
       <a href="#/how" data-nav="how">How it works</a>
       <a href="#/integrate" data-nav="integrate">Integrate</a>
     </nav>
@@ -24,28 +25,92 @@
   </div>
 </header>
 
+  <!-- the site's symbol set: one picture, one meaning, everywhere (USDC · token · item · backing · treasury · buy · sell · burn) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-usdc" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--usdc)"/><text x="20" y="27" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#fff">$</text></symbol>
+    <symbol id="i-tok" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--tok)"/><circle cx="20" cy="20" r="12" fill="none" stroke="var(--tok-ink)" stroke-width="2" opacity=".45"/><circle cx="20" cy="17" r="3.4" fill="var(--tok-ink)"/><path d="M18.2 18.5h3.6l1 7h-5.6z" fill="var(--tok-ink)"/></symbol>
+    <symbol id="i-item" viewBox="0 0 40 40"><rect x="9" y="4" width="22" height="32" rx="3" fill="var(--item)" stroke="var(--item-edge)" stroke-width="2"/><rect x="13" y="9" width="14" height="12" rx="1.5" fill="#d9c79b"/><path d="M13 26h14M13 30h9" stroke="var(--item-edge)" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-backing" viewBox="0 0 40 40"><rect x="4" y="5" width="32" height="28" rx="4" fill="var(--backing)"/><circle cx="20" cy="19" r="8" fill="none" stroke="#0b1416" stroke-width="2.4"/><path d="M20 13v3M20 22v3M14 19h3M23 19h3" stroke="#0b1416" stroke-width="2.4" stroke-linecap="round"/><rect x="8" y="33" width="5" height="3" rx="1" fill="var(--backing)"/><rect x="27" y="33" width="5" height="3" rx="1" fill="var(--backing)"/></symbol>
+    <symbol id="i-treasury" viewBox="0 0 40 40"><ellipse cx="19" cy="22" rx="14" ry="10.5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8"/><path d="M11 13l3-6 4 5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8" stroke-linejoin="round"/><rect x="31" y="18" width="6" height="7" rx="2.5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8"/><circle cx="25" cy="19" r="1.5" fill="#1a1a1a"/><rect x="15" y="12.5" width="8" height="2.4" rx="1.2" fill="var(--treasury-edge)"/><path d="M12 31v4M24 31v4" stroke="var(--treasury-edge)" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-buy" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--buy-soft)"/><path d="M20 30V11M12 18l8-8 8 8" fill="none" stroke="var(--buy)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sell" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--sell-soft)"/><path d="M20 10v19M12 22l8 8 8-8" fill="none" stroke="var(--sell)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-burn" viewBox="0 0 40 40"><path d="M20 4c2 7 10 10 10 19a10 10 0 0 1-20 0c0-5 3-8 5-10 0 4 2 6 4 6-1-6 0-11 1-15z" fill="var(--burn)"/><path d="M20 22c1 3 5 4 5 8a5 5 0 0 1-10 0c0-3 3-4 5-8z" fill="#ffd36b"/></symbol>
+    <symbol id="i-binder" viewBox="0 0 40 40"><rect x="6" y="4" width="28" height="32" rx="3" fill="#7c5cbf"/><rect x="11" y="8" width="8" height="11" rx="1" fill="var(--item)"/><rect x="21" y="8" width="8" height="11" rx="1" fill="var(--item)"/><rect x="11" y="21" width="8" height="11" rx="1" fill="var(--item)"/><rect x="21" y="21" width="8" height="11" rx="1" fill="var(--item)"/><path d="M6 12h-2M6 20h-2M6 28h-2" stroke="#7c5cbf" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 40 40"><circle cx="20" cy="21" r="15" fill="none" stroke="var(--buy)" stroke-width="3"/><path d="M20 12v9l6 4" fill="none" stroke="var(--buy)" stroke-width="3" stroke-linecap="round"/><path d="M15 3h10" stroke="var(--buy)" stroke-width="3" stroke-linecap="round"/></symbol>
+    <symbol id="i-machine" viewBox="0 0 40 40"><circle cx="20" cy="14" r="11" fill="#cfe9ff" stroke="var(--usdc)" stroke-width="2"/><circle cx="15" cy="13" r="3.2" fill="#f2a7b8"/><circle cx="23" cy="10" r="3.2" fill="var(--tok)"/><circle cx="24" cy="18" r="3.2" fill="#8fd6b4"/><rect x="8" y="23" width="24" height="14" rx="3" fill="#e2574c"/><rect x="17" y="28" width="6" height="5" rx="1.5" fill="#7a1f19"/><circle cx="13" cy="30" r="2" fill="#ffd36b"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--brand)" stroke-width="2.4"/><ellipse cx="20" cy="20" rx="7" ry="16" fill="none" stroke="var(--brand)" stroke-width="2"/><path d="M4 20h32M7 12h26M7 28h26" stroke="var(--brand)" stroke-width="2"/></symbol>
+    <symbol id="i-stack" viewBox="0 0 40 40"><rect x="5" y="9" width="18" height="26" rx="3" fill="var(--item)" stroke="var(--item-edge)" stroke-width="2" transform="rotate(-10 14 22)"/><rect x="11" y="7" width="18" height="26" rx="3" fill="var(--item)" stroke="var(--item-edge)" stroke-width="2"/><rect x="17" y="6" width="18" height="26" rx="3" fill="var(--item)" stroke="var(--item-edge)" stroke-width="2" transform="rotate(10 26 19)"/><rect x="21" y="11" width="10" height="9" rx="1.5" fill="#d9c79b" transform="rotate(10 26 19)"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 40 40"><rect x="5" y="7" width="30" height="26" rx="4" fill="var(--surface2)" stroke="var(--border2)" stroke-width="2"/><circle cx="14" cy="17" r="5" fill="var(--tok)"/><path d="M22 14h9M22 20h7M10 27h20" stroke="var(--text-muted)" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-rocket" viewBox="0 0 40 40"><path d="M20 3c7 5 9 13 6 22h-12c-3-9-1-17 6-22z" fill="var(--brand)"/><circle cx="20" cy="14" r="3.5" fill="var(--bg)"/><path d="M14 20l-6 7 6 1zM26 20l6 7-6 1z" fill="var(--usdc)"/><path d="M16 29c1 4 2 6 4 8 2-2 3-4 4-8z" fill="var(--tok)"/></symbol>
+    <symbol id="i-check" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--buy)"/><path d="M12 20l6 6 11-12" fill="none" stroke="#04211A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 40 40"><path d="M22 4l-11 19h8l-3 13 12-20h-8z" fill="var(--tok)"/></symbol>
+  </defs>
+</svg>
 <main>
 
 <!-- ═══════════════ 0b · HOW IT WORKS · the detailed flywheel (judges, builders) ═══════════════ -->
+<!-- ═══════════════ 0c · WHY · the pitch in pictures ═══════════════ -->
+<section class="screen" id="s-why">
+  <div class="crumbs"><a href="#/">Home</a><span>›</span><span>Why</span></div>
+  <div class="why-head">
+    <h1>Anyone can turn a collection into a business.</h1>
+    <p class="lede">Three steps, a few minutes, nothing to run.</p>
+  </div>
+  <div class="steps2">
+    <div><svg><use href="#i-stack"/></svg><span class="n">1</span><b>Pick your cards</b><span>Graded cards you already hold on chain.</span></div>
+    <div><svg><use href="#i-pen"/></svg><span class="n">2</span><b>Make it yours</b><span>A name, a coin image, a banner and your rules.</span></div>
+    <div><svg><use href="#i-rocket"/></svg><span class="n">3</span><b>Launch</b><span>Sign in your wallet. Your vault is live.</span></div>
+  </div>
+  <h2>What you get</h2>
+  <div class="gets2">
+    <div class="get2"><svg><use href="#i-tok"/></svg><div><b>Your own token</b><span>Live on Meteora, traded by anyone. Half of it is yours.</span></div></div>
+    <div class="get2"><svg><use href="#i-usdc"/></svg><div><b>Paid by the trading</b><span>40% of the launch trading fee lands in your wallet.</span></div></div>
+    <div class="get2"><svg><use href="#i-machine"/></svg><div><b>Your own gacha</b><span>Your cards become a machine people play.</span></div></div>
+    <div class="get2"><svg><use href="#i-globe"/></svg><div><b>A shop everywhere</b><span>Onix.Cards and any gacha site sell your cards through our API.</span></div></div>
+    <div class="get2"><svg><use href="#i-treasury"/></svg><div><b>It restocks itself</b><span>The treasury buys new cards that follow your rules.</span></div></div>
+    <div class="get2"><svg><use href="#i-check"/></svg><div><b>Nothing to run</b><span>No code, no servers. A real custodian keeps the cards.</span></div></div>
+  </div>
+  <h2>Money comes in from everywhere</h2>
+  <div class="hub2">
+    <svg viewBox="0 0 640 380" role="img" aria-label="People trading, players, other gacha sites and Onix.Cards all pay into the vault, which buys more cards">
+      <g fill="none" stroke="var(--border2)" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="2 9"><path id="hf1" d="M178 122 L262 160"/><path id="hf2" d="M462 122 L378 160"/><path id="hf3" d="M150 286 L262 230"/><path id="hf4" d="M490 286 L378 230"/></g>
+      <use href="#i-backing" x="256" y="116" width="128" height="128"/>
+            <use href="#i-stack" x="294" y="250" width="52" height="52"/>
+      <text class="hub-c" x="320" y="330" text-anchor="middle">→ more cards in the vault</text>
+      <!-- a dollar running down every flow -->
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="0s"><mpath href="#hf1"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="0.6s"><mpath href="#hf2"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="1.2s"><mpath href="#hf3"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="1.8s"><mpath href="#hf4"/></animateMotion></g>
+      <use href="#i-buy" x="78" y="22" width="40" height="40"/><use href="#i-sell" x="114" y="22" width="40" height="40"/>
+      <text class="hub-t" x="118" y="100" text-anchor="middle">People trading</text>
+      <use href="#i-machine" x="490" y="16" width="64" height="64"/>
+      <text class="hub-t" x="521" y="100" text-anchor="middle">Players on its gacha</text>
+      <use href="#i-globe" x="88" y="276" width="62" height="62"/>
+      <text class="hub-t" x="118" y="364" text-anchor="middle">Other gacha sites</text>
+      <use href="#i-stack" x="490" y="276" width="62" height="62"/>
+      <text class="hub-t" x="521" y="364" text-anchor="middle">Onix.Cards</text>
+    </svg>
+  </div>
+  <div class="back2">
+    <div><h2>Not a collector? Back one.</h2><p class="lede">Buy the token of a vault you believe in and own a piece of a real collection.</p></div>
+    <ul>
+      <li><svg><use href="#i-backing"/></svg><span><b>It's real.</b> Real cards, checked on chain.</span></li>
+      <li><svg><use href="#i-bolt"/></svg><span><b>Sell in seconds.</b> No waiting for a buyer for one card.</span></li>
+      <li><svg><use href="#i-treasury"/></svg><span><b>It grows by itself.</b> Every door buys more cards for the vault.</span></li>
+      <li><svg><use href="#i-machine"/></svg><span><b>Or play.</b> Turn tokens into a real card from the machine.</span></li>
+    </ul>
+  </div>
+  <div class="why-end"><h2>Start yours.</h2><div class="hero2-cta" style="justify-content:center"><a class="cta" href="#/create">Create a vault</a><a class="cta ghost" href="#/how">How it works</a></div></div>
+</section>
+
 <section class="screen" id="s-how">
-  <!-- the site's symbol set: one picture, one meaning, everywhere (USDC · token · item · backing · treasury · buy · sell · burn) -->
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <symbol id="i-usdc" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--usdc)"/><text x="20" y="27" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#fff">$</text></symbol>
-      <symbol id="i-tok" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--tok)"/><circle cx="20" cy="20" r="12" fill="none" stroke="var(--tok-ink)" stroke-width="2" opacity=".45"/><circle cx="20" cy="17" r="3.4" fill="var(--tok-ink)"/><path d="M18.2 18.5h3.6l1 7h-5.6z" fill="var(--tok-ink)"/></symbol>
-      <symbol id="i-item" viewBox="0 0 40 40"><rect x="9" y="4" width="22" height="32" rx="3" fill="var(--item)" stroke="var(--item-edge)" stroke-width="2"/><rect x="13" y="9" width="14" height="12" rx="1.5" fill="#d9c79b"/><path d="M13 26h14M13 30h9" stroke="var(--item-edge)" stroke-width="2" stroke-linecap="round"/></symbol>
-      <symbol id="i-backing" viewBox="0 0 40 40"><rect x="4" y="5" width="32" height="28" rx="4" fill="var(--backing)"/><circle cx="20" cy="19" r="8" fill="none" stroke="#0b1416" stroke-width="2.4"/><path d="M20 13v3M20 22v3M14 19h3M23 19h3" stroke="#0b1416" stroke-width="2.4" stroke-linecap="round"/><rect x="8" y="33" width="5" height="3" rx="1" fill="var(--backing)"/><rect x="27" y="33" width="5" height="3" rx="1" fill="var(--backing)"/></symbol>
-      <symbol id="i-treasury" viewBox="0 0 40 40"><ellipse cx="19" cy="22" rx="14" ry="10.5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8"/><path d="M11 13l3-6 4 5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8" stroke-linejoin="round"/><rect x="31" y="18" width="6" height="7" rx="2.5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8"/><circle cx="25" cy="19" r="1.5" fill="#1a1a1a"/><rect x="15" y="12.5" width="8" height="2.4" rx="1.2" fill="var(--treasury-edge)"/><path d="M12 31v4M24 31v4" stroke="var(--treasury-edge)" stroke-width="3" stroke-linecap="round"/></symbol>
-      <symbol id="i-buy" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--buy-soft)"/><path d="M20 30V11M12 18l8-8 8 8" fill="none" stroke="var(--buy)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-      <symbol id="i-sell" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--sell-soft)"/><path d="M20 10v19M12 22l8 8 8-8" fill="none" stroke="var(--sell)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-      <symbol id="i-burn" viewBox="0 0 40 40"><path d="M20 4c2 7 10 10 10 19a10 10 0 0 1-20 0c0-5 3-8 5-10 0 4 2 6 4 6-1-6 0-11 1-15z" fill="var(--burn)"/><path d="M20 22c1 3 5 4 5 8a5 5 0 0 1-10 0c0-3 3-4 5-8z" fill="#ffd36b"/></symbol>
-    </defs>
-  </svg>
   <div class="crumbs"><a href="#/">Home</a><span>›</span><span>How it works</span></div>
   <div>
     <p class="eyebrow">The mechanism, with the numbers</p>
     <h2 style="margin-top:8px">Create · Trade · Play. Every door pays the vault.</h2>
-    <p class="muted" style="margin-top:8px;max-width:64ch">Create a vault from items a custodian holds on chain. Its token trades on Meteora. Trade fees, graduation, plays and gacha sales all feed the vault's treasury, and the treasury buys the next item by itself every 15 minutes.</p>
+    <p class="muted" style="margin-top:8px;max-width:64ch">Trades, graduation, plays and gacha sales all feed the vault's treasury. The treasury buys the next item by itself.</p>
   </div>
   <div class="fly">
     <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: traders buy with USDC or sell the token on the curve; the fee pays the creator and the treasury; the creator adds items and holds half the token; graduation sends 30% of the raise to the treasury; players pay USDC or burn the token to draw an item.">
@@ -156,10 +221,32 @@
 
 <!-- ═══════════════ 1 · HOME / BOARD ═══════════════ -->
 <section class="screen" id="s-home">
-  <div class="home-head">
-    <p class="eyebrow">Auditable vaults for real-world assets · Solana · Meteora</p>
-    <h1>Vaults backed by things that exist.</h1>
-    <p class="lede">Each vault is a wallet you can read, a token on a Meteora curve, and a set of rules. Once it graduates, you trade the token on the pool and play for the items. <a href="#/how">How it works →</a></p>
+  <div class="hero2">
+    <div class="hero2-txt">
+      <p class="eyebrow">Real-world assets · Solana · Meteora</p>
+      <h1>Your collection.<br><span class="g">A business in minutes.</span></h1>
+      <p class="lede">Put real graded cards in a vault and launch. You get a token people trade, a gacha machine people play and a shop on other sites. It all runs by itself.</p>
+      <div class="hero2-cta"><a class="cta" href="#/create">Create a vault</a><button class="cta ghost" type="button" id="go-board">Browse vaults</button><a href="#/why" class="hero2-more">Why it works →</a></div>
+    </div>
+    <svg class="ba2 hubhero" viewBox="0 0 640 380" role="img" aria-label="People trading, players, other gacha sites and Onix.Cards all pay into the vault, which buys more cards">
+      <g fill="none" stroke="var(--border2)" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="2 9"><path id="hh1" d="M178 122 L262 160"/><path id="hh2" d="M462 122 L378 160"/><path id="hh3" d="M150 286 L262 230"/><path id="hh4" d="M490 286 L378 230"/></g>
+      <use href="#i-backing" x="256" y="116" width="128" height="128"/>
+            <use href="#i-stack" x="294" y="250" width="52" height="52"/>
+      <text class="hub-c" x="320" y="330" text-anchor="middle">→ more cards in the vault</text>
+      <!-- a dollar running down every flow -->
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="0s"><mpath href="#hh1"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="0.6s"><mpath href="#hh2"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="1.2s"><mpath href="#hh3"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-13" y="-13" width="26" height="26"/><animateMotion dur="2.4s" repeatCount="indefinite" begin="1.8s"><mpath href="#hh4"/></animateMotion></g>
+      <use href="#i-buy" x="78" y="22" width="40" height="40"/><use href="#i-sell" x="114" y="22" width="40" height="40"/>
+      <text class="hub-t" x="118" y="100" text-anchor="middle">People trading</text>
+      <use href="#i-machine" x="490" y="16" width="64" height="64"/>
+      <text class="hub-t" x="521" y="100" text-anchor="middle">Players on its gacha</text>
+      <use href="#i-globe" x="88" y="276" width="62" height="62"/>
+      <text class="hub-t" x="118" y="364" text-anchor="middle">Other gacha sites</text>
+      <use href="#i-stack" x="490" y="276" width="62" height="62"/>
+      <text class="hub-t" x="521" y="364" text-anchor="middle">Onix.Cards</text>
+    </svg>
   </div>
 
   <div class="sec" id="shelf-live">
@@ -171,7 +258,6 @@
     <div class="tiles" id="board-mat"></div>
   </div>
 
-  <div class="note blue"><b>How to read this board.</b> Backing is what the vault holds, read from the chain. Market cap is what the market pays for the token. They are never added together; the ratio is the only place they meet.</div>
 </section>
 
 <!-- ═══════════════ 2 · VAULT PAGE · the vault's own mini-site ═══════════════ -->
@@ -225,21 +311,20 @@
   </div>
 
   <div id="tab-play" class="sec" style="display:none">
-    <div class="playlede"><div><h2 id="play-h">Pick a machine</h2><p class="muted" id="play-lede" style="font-size:14px">One item from the band is drawn and sent to your wallet from custody. Pay in USDC (it stays in the vault and buys the next item) or burn the vault's token at its share of backing, never at the market price.</p></div><span class="faint" style="font-size:12.5px">1 in N each · provably fair · <a href="#/how">how</a></span></div>
+    <div class="playlede"><div><h2 id="play-h">Pick a machine</h2><p class="muted" id="play-lede" style="font-size:14px">Draw one item from the band, sent straight to your wallet. Pay in USDC or burn the token.</p></div><span class="faint" style="font-size:12.5px">1 in N each · provably fair · <a href="#/how">how</a></span></div>
     <div class="machines" id="bands"></div>
   </div>
 
   <div id="tab-items" class="sec">
     <div class="filters" id="item-filters"></div>
     <div class="grid" id="grid"></div>
-    <p class="faint" style="font-size:12.5px">Each card: the custodian's insured value is the index. Grade, certificate and physical vault are the token's own metadata.</p>
   </div>
 
   <div id="tab-activity" class="sec" style="display:none">
     <div class="feed">
       <div id="act-empty">
         <h3>Nothing has happened yet.</h3>
-        <p class="muted" style="margin-top:6px">Every door fires as a public transaction and lands here, paired with the one that caused it.</p>
+        <p class="muted" style="margin-top:6px">Every trade, play and purchase shows up here.</p>
       </div>
       <div id="act-rows"></div>
     </div>
@@ -247,7 +332,6 @@
 
   <div id="tab-proof" class="sec" style="display:none">
     <div class="kvs" id="proof-kv"></div>
-    <p class="faint" style="font-size:12.5px">Items are read from the custody wallet with the DAS API and counted only if the creator declared them (the manifest). Insured value is the custodian's index; backing is shown after the measured 0.89× haircut. Money paid for the token sits in the pool, never counted as backing. <a href="#/how">How it works →</a></p>
     <div class="band">
       <div class="hd" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b>Market cap over backing</b><span class="faint" style="font-size:12.5px">the ratio, pinned where it is today</span></div>
       <div class="rail">
@@ -258,11 +342,11 @@
         <div class="pin" id="v-pin" style="display:none">—</div>
       </div>
       <div class="legend">
-        <div><b>Below 1×</b> a token buys more backing than it costs: Play in tokens (priced in share of backing) is the cheapest way to an item.</div>
-        <div><b>Above 1×</b> the market pays for the rules, the fee flow and the next items the treasury buys.</div>
+        <div><b>Below 1×</b> a token holds more backing than it costs.</div>
+        <div><b>Above 1×</b> the market pays for the fee flow and the items still to come.</div>
       </div>
     </div>
-    <div class="note blue"><b>Anyone can rebuild every number on this page without asking us for anything.</b> The reader is open source and only reads the chain — <a href="/verify.html">run it in your browser with your own RPC</a>, or <span class="mono">npm run backing</span> in the repo.</div>
+    <div class="note blue"><b>Every number here comes from the chain.</b> <a href="/verify.html">Rebuild it yourself</a> with the open-source reader.</div>
   </div>
 
   <!-- the reveal: steps → card flip → proof folded -->
@@ -308,7 +392,7 @@
     <div>
       <p class="eyebrow" id="sd-rules">Vault #1 takes graded cards from Collector Crypt</p>
       <h2 style="margin-top:8px">Add a card to the vault</h2>
-      <p class="muted" style="margin-top:8px;max-width:62ch">Only the creator can add. The card goes to the custody wallet and no new <span id="sd-sym">$VEONIX</span> is minted: backing per token goes up for every holder, and the card joins its band in Play. Cards must pass this vault's rules.</p>
+      <p class="muted" style="margin-top:8px;max-width:62ch">Only the creator can add. No new <span id="sd-sym">$VEONIX</span> is minted, so backing per token goes up for every holder.</p>
     </div>
     <div class="walletrow">
       <span class="faint" style="font-size:13px">Your wallet, or paste an address</span>
@@ -324,7 +408,7 @@
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta" id="sd-go" type="button" disabled>Pick a card</button><a class="cta ghost" id="sd-back" href="#/vault/1">Back to the vault</a></div>
     <p class="faint" id="sd-msg" style="font-size:12.5px;min-height:16px"></p>
-    <p class="faint" style="font-size:12.5px">Only what passes this vault's rules can be sent here. Anything else sent to the vault wallet directly does not count and is returned.</p>
+    <p class="faint" style="font-size:12.5px">Only cards that pass this vault's rules count.</p>
   </div>
 </section>
 
@@ -345,8 +429,8 @@
     </div>
 
     <div id="c1" class="sec">
-      <p class="muted" style="font-size:14px">The wallet you connect is the vault. Pick which items back it — they stay in your wallet. Items from a registered custodian (today: Collector Crypt) qualify.</p>
-      <p class="muted" id="c-summary" style="font-size:13.5px">Connect your wallet (top right) to see what it can open a vault on.</p>
+      <p class="muted" style="font-size:14px">Pick the graded cards that go into your vault. Today: cards from Collector Crypt.</p>
+      <p class="muted" id="c-summary" style="font-size:13.5px">Connect your wallet to see your cards.</p>
       <div class="pick" id="pick"></div>
       <div class="calc" id="c-calc" style="display:none">
         <div><div class="lab">Items</div><div class="cv" id="c-sel">0</div><div class="cs">from registered custodians</div></div>
@@ -373,7 +457,7 @@
         <div class="f"><label for="f-cat">Category</label><select id="f-cat"><option value="mixed">Any graded card</option><option value="pokemon">Pokémon</option><option value="one-piece">One Piece</option><option value="sports">Sports</option></select></div>
         <div class="f"><label for="f-minv">Minimum item value</label><select id="f-minv"><option value="0">Any</option><option value="10">$10+</option><option value="25">$25+</option><option value="50">$50+</option><option value="100">$100+</option></select></div>
         <div class="f"><label for="f-grade">Minimum grade</label><select id="f-grade"><option value="any">Any</option><option value="8">8+</option><option value="9">9+</option><option value="10">10 only</option></select></div>
-        <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40% (3.2% of every trade)</option><option value="50">50%</option></select></div>
+        <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40% (3.2% of curve volume)</option><option value="50">50%</option></select></div>
         <div class="f"><label for="f-grad">Opens to the whole market at</label><select id="f-grad"><option value="2">2× the opening cap</option><option value="2.5" selected>2.5× the opening cap</option><option value="3">3× the opening cap</option></select></div>
         <div class="f"><label for="f-rs">What the treasury buys next</label><select id="f-rs"><option value="same" selected>The same as what this vault takes</option><option value="custom">Its own rule…</option></select></div>
       </div>
@@ -386,9 +470,9 @@
       <details class="deal"><summary>The deal, in five lines</summary><div class="terms">
         <div><b>Opens at</b><span>2× what is inside — your 50% is worth your items on day one</span></div>
         <div><b>Token split</b><span>50% you · 50% on the curve. Yours is released when trading opens to everyone, then over 6 months</span></div>
-        <div><b>Fee on every trade</b><span>10%: your share goes to your wallet on chain from the first trade; the vault keeps the rest to buy the next item; the first 60 s charge 99% → 10% so bots cannot front-run you</span></div>
+        <div><b>Fee on the curve</b><span>10%: your share goes straight to your wallet; the vault keeps the rest to buy the next item. The first 60 s charge 99% → 10% to keep bots out</span></div>
         <div><b>At graduation</b><span>30% of the USDC raised goes into the vault to buy more items</span></div>
-        <div><b>Custody</b><span>your items move to a wallet created for this vault; only the vault's doors can move them out. You can take them back any time before launch</span></div>
+        <div><b>Custody</b><span>your items move to the vault's own wallet. You can take them back any time before launch</span></div>
       </div></details>
       <p class="faint" id="c2-msg" style="font-size:12.5px;min-height:16px"></p>
       <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="cta" id="to3">Next: review</button><button class="cta ghost" id="back1">Back</button></div>
@@ -403,7 +487,7 @@
         <div><div class="lab">Your share</div><div class="cv v" id="r-get">$0</div><div class="cs">50% of the token, released at that point</div></div>
       </div>
       <p class="muted" style="font-size:13.5px" id="r-rules"></p>
-      <p class="muted" style="font-size:13.5px">Launching takes a few signatures in your wallet: one per deposit (your items + 0.05 SOL of gas go to the vault's custody wallet — it pays for deliveries and for the treasury buying the next item), then one for the launch (≈0.03 SOL). Onix sets up the curve in between. The token exists from the launch on; before that you can take everything back.</p>
+      <p class="muted" style="font-size:13.5px">A few signatures: one per deposit (your items + 0.05 SOL of gas for the vault), then one to launch (≈0.03 SOL).</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta big" id="c-launch" type="button">Launch vault</button><button class="cta ghost" id="back2">Back</button></div>
       <div class="prog" id="c-prog" style="display:none"><i id="c-prog-i" style="width:0%"></i></div>
       <p class="faint" id="c-msg" style="font-size:12.5px;min-height:16px"></p>
@@ -421,7 +505,7 @@
     <div>
       <p class="eyebrow">For gachas, games and shops · public API</p>
       <h2 style="margin-top:8px">Sell what a vault holds. Three calls.</h2>
-      <p class="muted" style="margin-top:8px;max-width:62ch">You never assemble a transaction by hand and the vault never touches your player's money. The price is the same for Onix's own gacha and for you, and it is printed on every item.</p>
+      <p class="muted" style="margin-top:8px;max-width:62ch">No transactions to build by hand. One price for everyone, printed on every item.</p>
     </div>
     <div class="three">
       <div><div class="num">1</div><b>List</b><p><span class="mono">GET /v1/vaults/{vault}/items</span> — what is inside, with the exit price and whether it is reserved.</p></div>
@@ -438,7 +522,7 @@
 <span class="k">const</span> done = <span class="k">await</span> vault.settle(r.reservationId, sig);        <span class="c">// 3 · 409 = not finalized yet, retry</span>
 console.log(done.deliverySignature);                            <span class="c">// the card is in your winner's wallet</span></pre>
     <div class="prov">
-      <div class="r"><span class="k">Sandbox</span><span>The same server against devnet with a test vault: <span class="mono">npm run rehearse:vault</span> in the public repo. Rehearsed 1 October: reserve → pay → settle → delivered, verified on the raw transactions.</span></div>
+      <div class="r"><span class="k">Sandbox</span><span><span class="mono">npm run rehearse:vault</span> runs the same server against devnet with a test vault.</span></div>
       <div class="r"><span class="k">Limits</span><span>Reservations expire in minutes. Let three expire without settling and the vault stops taking yours. <span class="mono">x-api-key</span> is optional: it identifies you, it unlocks nothing.</span></div>
       <div class="r"><span class="k">Contract</span><span><span class="mono">server/openapi.json</span> is the source; the docs follow it. Webhooks are roadmap — today you poll the reservation.</span></div>
       <div class="r"><span class="k">Live</span><span>Onix.Cards runs a <b>Vaults</b> category: one machine per graduated vault, the standard rarity bands weighted by what the vault holds. Its first pull (3 Oct 2026) paid the vault through these three calls and the vault delivered the card.</span></div>

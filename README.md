@@ -1,7 +1,14 @@
 # Onix.Vault
 
-**Auditable vaults for real-world assets on Solana.** Built by [Onix](https://onix.finance). Live at
+**Your collection. A business in minutes.**
+
+Auditable vaults for real-world assets on Solana. Built by [Onix](https://onix.finance). Live at
 [vault.onix.finance](https://vault.onix.finance).
+
+Anyone who holds real graded cards on chain can launch a vault in three steps and get, in minutes: a token on a Meteora
+bonding curve (half of it theirs), 40% of the curve's trading fee paid by the program, a provably fair gacha, a shop on
+every gacha site through the public API (Onix.Cards first), and a treasury that restocks itself. Buyers back the
+collections they believe in: a share of real items that sells in seconds and grows with every door.
 
 An Onix.Vault vault holds real things that a named custodian has already put on chain — tokenized, with
 their identity and value written into the token by the custodian, and with a way to get the physical item
@@ -10,7 +17,7 @@ Dynamic Bonding Curve. From there:
 
 | | what happens | backing per token |
 |---|---|---|
-| **Create** | the creator's items go into custody; a token launches; the creator keeps **50%** (locked, released over 6 months from graduation) and earns **40% of every trade fee** on chain | set |
+| **Create** | the creator's items go into custody; a token launches; the creator keeps **50%** (locked, released over 6 months from graduation) and earns **40% of the trading fee on the curve**, paid by the program | set |
 | **Trade** | 10% fee on the curve: 2% Meteora · 3.2% creator · 3.2% the vault's treasury · 1.6% Onix; the first 60 s charge 99%→10% so bots cannot front-run. At graduation the token moves to a DAMM v2 pool (liquidity locked for good) and **30% of the USDC raised goes to the vault** | rises |
 | **Play** | opens at graduation. One item from a band is drawn — provably — and sent from custody. Pay **USDC** (the band's average × 1.15; the money stays in the vault and buys the next item) or **burn the token** (average × 1.10 in *share of backing*, never at the market price) | rises |
 | **Integrate** | any gacha buys an item at the published price through the API; Onix.Cards runs a **Vaults** category with one machine per graduated vault | rises |

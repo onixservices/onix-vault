@@ -37,7 +37,7 @@
 | | |
 |---|---|
 | **custody wallet** | derived for this vault; holds the items; `feeClaimer` and `leftoverReceiver` of its curve; the treasury (USDC from migration fee and Play) |
-| **creator** | the wallet that opened it: pool creator, 50% of the supply in Jupiter Lock (from graduation, over 6 months), 40% of every trade fee on chain. Only the creator adds items |
+| **creator** | the wallet that opened it: pool creator, 50% of the supply in Jupiter Lock (from graduation, over 6 months), 40% of the trading fee on the curve, paid by the program. Only the creator adds items |
 | **rules** | lists, not text (`server/rules.js`): category, minimum value, minimum grade, creator fee share (20–50%), graduation multiple (2 / 2.5 / 3). Enforced on every deposit |
 | **manifest** | the mints the creator declared (`vault_items`); the reader counts only those, and only while the chain shows them in custody. A stray transfer into custody does not count |
 | **token** | one SPL mint per vault, created by the curve. `GET /token/{mint}.json` + the coin image and banner the creator uploaded |

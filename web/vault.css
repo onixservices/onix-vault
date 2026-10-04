@@ -460,3 +460,34 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .verbs2{margin:0; display:grid; gap:18px}
 .verbs2 dt{font-size:17px; font-weight:650} .verbs2 dt a{text-decoration:none}
 .verbs2 dd{margin:3px 0 0; font-size:13.5px; color:var(--text-muted); line-height:1.45}
+
+/* ── home hero + Why (4 Oct 2026): the X first — any collection becomes a business in minutes ── */
+.hero2{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; align-items:center; padding-top:8px}
+.hero2-txt{display:flex; flex-direction:column; gap:14px}
+.hero2 h1{font-size:clamp(34px,5vw,54px); line-height:1.04; letter-spacing:-.03em}
+.hero2 .lede,.why-head .lede,.back2 .lede{color:var(--text-muted); font-size:17px; max-width:46ch}
+.hero2-cta{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+.hero2-more{font-size:14px; text-decoration:none; margin-left:4px}
+.ba2{width:100%; height:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); padding:10px}
+.ba2 .ba-k{font:600 12px var(--mono); letter-spacing:.14em; fill:var(--text-faint)} .ba2 .g2{fill:var(--buy)}
+.ba2 .ba-s{font:500 13px var(--font); fill:var(--text-muted)} .ba2 .ba-s.b{fill:var(--text); font-weight:600}
+@media(max-width:860px){ .hero2{grid-template-columns:1fr} }
+.why-head{display:flex; flex-direction:column; gap:8px}
+.why-head h1{font-size:clamp(30px,4.4vw,46px); letter-spacing:-.03em}
+.steps2{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px}
+.steps2>div{background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px}
+.steps2 svg{width:72px; height:72px} .steps2 .n{font:600 12px var(--mono); color:var(--brand)} .steps2 b{font-size:17px} .steps2 span:last-child{font-size:13.5px; color:var(--text-muted)}
+.gets2{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px}
+.get2{display:grid; grid-template-columns:44px minmax(0,1fr); gap:12px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:14px}
+.get2 svg{width:44px; height:44px} .get2 b{display:block; font-size:15.5px} .get2 span{font-size:13px; color:var(--text-muted); line-height:1.4}
+.hub2{background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); padding:14px; display:flex; justify-content:center}
+.hub2 svg{max-width:640px}
+.hub2 svg{width:100%; height:auto; display:block}
+.hub2 .hub-t{font:600 19px var(--font); fill:var(--text)} .hub2 .hub-c{font:650 21px var(--font); fill:var(--buy)}
+.back2{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:22px; align-items:center; background:var(--wash),var(--surface2); border:1px solid var(--border-active); border-radius:var(--r-xl); padding:22px}
+.back2 ul{list-style:none; margin:0; padding:0; display:grid; gap:12px}
+.back2 li{display:grid; grid-template-columns:34px minmax(0,1fr); gap:10px; align-items:center; font-size:14.5px; color:var(--text-muted)} .back2 li b{color:var(--text)}
+.back2 li svg{width:34px; height:34px}
+.why-end{display:flex; flex-direction:column; align-items:center; gap:14px; padding-block:8px}
+@media(max-width:760px){ .steps2,.gets2{grid-template-columns:1fr} .back2{grid-template-columns:1fr} }
+.ba2.hubhero .hub-t{font:600 19px var(--font); fill:var(--text)} .ba2.hubhero .hub-c{font:650 21px var(--font); fill:var(--buy)}
