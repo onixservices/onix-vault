@@ -50,6 +50,15 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 | — | Seed rotation runbook (move every item, SOL and USDC to a new derivation). Rotating the master seed also rotates the draw key: pause, let paid plays finish, then rotate — a play whose commitment no longer matches is never drawn and keeps its payment on record. | not needed before launch | Onix |
 | — | Custody by a program with escrow instead of a server key; a multisig for the operator; an external audit. | roadmap | Onix |
 
+## Repository history audit (before opening the repository)
+
+4 October 2026, over **every blob of every one of the 122 commits** (not only the current tree) and every commit message:
+
+- **Authors:** one identity throughout, the project's pseudonymous account.
+- **Files:** no `.env`, key, keypair, database or wallet file ever committed. One blob over 500 KB (`web/token/default.png`, 1.4 MB).
+- **Content:** no private key (base58 or byte array), no seed, no API key, no PEM, no server address, no local path, no personal data, no third-party names. The only 32-byte hex values are the SLIP-0010 specification's public test vectors, throwaway test seeds, and the vendored bundle's sha256; the only `api-key=` is a fake value in a test.
+- **Going forward:** the pre-commit hook (tested, R-07) refuses the same patterns. On GitHub, enable secret scanning, push protection and Dependabot alerts, and protect `main`.
+
 ## Trust that remains by design
 
 - **The custodian.** Insured value and the item's existence come from the custodian's on-chain metadata (Collector Crypt). A custodian that lies is outside what this server can check.
