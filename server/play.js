@@ -20,7 +20,7 @@
 'use strict';
 const crypto = require('crypto');
 const { PublicKey } = require('@solana/web3.js');
-const { generateCommit, draw, validClientSeed, MAX_REDRAWS } = require('./draw');
+const { generateCommit, sha256Hex, draw, validClientSeed, MAX_REDRAWS } = require('./draw');
 const { buildPaymentTx, buildBurnTx, readPayment, readBurnPayment } = require('./payment');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
@@ -35,7 +35,10 @@ const PLAY = Object.freeze({
   bands: Object.freeze([{ id: 'b1', label: 'under $25', min: 0, max: 25 }, { id: 'b2', label: '$25 – $60', min: 25, max: 60 }, { id: 'b3', label: '$60 – $150', min: 60, max: 150 }, { id: 'b4', label: '$150 and up', min: 150, max: Infinity }]),
 });
 
-function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readItems, readStats, deliver, isMintBusy = () => false, usdcMint, memoProgramId, now = Date.now, limits = PLAY, requireGraduated = true }) {
+/** @param {function|null} seedFor  playId → server seed (hex), derived from the draw key; null = a random seed kept in the row */
+function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readItems, readStats, deliver, isMintBusy = () => false, usdcMint, memoProgramId, now = Date.now, limits = PLAY, requireGraduated = true, seedFor = null }) {
+  // the seed of a play: the row's own (older plays, rehearsals) or derived now from the draw key
+  const seedOfRow = (p) => { if (p.server_seed) return p.server_seed; try { return seedFor ? seedFor(p.id) : null; } catch { return null; } };
   const graduated = (st) => Boolean(st && st.pool && (st.poolStatus === 'migrated' || st.pool.isMigrated));
   const bandOf = (v) => limits.bands.find((b) => v >= b.min && v < b.max) || limits.bands[limits.bands.length - 1];
 
@@ -82,8 +85,10 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
     if (currency === 'token' && !b.priceTokens) throw err(409, 'token plays open once the token trades');
     const items = (await freeItems()).filter((it) => bandOf(it.custodianValueUsd).id === band);
     const snapshot = items.map((it) => it.mint).sort();
-    const { serverSeed, serverSeedHash } = generateCommit();
     const id = crypto.randomUUID();
+    const serverSeed = seedFor ? seedFor(id) : generateCommit().serverSeed;
+    const serverSeedHash = sha256Hex(serverSeed);
+    const storedSeed = seedFor ? '' : serverSeed;   // with a draw key, the database never holds the seed
     const memo = `play:${id}`;
     const blockhash = await chain.getLatestBlockhash();
     const priceUsdc = b.priceUsdc, priceTokens = b.priceTokens;
@@ -103,7 +108,7 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
     }
     db.prepare(`INSERT INTO vault_plays (id, vault, player, band, currency, client_seed, server_seed, server_seed_hash, snapshot_json, price_usdc, price_tokens, avg_index_usd, status, created_at, updated_at, expires_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?)`)
-      .run(id, vaultWallet, player, band, currency, clientSeed, serverSeed, serverSeedHash, JSON.stringify(snapshot), priceUsdc, priceTokens, b.avgIndexUsd, t, t, t + limits.payTtlMs);
+      .run(id, vaultWallet, player, band, currency, clientSeed, storedSeed, serverSeedHash, JSON.stringify(snapshot), priceUsdc, priceTokens, b.avgIndexUsd, t, t, t + limits.payTtlMs);
     return { playId: id, serverSeedHash, band: b.id, items: snapshot.length, odds: 1 / snapshot.length, currency, price: currency === 'token' ? priceTokens : priceUsdc, unit: currency === 'token' ? 'token' : 'USDC', memo, paymentTransaction, quoteValidUntil: t + limits.quoteTtlMs, expiresAt: t + limits.payTtlMs };
   }
 
@@ -132,11 +137,14 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
         : readPayment(parsed, { vaultWallet, usdcMint, expectedMemo: `play:${p.id}`, minAmountUsd: p.price_usdc, payer: p.player });
       if (!v.ok) { db.prepare("UPDATE vault_plays SET status = 'payment_rejected', fail_reason = ?, updated_at = ? WHERE id = ?").run(v.reason, t, p.id); out.failed += 1; continue; }
       out.verified += 1;
+      // the seed must be the one committed to: a draw key that changed since (rotation) draws nothing; the payment stays on record
+      const serverSeed = seedOfRow(p);
+      if (!serverSeed || sha256Hex(serverSeed) !== p.server_seed_hash) { db.prepare("UPDATE vault_plays SET status = 'delivery_failed', fail_reason = ?, updated_at = ? WHERE id = ?").run("the draw key does not match this play's commit — not drawn", t, p.id); out.failed += 1; continue; }
       // draw — redraw (nonce + 1) if the drawn item is no longer free; everything recorded
       const snapshot = JSON.parse(p.snapshot_json);
       const free = new Set((await freeItems()).map((it) => it.mint));
       let nonce = 0, result = null;
-      for (; nonce <= MAX_REDRAWS; nonce++) { const d = draw({ serverSeed: p.server_seed, playId: p.id, clientSeed: p.client_seed, nonce, snapshot }); if (free.has(d.mint)) { result = d; break; } }
+      for (; nonce <= MAX_REDRAWS; nonce++) { const d = draw({ serverSeed, playId: p.id, clientSeed: p.client_seed, nonce, snapshot }); if (free.has(d.mint)) { result = d; break; } }
       if (!result) { db.prepare("UPDATE vault_plays SET status = 'delivery_failed', fail_reason = 'no free item left in the band', updated_at = ? WHERE id = ?").run(t, p.id); out.failed += 1; continue; }
       db.prepare("UPDATE vault_plays SET status = 'drawn', mint = ?, digest = ?, draw_index = ?, nonce = ?, updated_at = ? WHERE id = ? AND status = 'submitted'").run(result.mint, result.digest, result.index, nonce, t, p.id);
       try {
@@ -156,7 +164,7 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
     return {
       playId: p.id, vault: p.vault, player: p.player, band: p.band, currency: p.currency, status: p.status,
       price: p.currency === 'token' ? p.price_tokens : p.price_usdc, unit: p.currency === 'token' ? 'token' : 'USDC', avgIndexUsd: p.avg_index_usd,
-      clientSeed: p.client_seed, serverSeedHash: p.server_seed_hash, serverSeed: done ? p.server_seed : null,
+      clientSeed: p.client_seed, serverSeedHash: p.server_seed_hash, serverSeed: done ? seedOfRow(p) : null,
       snapshot: JSON.parse(p.snapshot_json), mint: p.mint || null, digest: p.digest || null, index: p.draw_index ?? null, nonce: p.nonce ?? null,
       paymentSignature: p.payment_sig || null, deliverySignature: p.delivery_sig || null, failReason: p.fail_reason || null,
       at: p.created_at, updatedAt: p.updated_at, expiresAt: p.expires_at,

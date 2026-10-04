@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { Keypair, Transaction, SystemProgram } = require('@solana/web3.js');
-const { derivePath, custodyPath, keypairFor, custodySigner, parseSeed } = require('./keyring');
+const { derivePath, custodyPath, keypairFor, custodySigner, parseSeed, drawKey } = require('./keyring');
 
 // One master seed, one custody wallet per vault, nothing on disk. The derivation is SLIP-0010
 // ed25519 — checked against the vectors in the specification, so a wallet derived here is the
@@ -37,5 +37,15 @@ describe('keyring — SLIP-0010 ed25519', () => {
     s.signTransaction(tx);
     assert.ok(tx.verifySignatures());
     assert.equal(custodySigner(3, '').configured(), false, 'no seed → not configured, never throws on the check');
+  });
+});
+
+describe('keyring — the draw key', () => {
+  test('deterministic from the master seed, different per seed, never a custody key; no seed → refused', () => {
+    const k = drawKey(SEED_32);
+    assert.equal(k.length, 32); assert.deepEqual(k, drawKey(SEED_32));
+    assert.notDeepEqual(k, drawKey('ff'.repeat(32)));
+    for (let i = 0; i < 5; i++) assert.notDeepEqual(k, Buffer.from(derivePath(parseSeed(SEED_32), custodyPath(i)).key));
+    assert.throws(() => drawKey(''), /VAULT_MASTER_SEED/);
   });
 });

@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { Keypair, Transaction } = require('@solana/web3.js');
 const { getTestDb } = require('./db');
 const { createPlay, PLAY } = require('./play');
-const { sha256Hex, draw } = require('./draw');
+const { sha256Hex, draw, serverSeedFor } = require('./draw');
 
 // The Play door: pay (USDC to custody, or burn the vault token), a provably-fair draw from a band,
 // delivery from custody. Prices in share of backing, never at the market price.
@@ -13,8 +13,11 @@ const MINT = Keypair.generate().publicKey.toBase58();
 const USDC = Keypair.generate().publicKey.toBase58();
 const MEMO = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const item = (mint, v) => ({ mint, name: 'Card ' + mint, custodianValueUsd: v, imageUrl: null });
+// the draw key lives in the server's memory (production derives it from the master seed); the DB never holds a seed
+const DRAW_KEY = Buffer.alloc(32, 7);
+const seedOf = (playId) => serverSeedFor({ drawKey: DRAW_KEY, vault: CUSTODY, playId });
 
-function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 100)], supply = 10_000_000, realisable = 154.86, poolLive = true, migrated = true } = {}) {
+function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 100)], supply = 10_000_000, realisable = 154.86, poolLive = true, migrated = true, seedFor = seedOf } = {}) {
   const db = getTestDb();
   const delivered = [];
   const chain = {
@@ -26,7 +29,7 @@ function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 
   const play = createPlay({
     db, chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => items, readStats: async () => ({ backing: { realisableUsd: realisable }, poolStatus: poolLive ? (migrated ? 'migrated' : 'live') : 'not launched', pool: poolLive ? { supply, isMigrated: migrated } : null }),
     deliver: async ({ mint, toAddress, onSigned }) => { if (chain.deliverFails) throw new Error('delivery would fail on chain'); onSigned('SIGNED'); delivered.push({ mint, toAddress }); return { sig: 'DELIV' + delivered.length }; },
-    usdcMint: USDC, memoProgramId: MEMO, now: () => 1_800_000_000_000,
+    usdcMint: USDC, memoProgramId: MEMO, now: () => 1_800_000_000_000, seedFor,
   });
   const usdcPaid = ({ memo, amount, signer = PLAYER }) => ({ meta: { err: null, preTokenBalances: [{ accountIndex: 2, owner: CUSTODY, mint: USDC, uiTokenAmount: { uiAmount: 0 } }], postTokenBalances: [{ accountIndex: 2, owner: CUSTODY, mint: USDC, uiTokenAmount: { uiAmount: amount } }] }, transaction: { message: { accountKeys: [{ pubkey: signer, signer: true }], instructions: [{ program: 'spl-memo', parsed: memo }] } } });
   const burned = ({ memo, amount, signer = PLAYER, mint = MINT }) => ({ meta: { err: null, preTokenBalances: [{ accountIndex: 1, owner: PLAYER, mint: MINT, uiTokenAmount: { amount: String(amount * 2) } }], postTokenBalances: [{ accountIndex: 1, owner: PLAYER, mint: MINT, uiTokenAmount: { amount: String(amount) } }] }, transaction: { message: { accountKeys: [{ pubkey: signer, signer: true }], instructions: [{ program: 'spl-token', parsed: { type: 'burnChecked', info: { mint, authority: PLAYER, tokenAmount: { amount: String(amount) } } } }, { program: 'spl-memo', parsed: memo }] } } });
@@ -63,14 +66,15 @@ describe('play — bands and prices', () => {
 });
 
 describe('play — start: commit published, price frozen, payment built for the player', () => {
-  test('USDC: transfer to custody + memo play:<id>, single unsigned signer = player; the row holds the seed, the hash and the snapshot', async () => {
+  test('USDC: transfer to custody + memo play:<id>, single unsigned signer = player; the row holds the hash and the snapshot, never the seed', async () => {
     const { play, db } = make();
     const s = await play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'lucky7' });
     assert.equal(s.price, 25.3); assert.equal(s.unit, 'USDC'); assert.equal(s.items, 2); assert.equal(s.memo, 'play:' + s.playId);
     const tx = Transaction.from(Buffer.from(s.paymentTransaction, 'base64'));
     assert.equal(tx.feePayer.toBase58(), PLAYER); assert.equal(tx.signatures.length, 1); assert.equal(tx.signatures[0].signature, null);
     const row = db.prepare('SELECT * FROM vault_plays WHERE id = ?').get(s.playId);
-    assert.equal(row.status, 'created'); assert.equal(sha256Hex(row.server_seed), s.serverSeedHash); assert.deepEqual(JSON.parse(row.snapshot_json), ['a', 'b']);
+    assert.equal(row.status, 'created'); assert.equal(row.server_seed, '', 'no seed in the database'); assert.deepEqual(JSON.parse(row.snapshot_json), ['a', 'b']);
+    assert.equal(sha256Hex(seedOf(s.playId)), s.serverSeedHash, 'the commit is the hash of the seed derived from the draw key');
     assert.equal(play.get(s.playId).serverSeed, null, 'the seed stays hidden until the play is done');
   });
   test('token: a burnChecked of the quoted tokens by the player + memo', async () => {
@@ -110,7 +114,7 @@ describe('play — submit → sweep: verify on chain, draw, deliver', () => {
     const r = await play.sweep();
     assert.equal(r.verified, 1); assert.equal(r.delivered, 1);
     const p = play.get(s.playId);
-    assert.equal(p.status, 'delivered'); assert.ok(p.serverSeed); assert.equal(sha256Hex(p.serverSeed), p.serverSeedHash);
+    assert.equal(p.status, 'delivered'); assert.equal(p.serverSeed, seedOf(s.playId)); assert.equal(sha256Hex(p.serverSeed), p.serverSeedHash);
     const expect = draw({ serverSeed: p.serverSeed, playId: p.playId, clientSeed: 'lucky7', nonce: p.nonce, snapshot: p.snapshot });
     assert.equal(p.mint, expect.mint); assert.equal(p.digest, expect.digest); assert.equal(p.index, expect.index);
     assert.deepEqual(delivered, [{ mint: p.mint, toAddress: PLAYER }]);
@@ -172,5 +176,26 @@ describe('play — submit → sweep: verify on chain, draw, deliver', () => {
     play.submit({ playId: s2.playId, signature: 'GHOST' });
     t += PLAY.payTtlMs + 1;
     await play.sweep(); assert.equal(play.get(s2.playId).status, 'payment_missing');
+  });
+});
+
+describe('play — the server seed is derived from a key, never stored', () => {
+  const pay = async (w, s, sig) => { w.play.submit({ playId: s.playId, signature: sig }); w.chain.statuses[sig] = { confirmationStatus: 'finalized' }; w.chain.parsed[sig] = w.usdcPaid({ memo: s.memo, amount: s.price }); return w.play.sweep(); };
+  test('a draw key that no longer matches the commit (e.g. rotated) draws nothing and keeps the payment on record', async () => {
+    const w = make();
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'k' });
+    w.db.prepare('UPDATE vault_plays SET server_seed_hash = ? WHERE id = ?').run(sha256Hex('another key'), s.playId);
+    const r = await pay(w, s, 'PAYK');
+    assert.equal(r.delivered, 0); assert.equal(w.delivered.length, 0);
+    const p = w.play.get(s.playId);
+    assert.equal(p.status, 'delivery_failed'); assert.match(p.failReason, /does not match/); assert.equal(p.paymentSignature, 'PAYK');
+  });
+  test('a play stored with its seed (before this change, or a rehearsal without a key) still draws from the row', async () => {
+    const w = make({ seedFor: null });
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'old' });
+    const row = w.db.prepare('SELECT server_seed FROM vault_plays WHERE id = ?').get(s.playId);
+    assert.equal(sha256Hex(row.server_seed), s.serverSeedHash);
+    assert.equal((await pay(w, s, 'PAYO')).delivered, 1);
+    assert.equal(w.play.get(s.playId).serverSeed, row.server_seed);
   });
 });

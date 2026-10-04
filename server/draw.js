@@ -22,7 +22,16 @@ const MAX_REDRAWS = 5;
 
 function sha256Hex(utf8) { return crypto.createHash('sha256').update(utf8, 'utf8').digest('hex'); }
 
-/** A fresh commit for a play: single-use seed + the hash to publish. */
+/**
+ * The server seed of a play, derived when it is needed and never stored: HMAC-SHA256(drawKey, `${vault}|${playId}`).
+ * The play id is random and the key lives only in the server's memory (server/keyring.js derives it from the master
+ * seed), so neither the database nor a backup of it predicts a draw. The proof does not change: hash before, seed after.
+ */
+function serverSeedFor({ drawKey, vault, playId }) {
+  return crypto.createHmac('sha256', drawKey).update(`${vault}|${playId}`, 'utf8').digest('hex');
+}
+
+/** A fresh random commit (rehearsals without a draw key, and plays made before 4 Oct 2026, kept the seed in the row). */
 function generateCommit() {
   const serverSeed = crypto.randomBytes(32).toString('hex');
   return { serverSeed, serverSeedHash: sha256Hex(serverSeed) };
@@ -55,4 +64,4 @@ function verifyCommit({ serverSeed, serverSeedHash }) { return sha256Hex(serverS
 /** A clientSeed is whatever the player chose, bounded so it fits a memo. */
 function validClientSeed(s) { return typeof s === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(s); }
 
-module.exports = { generateCommit, sha256Hex, computeDigest, draw, verifyCommit, validClientSeed, MAX_REDRAWS };
+module.exports = { generateCommit, serverSeedFor, sha256Hex, computeDigest, draw, verifyCommit, validClientSeed, MAX_REDRAWS };

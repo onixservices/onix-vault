@@ -128,7 +128,7 @@ const SCHEMA = `
     band TEXT NOT NULL,
     currency TEXT NOT NULL,            -- usdc | token
     client_seed TEXT NOT NULL,
-    server_seed TEXT NOT NULL,         -- revealed in the API only once the play is done
+    server_seed TEXT NOT NULL,         -- '' since 4 Oct 2026: derived from the draw key, never stored (older rows keep theirs)
     server_seed_hash TEXT NOT NULL,    -- published at start
     snapshot_json TEXT NOT NULL,       -- the band's mints at start, sorted
     price_usdc REAL,

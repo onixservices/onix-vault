@@ -34,6 +34,7 @@ const { createPause } = require('./pause');
 const path = require('path');
 const reservationsRepo = require('./reservationsRepo');
 const keyring = require('./keyring');
+const { serverSeedFor } = require('./draw');
 const { normalize } = require('./registry');
 const { loadVaults } = require('./registry');
 const das = require('../src/reader/das');
@@ -127,7 +128,9 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   const meta = { id: def.id, name: def.name, operator: def.operator, creator: def.creator || null, custodians: def.custodians, description: def.description, token: def.token, links: def.links || {}, graduationUsd: def.graduationUsd,
     rulesText: describeRules(def.rules), gradMult: def.gradMult ?? null, creatorFeePct: def.creatorFeePct ?? null, custody: def.custodyIndex != null ? 'derived' : def.secretEnv ? 'operator' : 'none' };
   play = createPlay({ db, chain, vaultWallet, baseMint: def.baseMint, baseDecimals: C.BASE_DECIMALS, readItems, readStats: () => stats.read(), deliver,
-    isMintBusy: (mint) => Boolean(reservationsRepo.liveForMint(db, mint, Date.now())), usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID });
+    isMintBusy: (mint) => Boolean(reservationsRepo.liveForMint(db, mint, Date.now())), usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID,
+    // the server seed of each play comes from the draw key (derived from the master seed); the database holds only its hash
+    seedFor: keyring.configured() ? (playId) => serverSeedFor({ drawKey: keyring.drawKey(), vault: vaultWallet, playId }) : null });
   // the treasury → next item loop: needs the custody key and the vault's rules; runs by sweep only when enabled, by script always
   const restock = createRestock({ db, chain, vaultWallet, signer, rules: def.rules, readItems, ...productionRestockDeps({ ccApiBase: C.CC_API_BASE, rpcUrl: C.RPC_URL, chain }) });
   // the trading fees → the treasury (and Onix's third of the curve's partner fee, in the same transaction)

@@ -69,6 +69,14 @@ function custodySigner(index, seedHex = () => C.KEYRING_SEED) {
   };
 }
 
+/**
+ * The key the draws derive their server seeds from (server/draw.js serverSeedFor). From the master seed under its own
+ * label, so it is never a custody key, and there is nothing new to generate, store or back up.
+ */
+function drawKey(seedHex = C.KEYRING_SEED) {
+  return crypto.createHmac('sha256', parseSeed(seedHex)).update('onix-vault/draw-key/v1', 'utf8').digest();
+}
+
 function configured() { try { parseSeed(C.KEYRING_SEED); return true; } catch { return false; } }
 
-module.exports = { derivePath, custodyPath, keypairFor, custodySigner, configured, parseSeed };
+module.exports = { derivePath, custodyPath, keypairFor, custodySigner, drawKey, configured, parseSeed };
