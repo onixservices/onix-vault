@@ -36,3 +36,18 @@ describe('errors — what leaves the server', () => {
     }
   });
 });
+
+describe('headers — the app sends the same security headers as the proxy', () => {
+  test('CSP (scripts only from the site), no framing, nosniff, referrer policy; no x-powered-by', async () => {
+    const app = buildApp({ vaults: [], webDir: null });
+    const server = app.listen(0); const { port } = server.address();
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/v1/health`);
+      assert.match(r.headers.get('content-security-policy') || '', /script-src 'self';.*frame-ancestors 'none'/);
+      assert.equal(r.headers.get('x-frame-options'), 'DENY');
+      assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(r.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+      assert.equal(r.headers.get('x-powered-by'), null);
+    } finally { server.close(); }
+  });
+});

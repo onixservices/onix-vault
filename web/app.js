@@ -6,9 +6,9 @@
   var usd = function (n) { return n == null ? '—' : '$' + Math.round(n).toLocaleString('en-US'); };
   var usd2 = function (n) { return n == null ? '—' : '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
   var price = function (n) { if (n == null) return '—'; if (n >= 0.01) return usd2(n); var d = Math.min(12, 2 - Math.floor(Math.log10(n)) + 2); return '$' + n.toFixed(d).replace(/0+$/, ''); };
-  var short = function (a) { return a ? a.slice(0, 4) + '…' + a.slice(-4) : '—'; };
+  var short = function (a) { return a ? esc(a.slice(0, 4) + '…' + a.slice(-4)) : '—'; };
   var ago = function (ms) { if (ms == null) return ''; var s = Math.round(ms / 1000); return s < 60 ? 'read ' + s + ' s ago' : 'read ' + Math.round(s / 60) + ' min ago'; };
-  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var esc = function (t) { return String(t == null ? '' : t).replace(/[&<>"'`]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]; }); };
   var get = function (path) { return fetch(path).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.error || r.status); return b; }); }); };
 
   var VAULTS = [], VAULT = null, META = null, STATS = null, ITEMS = null, ITEMS_AT = 0, SWAP_URL = 'https://onix.finance';
@@ -125,16 +125,16 @@
       var rows = b.activity;
       $('act-empty').style.display = rows.length ? 'none' : '';
       $('act-rows').innerHTML = rows.map(function (e) {
-        if (e.type === 'admit') { return '<div class="row"><span class="k">Added</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · by the creator · ' + usd2(e.valueUsd) + ' listed' + (e.status === 'pending' ? ' · verifying on chain' : ' · in the vault') + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">transfer</a></span></div>'; }
-        if (e.type === 'fees') { return '<div class="row"><span class="k">Fees</span><span class="muted">trading fees claimed \u00b7 treasury +' + usd2(e.treasuryUsd) + (e.onixUsd ? ' \u00b7 Onix +' + usd2(e.onixUsd) : '') + ' \u00b7 ' + (e.status === 'landed' ? 'in custody' : e.status) + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">claim</a></span></div>'; }
-        if (e.type === 'bought') { return '<div class="row"><span class="k">Bought</span><span class="muted">the treasury bought <a href="#/item/' + e.mint + '">' + esc(e.name || short(e.mint)) + '</a> for ' + usd2(e.priceUsd) + ' (index ' + usd(e.insuredUsd) + ') · ' + (e.status === 'landed' ? 'in custody' : e.status) + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">purchase</a></span></div>'; }
-        if (e.type === 'play') { return '<div class="row"><span class="k">Play</span><span class="muted">' + short(e.to) + ' paid ' + (e.unit === 'token' ? Math.round(e.price).toLocaleString('en-US') + ' ' + SYM() + ' (burned)' : usd2(e.price) + ' USDC') + ' · ' + (e.mint ? '<a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> ' : '') + (e.status === 'delivered' ? 'delivered' : e.status.replace(/_/g, ' ')) + '</span><span class="sig">' + (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (e.deliverySignature ? ' · <a href="https://solscan.io/tx/' + e.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span></div>'; }
+        if (e.type === 'admit') { return '<div class="row"><span class="k">Added</span><span class="muted"><a href="#/item/' + esc(e.mint) + '">' + short(e.mint) + '</a> · by the creator · ' + usd2(e.valueUsd) + ' listed' + (e.status === 'pending' ? ' · verifying on chain' : ' · in the vault') + '</span><span class="sig"><a href="https://solscan.io/tx/' + esc(e.signature) + '" target="_blank" rel="noopener">transfer</a></span></div>'; }
+        if (e.type === 'fees') { return '<div class="row"><span class="k">Fees</span><span class="muted">trading fees claimed \u00b7 treasury +' + usd2(e.treasuryUsd) + (e.onixUsd ? ' \u00b7 Onix +' + usd2(e.onixUsd) : '') + ' \u00b7 ' + (e.status === 'landed' ? 'in custody' : e.status) + '</span><span class="sig"><a href="https://solscan.io/tx/' + esc(e.signature) + '" target="_blank" rel="noopener">claim</a></span></div>'; }
+        if (e.type === 'bought') { return '<div class="row"><span class="k">Bought</span><span class="muted">the treasury bought <a href="#/item/' + esc(e.mint) + '">' + esc(e.name || short(e.mint)) + '</a> for ' + usd2(e.priceUsd) + ' (index ' + usd(e.insuredUsd) + ') · ' + (e.status === 'landed' ? 'in custody' : e.status) + '</span><span class="sig"><a href="https://solscan.io/tx/' + esc(e.signature) + '" target="_blank" rel="noopener">purchase</a></span></div>'; }
+        if (e.type === 'play') { return '<div class="row"><span class="k">Play</span><span class="muted">' + short(e.to) + ' paid ' + (e.unit === 'token' ? Math.round(e.price).toLocaleString('en-US') + ' ' + SYM() + ' (burned)' : usd2(e.price) + ' USDC') + ' · ' + (e.mint ? '<a href="#/item/' + esc(e.mint) + '">' + short(e.mint) + '</a> ' : '') + (e.status === 'delivered' ? 'delivered' : e.status.replace(/_/g, ' ')) + '</span><span class="sig">' + (e.paymentSignature ? '<a href="https://solscan.io/tx/' + esc(e.paymentSignature) + '" target="_blank" rel="noopener">payment</a>' : '') + (e.deliverySignature ? ' · <a href="https://solscan.io/tx/' + esc(e.deliverySignature) + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span></div>'; }
         var k = e.type === 'gacha' ? 'Gacha' : 'Play';
         var what = e.type === 'gacha' ? 'a gacha paid ' + usd2(e.priceUsd) + ' → delivered to ' + short(e.to) : 'tokens burned → ' + (e.status === 'delivered' ? 'delivered to ' : e.status + ' · ') + short(e.to);
-        var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '')
-          + (e.burnSignature ? '<a href="https://solscan.io/tx/' + e.burnSignature + '" target="_blank" rel="noopener">burn</a>' : '')
-          + (e.deliverySignature ? ' · <a href="https://solscan.io/tx/' + e.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : ' · delivery pending');
-        return '<div class="row"><span class="k">' + k + '</span><span class="muted"><a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> · ' + what + '</span><span class="sig">' + sigs + '</span></div>';
+        var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + esc(e.paymentSignature) + '" target="_blank" rel="noopener">payment</a>' : '')
+          + (e.burnSignature ? '<a href="https://solscan.io/tx/' + esc(e.burnSignature) + '" target="_blank" rel="noopener">burn</a>' : '')
+          + (e.deliverySignature ? ' · <a href="https://solscan.io/tx/' + esc(e.deliverySignature) + '" target="_blank" rel="noopener">delivery</a>' : ' · delivery pending');
+        return '<div class="row"><span class="k">' + k + '</span><span class="muted"><a href="#/item/' + esc(e.mint) + '">' + short(e.mint) + '</a> · ' + what + '</span><span class="sig">' + sigs + '</span></div>';
       }).join('');
     });
   }
@@ -162,7 +162,7 @@
     $('grid').innerHTML = shown.slice().sort(function (a, b) { return (b.custodianValueUsd || 0) - (a.custodianValueUsd || 0); }).map(function (c) {
       var st = c.status === 'reserved' ? '<span class="st res">reserved</span>' : '';
       var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<span class="faint" style="font-size:11px">no image</span>';
-      return '<a class="item" href="#/item/' + c.mint + '"><div class="ph">' + ph + st + '</div>'
+      return '<a class="item" href="#/item/' + esc(c.mint) + '"><div class="ph">' + ph + st + '</div>'
         + '<div class="tx"><span class="nm">' + esc(c.name || c.mint) + '</span><span class="gr">' + esc((c.gradingCompany || '') + ' ' + (c.grade || '')) + '</span>'
         + '<div class="pr"><b>' + usd(c.custodianValueUsd) + '</b><span>insured</span></div></div></a>';
     }).join('') || '<p class="faint">Nothing in custody right now.</p>';
@@ -295,7 +295,7 @@
         return signAndSend(w, b.transaction);
       })
       .then(function (sig) {
-        $('t-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + sig + '" target="_blank" rel="noopener">' + sig.slice(0, 8) + '…</a>';
+        $('t-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + esc(sig) + '" target="_blank" rel="noopener">' + sig.slice(0, 8) + '…</a>';
         $('t-amount').value = ''; $('t-quote').textContent = 'You receive —';
         setTimeout(refreshAfterTrade, 2500);
       })
@@ -346,14 +346,14 @@
   }
   // the reveal overlay: four steps, the card flips, the proof folded under "Verify the draw"
   function revealFrame(step, items, p, won) {
-    var steps = ['Commit published before you pay' + (p && p.serverSeedHash ? ' <span class="mono faint">' + esc(p.serverSeedHash.slice(0, 12)) + '…</span>' : ''), 'Payment signed' + (p && p.paymentSignature ? ' · <a href="https://solscan.io/tx/' + p.paymentSignature + '" target="_blank" rel="noopener">' + short(p.paymentSignature) + '</a>' : ''), 'Finalized on chain · drawing from ' + items + ' item' + (items === 1 ? '' : 's'), 'Sent to your wallet from custody'];
+    var steps = ['Commit published before you pay' + (p && p.serverSeedHash ? ' <span class="mono faint">' + esc(p.serverSeedHash.slice(0, 12)) + '…</span>' : ''), 'Payment signed' + (p && p.paymentSignature ? ' · <a href="https://solscan.io/tx/' + esc(p.paymentSignature) + '" target="_blank" rel="noopener">' + short(p.paymentSignature) + '</a>' : ''), 'Finalized on chain · drawing from ' + items + ' item' + (items === 1 ? '' : 's'), 'Sent to your wallet from custody'];
     var done = step >= 4;
     $('veil').style.display = '';
     $('reveal').innerHTML = '<div class="steps">' + steps.map(function (t, i) { return '<div class="' + (i < step ? 'done' : i === step ? 'now' : '') + '"><i>' + (i < step ? '✓' : i + 1) + '</i><span>' + t + '</span></div>'; }).join('') + '</div>'
       + '<div class="stage">' + (won && won.img ? '<img src="' + esc(won.img) + '" alt="">' : '<div class="back' + (step === 0 ? ' still' : '') + '">?</div>') + '</div>'
       + (won ? '<div class="won"><b>' + esc(won.title) + '</b><span>' + won.sub + '</span></div>' : '')
       + (won && won.proof ? '<details><summary>Verify the draw</summary><div class="proof">' + won.proof + '</div></details>' : '')
-      + '<div class="ra">' + (done ? (p && p.deliverySignature ? '<a class="cta ghost sm" href="https://solscan.io/tx/' + p.deliverySignature + '" target="_blank" rel="noopener">Delivery on Solscan ↗</a>' : '') + '<button type="button" class="cta sm" id="rv-close">Done</button>' : '<button type="button" class="cta ghost sm" id="rv-close">' + (step === 0 ? 'Cancel' : 'Hide') + '</button>') + '</div>';
+      + '<div class="ra">' + (done ? (p && p.deliverySignature ? '<a class="cta ghost sm" href="https://solscan.io/tx/' + esc(p.deliverySignature) + '" target="_blank" rel="noopener">Delivery on Solscan ↗</a>' : '') + '<button type="button" class="cta sm" id="rv-close">Done</button>' : '<button type="button" class="cta ghost sm" id="rv-close">' + (step === 0 ? 'Cancel' : 'Hide') + '</button>') + '</div>';
     $('rv-close').onclick = function () { $('veil').style.display = 'none'; };
   }
   $('bands').addEventListener('click', function (e) {
@@ -390,7 +390,7 @@
         m.classList.remove('drawing');
         return loadItems(true).then(function (list) {
           var it = (STRIPS[VAULT] || []).concat(list || []).filter(function (c) { return c.mint === p.mint; })[0] || {};
-          var proof = '<span>commit (before you paid): sha256 = ' + esc(p.serverSeedHash) + '</span>' + (p.serverSeed ? '<span>server seed (revealed): ' + esc(p.serverSeed) + '</span>' : '') + '<span>your seed: ' + esc(p.clientSeed) + ' · nonce ' + p.nonce + '</span>' + (p.digest ? '<span>digest = HMAC(seed, play|yourSeed|nonce) = ' + esc(p.digest) + ' → index ' + p.index + ' of ' + p.snapshot.length + ' (sorted by mint)</span>' : '') + '<span>' + (p.paymentSignature ? '<a href="https://solscan.io/tx/' + p.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (p.deliverySignature ? ' · <a href="https://solscan.io/tx/' + p.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span>';
+          var proof = '<span>commit (before you paid): sha256 = ' + esc(p.serverSeedHash) + '</span>' + (p.serverSeed ? '<span>server seed (revealed): ' + esc(p.serverSeed) + '</span>' : '') + '<span>your seed: ' + esc(p.clientSeed) + ' · nonce ' + p.nonce + '</span>' + (p.digest ? '<span>digest = HMAC(seed, play|yourSeed|nonce) = ' + esc(p.digest) + ' → index ' + p.index + ' of ' + p.snapshot.length + ' (sorted by mint)</span>' : '') + '<span>' + (p.paymentSignature ? '<a href="https://solscan.io/tx/' + esc(p.paymentSignature) + '" target="_blank" rel="noopener">payment</a>' : '') + (p.deliverySignature ? ' · <a href="https://solscan.io/tx/' + esc(p.deliverySignature) + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span>';
           var won = p.status === 'delivered' ? { img: it.imageUrl, title: it.name || short(p.mint), sub: esc([it.gradingCompany, it.grade].filter(Boolean).join(' ')) + (it.custodianValueUsd ? ' · insured ' + usd(it.custodianValueUsd) : '') + ' · now in your wallet', proof: proof }
             : p.status === 'delivery_failed' ? { img: it.imageUrl, title: 'Drawn: ' + (it.name || short(p.mint)), sub: 'delivery is being retried by the operator; your payment is recorded', proof: proof }
             : { img: null, title: p.status.replace(/_/g, ' '), sub: esc(p.failReason || ''), proof: proof };
@@ -688,7 +688,7 @@
       .then(function (x) {
         return fetch('/v1/vaults/' + VAULT + '/admissions', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mint: c.mint, owner: SD.wallet, signature: x.sig, valueUsd: x.b.valueUsd }) })
           .then(function (r) { return r.json(); }).then(function (rec) {
-            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + x.sig + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> \u00b7 recorded, verifying on chain \u00b7 backing per token goes up when it lands. <a href="' + vpath() + '">See it in the vault →</a>';
+            $('sd-msg').innerHTML = 'Sent · <a href="https://solscan.io/tx/' + esc(x.sig) + '" target="_blank" rel="noopener">' + x.sig.slice(0, 8) + '…</a> \u00b7 recorded, verifying on chain \u00b7 backing per token goes up when it lands. <a href="' + vpath() + '">See it in the vault →</a>';
             SD.pick = null; ITEMS = null; sdScan(SD.wallet);
           });
       })

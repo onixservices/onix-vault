@@ -167,6 +167,8 @@
   const { splitOfTrade } = window.OnixVaultSplit;
   const $ = (id) => document.getElementById(id);
   const usd = (n, d = 0) => n == null ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: d });
+  // names, sets and grades come from the items' own metadata: text, never markup
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"'`]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[ch]));
   const fail = (msg) => { $('error').hidden = false; $('error').innerHTML = '<b>Could not read the chain.</b> ' + msg; $('chip').textContent = 'READ FAILED'; $('chip').className = 'chip err'; };
 
   async function rpc(method, params) {
@@ -215,7 +217,7 @@
     $('tot').textContent = usd(bk.indexUsd);
     $('multK').textContent = bk.multiplier; $('multV').textContent = bk.multiplier; $('multS').textContent = bk.multiplierMeasured.sample + ', ' + bk.multiplierMeasured.when;
     const counted = cards.filter((c) => c.counts).sort((a, b) => b.insuredUsd - a.insuredUsd);
-    $('rows').innerHTML = counted.map((c) => `<tr><td class="nm">${c.name}</td><td class="sm">${c.set || c.category || ''}</td><td><span class="badge">${(c.gradingCompany || '') + ' ' + (c.grade || '')}</span></td><td class="cert">${c.certNumber || '—'}</td><td class="sm">${c.vault || c.custodian || ''}</td><td class="n">${usd(c.insuredUsd)}</td></tr>`).join('') || '<tr><td colspan="6" class="sm">the vault is empty</td></tr>';
+    $('rows').innerHTML = counted.map((c) => `<tr><td class="nm">${esc(c.name)}</td><td class="sm">${esc(c.set || c.category || '')}</td><td><span class="badge">${esc((c.gradingCompany || '') + ' ' + (c.grade || ''))}</span></td><td class="cert">${esc(c.certNumber || '—')}</td><td class="sm">${esc(c.vault || c.custodian || '')}</td><td class="n">${usd(c.insuredUsd)}</td></tr>`).join('') || '<tr><td colspan="6" class="sm">the vault is empty</td></tr>';
     const ex = cards.filter((c) => !c.counts);
     if (ex.length) { $('excluded').hidden = false; $('excluded').textContent = `${ex.length} asset(s) in the wallet are listed but not counted: ` + ex.map((c) => `${c.name} (${c.excludedBecause})`).join(' · '); }
 

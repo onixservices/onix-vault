@@ -32,6 +32,11 @@ const crypto = require('crypto');
 const express = require('express');
 const { VaultError } = require('./vaultService');
 
+const SECURITY_HEADERS = Object.freeze([
+  ['Content-Security-Policy', "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'"],
+  ['X-Frame-Options', 'DENY'], ['X-Content-Type-Options', 'nosniff'], ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+]);
+
 /**
  * @param {object} deps
  * @param {Array<object>} [deps.vaults]  bundles: { wallet, meta, service, stats, admissions, trader, itemsAge, signerConfigured }
@@ -57,6 +62,9 @@ function buildApp(deps) {
 
   const app = express();
   app.disable('x-powered-by');
+  // the same security headers the Caddy vhost sets, from the app itself: the page keeps them if the proxy config changes.
+  // Scripts only from this site — metadata that slips past escaping still cannot run.
+  app.use((req, res, next) => { for (const [k, v] of SECURITY_HEADERS) res.setHeader(k, v); next(); });
   app.set('trust proxy', 'loopback');   // Caddy on the same box sets X-Forwarded-For; req.ip is the client
   app.use(express.json({ limit: '64kb' }));
 
