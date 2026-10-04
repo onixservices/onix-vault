@@ -491,3 +491,6 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .why-end{display:flex; flex-direction:column; align-items:center; gap:14px; padding-block:8px}
 @media(max-width:760px){ .steps2,.gets2{grid-template-columns:1fr} .back2{grid-template-columns:1fr} }
 .ba2.hubhero .hub-t{font:600 19px var(--font); fill:var(--text)} .ba2.hubhero .hub-c{font:650 21px var(--font); fill:var(--buy)}
+/* a thin seam between the hero, the live shelf and the maturing shelf */
+#shelf-live,#shelf-mat{position:relative; padding-top:30px}
+#shelf-live::before,#shelf-mat::before{content:""; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--border2) 12%,var(--border2) 88%,transparent)}
