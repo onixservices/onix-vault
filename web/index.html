@@ -28,53 +28,42 @@
 
 <!-- ═══════════════ 0b · HOW IT WORKS · the detailed flywheel (judges, builders) ═══════════════ -->
 <section class="screen" id="s-how">
+  <!-- the site's symbol set: one picture, one meaning, everywhere (USDC · token · item · backing · treasury · buy · sell · burn) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-usdc" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--usdc)"/><text x="20" y="27" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="20" fill="#fff">$</text></symbol>
+      <symbol id="i-tok" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--tok)"/><circle cx="20" cy="20" r="12" fill="none" stroke="var(--tok-ink)" stroke-width="2" opacity=".45"/><circle cx="20" cy="17" r="3.4" fill="var(--tok-ink)"/><path d="M18.2 18.5h3.6l1 7h-5.6z" fill="var(--tok-ink)"/></symbol>
+      <symbol id="i-item" viewBox="0 0 40 40"><rect x="9" y="4" width="22" height="32" rx="3" fill="var(--item)" stroke="var(--item-edge)" stroke-width="2"/><rect x="13" y="9" width="14" height="12" rx="1.5" fill="#d9c79b"/><path d="M13 26h14M13 30h9" stroke="var(--item-edge)" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-backing" viewBox="0 0 40 40"><rect x="4" y="5" width="32" height="28" rx="4" fill="var(--backing)"/><circle cx="20" cy="19" r="8" fill="none" stroke="#0b1416" stroke-width="2.4"/><path d="M20 13v3M20 22v3M14 19h3M23 19h3" stroke="#0b1416" stroke-width="2.4" stroke-linecap="round"/><rect x="8" y="33" width="5" height="3" rx="1" fill="var(--backing)"/><rect x="27" y="33" width="5" height="3" rx="1" fill="var(--backing)"/></symbol>
+      <symbol id="i-treasury" viewBox="0 0 40 40"><ellipse cx="19" cy="22" rx="14" ry="10.5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8"/><path d="M11 13l3-6 4 5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8" stroke-linejoin="round"/><rect x="31" y="18" width="6" height="7" rx="2.5" fill="var(--treasury)" stroke="var(--treasury-edge)" stroke-width="1.8"/><circle cx="25" cy="19" r="1.5" fill="#1a1a1a"/><rect x="15" y="12.5" width="8" height="2.4" rx="1.2" fill="var(--treasury-edge)"/><path d="M12 31v4M24 31v4" stroke="var(--treasury-edge)" stroke-width="3" stroke-linecap="round"/></symbol>
+      <symbol id="i-buy" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--buy-soft)"/><path d="M20 30V11M12 18l8-8 8 8" fill="none" stroke="var(--buy)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-sell" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="var(--sell-soft)"/><path d="M20 10v19M12 22l8 8 8-8" fill="none" stroke="var(--sell)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-burn" viewBox="0 0 40 40"><path d="M20 4c2 7 10 10 10 19a10 10 0 0 1-20 0c0-5 3-8 5-10 0 4 2 6 4 6-1-6 0-11 1-15z" fill="var(--burn)"/><path d="M20 22c1 3 5 4 5 8a5 5 0 0 1-10 0c0-3 3-4 5-8z" fill="#ffd36b"/></symbol>
+    </defs>
+  </svg>
   <div class="crumbs"><a href="#/">Home</a><span>›</span><span>How it works</span></div>
   <div>
     <p class="eyebrow">The mechanism, with the numbers</p>
     <h2 style="margin-top:8px">Create · Trade · Play. Every door pays the vault.</h2>
-    <p class="muted" style="margin-top:8px;max-width:64ch">A creator puts items a custodian already holds on chain into a vault wallet and gets a token on a Meteora curve, priced in USDC. Traders buy and sell; 10% of every trade pays the creator on chain and feeds the vault's treasury. When the curve fills, the token moves to a pool with locked liquidity, 30% of the raise goes to the treasury, and Play opens: pay USDC (it stays in the vault) or burn the token (priced in share of backing) to draw an item from a band. Any gacha can buy items through the API at the published price. Every 15 minutes the vault claims its fees and the treasury buys the next item that passes the vault's rules — nobody clicks anything. Nothing leaves custody except through a payment or a burn.</p>
+    <p class="muted" style="margin-top:8px;max-width:64ch">Create a vault from items a custodian holds on chain. Its token trades on Meteora. Trade fees, graduation, plays and gacha sales all feed the vault's treasury, and the treasury buys the next item by itself every 15 minutes.</p>
   </div>
-  <div class="howgrid">
-    <div class="verbs">
-      <a href="#/create"><b>Create</b><span>a vault from items you already own on chain — half the token and 40% of every trade are yours</span></a>
-      <a href="#/"><b>Trade</b><span>the token — a share of everything inside — on the curve, then on the pool</span></a>
-      <a href="#/"><b>Play</b><span>for an item from a band — USDC stays in the vault; a burned token shrinks the supply</span></a>
-    </div>
-    <div class="term" id="term" aria-live="off">
-      <div class="term-top">
-        <span class="live"><i></i>LIVE</span>
-        <span class="term-name">Example vault</span>
-        <span class="term-tag">simulated · one day in 60 s</span>
-      </div>
-      <div class="term-value">
-        <span class="lab">In the vault</span>
-        <span class="big-usd" id="t-usd">$0</span>
-        <span class="delta" id="t-delta"></span>
-      </div>
-      <div class="term-row3">
-        <div><span class="lab">Items</span><b id="t-items">0</b></div>
-        <div><span class="lab">Fees collected</span><b id="t-fees">$0</b></div>
-        <div><span class="lab">Sold to apps</span><b id="t-sold">$0</b></div>
-      </div>
-      <div class="shelf2" id="t-shelf"></div>
-      <div class="feed2" id="t-feed"></div>
-    </div>
-  </div>
-  <p class="faint" style="font-size:12.5px;text-align:center">The panel is a simulation of how a vault behaves over a day. The real vaults' numbers are on their pages and on chain.</p>
   <div class="fly">
-    <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: a creator puts items into the vault and gets half the token, locked; traders buy and sell on the curve; the fee pays the creator and the treasury, which buys the next item; players pay USDC or burn the token to draw an item; gachas buy items through the API; every door raises backing per token.">
+    <svg id="fly" viewBox="-10 0 830 470" role="img" aria-label="The Onix.Vault flywheel: traders buy with USDC or sell the token on the curve; the fee pays the creator and the treasury; the creator adds items and holds half the token; graduation sends 30% of the raise to the treasury; players pay USDC or burn the token to draw an item.">
       <defs>
         <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-2)"/></marker>
+        <marker id="arr-buy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--buy)"/></marker>
+        <marker id="arr-sell" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--sell)"/></marker>
+        <marker id="arr-burn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--burn)"/></marker>
       </defs>
 
-      <!-- paths (dashed, with arrows) -->
-      <path id="p-buy"  class="path" marker-end="url(#arr)" d="M170,62 L170,156"/>
-      <path id="p-sell" class="path" marker-end="url(#arr)" d="M200,156 L200,62"/>
+      <!-- paths (dashed, with arrows): buy is green, sell is red, burn is orange, everything else is neutral -->
+      <path id="p-buy"  class="path buy"  marker-end="url(#arr-buy)"  d="M150,62 L150,156"/>
+      <path id="p-sell" class="path sell" marker-end="url(#arr-sell)" d="M220,62 L220,156"/>
       <path id="p-fee"  class="path" marker-end="url(#arr)" d="M282,200 C360,120 450,120 522,176"/>
       <path id="p-back" class="path" marker-end="url(#arr)" d="M282,258 C360,330 450,330 522,262"/>
       <path id="p-adm"  class="path" marker-end="url(#arr)" d="M600,62 L600,140"/>
       <path id="p-tok"  class="path" marker-end="url(#arr)" d="M660,140 L660,62"/>
-      <path id="p-burn" class="path" marker-end="url(#arr)" d="M544,420 L544,304"/>
+      <path id="p-burn" class="path burn" marker-end="url(#arr-burn)" d="M544,420 L544,304"/>
       <path id="p-out"  class="path" marker-end="url(#arr)" d="M582,304 L582,420"/>
       <path id="p-pay"  class="path" marker-end="url(#arr)" d="M716,420 L716,304"/>
       <path id="p-out2" class="path" marker-end="url(#arr)" d="M752,304 L752,420"/>
@@ -83,60 +72,85 @@
       <rect class="node" x="60" y="158" width="222" height="108" rx="14"/>
       <text class="lbl" x="78" y="184">Bonding curve</text>
       <text class="sm" x="78" y="200">TOKEN · METEORA · USDC</text>
-      <!-- the ratio, not a price chart: market cap and backing are shown side by side, never added -->
       <text class="sm" x="78" y="224">10% FEE · 99% FOR 60 S</text>
       <text class="sm" x="78" y="240">GRADUATES → LOCKED POOL</text>
       <text class="sm" x="78" y="256">NEVER ADDED TO BACKING</text>
 
-      <!-- VAULT node -->
+      <!-- VAULT node: backing (the items) and the treasury (USDC) -->
       <rect class="node vault" x="522" y="140" width="226" height="164" rx="14"/>
       <text class="lbl" x="540" y="166">A vault</text>
-      <text class="sm" x="540" y="182">ITEMS A CUSTODIAN PUT ON CHAIN</text>
-      <!-- the kinds of things: watch · bottle · card · comic · ring (inline stroke icons) -->
+      <text class="sm" x="540" y="182">BACKING + TREASURY</text>
       <g fill="none" stroke="var(--ink-2)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
         <g transform="translate(546,200)"><circle cx="16" cy="18" r="10"/><path d="M11 8V3h10v5M11 28v5h10v-5M16 12v6l4 2"/></g>
         <g transform="translate(588,200)"><path d="M13 2h6v8l4 6v16a2 2 0 0 1-2 2h-10a2 2 0 0 1-2-2V16l4-6z"/><path d="M9 22h14"/></g>
         <g transform="translate(630,200)"><rect x="6" y="2" width="20" height="30" rx="2"/><rect x="10" y="7" width="12" height="11" rx="1"/><path d="M10 23h12M10 27h8"/></g>
         <g transform="translate(672,200)"><path d="M6 4h18a2 2 0 0 1 2 2v24a2 2 0 0 1-2 2H6z"/><path d="M6 4v28M11 10h10M11 16h10M11 22h6"/></g>
-        <g transform="translate(714,200)"><circle cx="14" cy="21" r="9"/><path d="M9 11l5-7 5 7"/><path d="M9 11h10"/></g>
       </g>
-      <text class="sm" x="546" y="248">WATCH</text><text class="sm" x="588" y="248">WINE</text><text class="sm" x="630" y="248">CARD</text><text class="sm" x="672" y="248">COMIC</text><text class="sm" x="714" y="248">RING</text>
+      <use href="#i-treasury" x="712" y="198" width="32" height="32"/>
+      <text class="sm" x="546" y="248">WATCH</text><text class="sm" x="588" y="248">WINE</text><text class="sm" x="630" y="248">CARD</text><text class="sm" x="672" y="248">COMIC</text>
       <text class="sm" x="540" y="272">COUNTED ON CHAIN</text>
-      <g id="up" class="pulse"><text class="val vv" x="540" y="292">backing per token ↑</text></g>
+      <g id="up" class="pulse"><text class="val vv" x="540" y="292">backing per token ▲</text></g>
 
       <!-- labels around -->
-      <text class="lbl" x="185" y="40" text-anchor="middle">Traders</text>
-      <text class="sm" x="185" y="54" text-anchor="middle">BUY · SELL ON THE CURVE</text>
-      <text class="sm" x="402" y="112" text-anchor="middle">10% FEE → CREATOR · TREASURY</text>
+      <text class="lbl" x="185" y="30" text-anchor="middle">Traders</text>
+      <text class="sm" x="185" y="44" text-anchor="middle">ON THE CURVE, THEN THE POOL</text>
+      <text class="sm buy-t" x="140" y="112" text-anchor="end">▲ BUY</text>
+      <text class="sm sell-t" x="230" y="112">▼ SELL</text>
+      <text class="sm" x="430" y="126" text-anchor="middle">10% FEE → CREATOR · TREASURY · ONIX</text>
       <text class="sm" x="402" y="352" text-anchor="middle">GRADUATION · 30% OF THE RAISE → TREASURY</text>
-      <text class="lbl" x="630" y="40" text-anchor="middle">Creator</text>
-      <text class="sm" x="630" y="54" text-anchor="middle">PUTS ITEMS IN · HALF THE TOKEN, LOCKED 6 M</text>
-      <text class="lbl" x="560" y="446" text-anchor="middle">Play · token</text>
-      <text class="sm" x="560" y="458" text-anchor="middle">BURNED, AT BACKING</text>
+      <text class="lbl" x="630" y="30" text-anchor="middle">Creator</text>
+      <text class="sm" x="630" y="44" text-anchor="middle">ADDS ITEMS · HALF THE TOKEN, LOCKED 6 M</text>
+      <text class="lbl" x="560" y="446" text-anchor="middle">Play · burn</text>
+      <text class="sm" x="560" y="458" text-anchor="middle">TOKENS BURNED, AT BACKING</text>
       <text class="lbl" x="740" y="446" text-anchor="middle">Play · USDC</text>
-      <text class="sm" x="740" y="458" text-anchor="middle">THE MONEY STAYS</text>
+      <text class="sm" x="740" y="458" text-anchor="middle">USDC → TREASURY</text>
 
-      <!-- particles -->
-      <g><circle r="9" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3s" repeatCount="indefinite" begin="0s"><mpath href="#p-buy"/></animateMotion></g>
-      <g><circle r="9" class="p-tok"/><text class="ptxt dark">V</text><animateMotion dur="3s" repeatCount="indefinite" begin="1.5s"><mpath href="#p-sell"/></animateMotion></g>
-      <g><circle r="8" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3.6s" repeatCount="indefinite" begin="0.8s"><mpath href="#p-fee"/></animateMotion></g>
-      <g><circle r="8" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="3.6s" repeatCount="indefinite" begin="2.6s"><mpath href="#p-back"/></animateMotion></g>
-      <g><rect x="-6" y="-8" width="12" height="16" rx="2" class="p-card"/><animateMotion dur="4s" repeatCount="indefinite" begin="1s"><mpath href="#p-adm"/></animateMotion></g>
-      <g><circle r="9" class="p-tok"/><text class="ptxt dark">V</text><animateMotion dur="4s" repeatCount="indefinite" begin="3s"><mpath href="#p-tok"/></animateMotion></g>
-      <g><circle r="9" class="burn"/><text class="ptxt">V</text><animateMotion dur="4s" repeatCount="indefinite" begin="2s"><mpath href="#p-burn"/></animateMotion></g>
-      <g><rect x="-6" y="-8" width="12" height="16" rx="2" class="p-card"/><animateMotion dur="4s" repeatCount="indefinite" begin="4s"><mpath href="#p-out"/></animateMotion></g>
-      <g><circle r="9" class="p-usdc"/><text class="ptxt">$</text><animateMotion dur="4s" repeatCount="indefinite" begin="0.4s"><mpath href="#p-pay"/></animateMotion></g>
-      <g><rect x="-6" y="-8" width="12" height="16" rx="2" class="p-card"/><animateMotion dur="4s" repeatCount="indefinite" begin="2.4s"><mpath href="#p-out2"/></animateMotion></g>
+      <!-- particles: the same pictures as the legend -->
+      <g><use href="#i-usdc" x="-10" y="-10" width="20" height="20"/><animateMotion dur="3s" repeatCount="indefinite" begin="0s"><mpath href="#p-buy"/></animateMotion></g>
+      <g><use href="#i-tok" x="-10" y="-10" width="20" height="20"/><animateMotion dur="3s" repeatCount="indefinite" begin="1.5s"><mpath href="#p-sell"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-9" y="-9" width="18" height="18"/><animateMotion dur="3.6s" repeatCount="indefinite" begin="0.8s"><mpath href="#p-fee"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-9" y="-9" width="18" height="18"/><animateMotion dur="3.6s" repeatCount="indefinite" begin="2.6s"><mpath href="#p-back"/></animateMotion></g>
+      <g><use href="#i-item" x="-10" y="-10" width="20" height="20"/><animateMotion dur="4s" repeatCount="indefinite" begin="1s"><mpath href="#p-adm"/></animateMotion></g>
+      <g><use href="#i-tok" x="-10" y="-10" width="20" height="20"/><animateMotion dur="4s" repeatCount="indefinite" begin="3s"><mpath href="#p-tok"/></animateMotion></g>
+      <g><use href="#i-burn" x="-10" y="-10" width="20" height="20"/><animateMotion dur="4s" repeatCount="indefinite" begin="2s"><mpath href="#p-burn"/></animateMotion></g>
+      <g><use href="#i-item" x="-10" y="-10" width="20" height="20"/><animateMotion dur="4s" repeatCount="indefinite" begin="4s"><mpath href="#p-out"/></animateMotion></g>
+      <g><use href="#i-usdc" x="-10" y="-10" width="20" height="20"/><animateMotion dur="4s" repeatCount="indefinite" begin="0.4s"><mpath href="#p-pay"/></animateMotion></g>
+      <g><use href="#i-item" x="-10" y="-10" width="20" height="20"/><animateMotion dur="4s" repeatCount="indefinite" begin="2.4s"><mpath href="#p-out2"/></animateMotion></g>
     </svg>
   </div>
 
-  <div class="legend4">
-    <div><i style="background:#2775ca"></i><span><b>USDC</b>comes in from traders and players; the treasury buys the next item</span></div>
-    <div><i style="background:var(--gold)"></i><span><b>The token</b>half to the creator (locked 6 months from graduation), half sold on the curve; burned to play</span></div>
-    <div><i style="background:#e8e4d8;border:1px solid #9a8f70"></i><span><b>Items</b>watches, wine, cards, comics — held by a named custodian, counted on chain</span></div>
-    <div><i style="background:var(--verify)"></i><span><b>Backing per token</b>grows with every fee the treasury turns into an item and every token burned to play; a USDC play takes an item out and leaves the band's average value, plus 15%, in the treasury to buy the next.</span></div>
+  <div class="keyrow" aria-label="What each picture means"><span><svg><use href="#i-usdc"/></svg>USDC</span><span><svg><use href="#i-tok"/></svg>Token</span><span><svg><use href="#i-item"/></svg>Item</span><span><svg><use href="#i-backing"/></svg>Backing</span><span><svg><use href="#i-treasury"/></svg>Treasury</span><span><svg><use href="#i-burn"/></svg>Burn</span></div>
+  <div class="flows" aria-label="What goes in and what comes out">
+    <div class="flows-head"><span>Who</span><span>Gives</span><span></span><span>Gets</span></div>
+    <div class="flow"><span class="who"><b>Trader</b>buys</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-tok"/></svg></span></div><div class="flow"><span class="who"><b>Trader</b>sells</span><span class="give"><svg><use href="#i-tok"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-usdc"/></svg></span></div><div class="flow"><span class="who"><b>Creator</b>adds items</span><span class="give"><svg><use href="#i-item"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-tok"/></svg><svg><use href="#i-usdc"/></svg></span></div><div class="flow"><span class="who"><b>Player</b>plays in USDC</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Player</b>plays with tokens</span><span class="give"><svg><use href="#i-burn"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Gacha</b>buys through the API</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Treasury</b>restocks</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Holder</b>keeps the token</span><span class="give"><svg><use href="#i-tok"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-backing"/></svg></span></div>
   </div>
-  <p class="faint" style="font-size:12.5px;text-align:center">Why it is different: the backing is a third party's custody you can verify · the creator is paid by the program, not by us · one price rule for everyone, printed · nothing leaves custody except through a payment or a burn. No door depends on anyone's word.</p>
+  <p class="faint" style="font-size:12.5px;text-align:center">Trade fee on the curve 10%: 3.2% creator · 3.2% treasury · 1.6% Onix · 2% Meteora. After graduation, the pool's 1% goes to the treasury.</p>
+  <div class="howgrid">
+    <div class="term" id="term" aria-live="off">
+      <div class="term-top">
+        <span class="live"><i></i>LIVE</span>
+        <span class="term-name">Example vault</span>
+        <span class="term-tag">simulated · one day in 60 s</span>
+      </div>
+      <div class="term-value">
+        <span class="lab">Backing</span>
+        <span class="big-usd" id="t-usd">$0</span>
+        <span class="delta" id="t-delta"></span>
+      </div>
+      <div class="term-row3">
+        <div><span class="lab">Items</span><b id="t-items">0</b></div>
+        <div><span class="lab">Treasury</span><b id="t-fees">$0</b></div>
+        <div><span class="lab">Sold to gachas</span><b id="t-sold">$0</b></div>
+      </div>
+      <div class="shelf2" id="t-shelf"></div>
+      <div class="feed2" id="t-feed"></div>
+    </div>
+    <dl class="verbs2">
+      <div><dt><a href="#/create">Create</a></dt><dd>a vault from items you own on chain. Half the token and 40% of the curve's trade fee are yours.</dd></div>
+      <div><dt><a href="#/">Trade</a></dt><dd>the token, a share of everything inside, on the curve and then on the pool.</dd></div>
+      <div><dt><a href="#/">Play</a></dt><dd>for an item from a band. USDC goes to the treasury; burned tokens shrink the supply.</dd></div>
+    </dl>
+  </div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"><a class="cta" href="#/">Open the app</a><a class="cta ghost" href="#/integrate">Integrate a gacha</a></div>
 </section>
 
@@ -197,7 +211,7 @@
   <div id="tab-trade" class="sec" style="display:none">
     <div class="trade2">
       <aside class="trade" id="trade" aria-label="Trade the token">
-        <div class="trade-top"><div class="tabs2" role="tablist"><button class="on" data-side="buy" type="button">Buy</button><button data-side="sell" type="button">Sell</button></div><span class="tag" id="t-state">not launched</span></div>
+        <div class="trade-top"><div class="tabs2" role="tablist"><button class="on" data-side="buy" type="button">▲ Buy</button><button data-side="sell" type="button">▼ Sell</button></div><span class="tag" id="t-state">not launched</span></div>
         <div id="t-grad" class="tgrad"></div>
         <label class="amt"><input id="t-amount" type="number" min="0" step="any" placeholder="0.00" inputmode="decimal" aria-label="amount"><span id="t-unit">USDC</span></label>
         <div class="bal"><span id="t-bal">Connect a wallet to see your balance</span><button type="button" id="t-max" class="lnk" hidden>Max</button></div>

@@ -129,7 +129,7 @@
         if (e.type === 'fees') { return '<div class="row"><span class="k">Fees</span><span class="muted">trading fees claimed \u00b7 treasury +' + usd2(e.treasuryUsd) + (e.onixUsd ? ' \u00b7 Onix +' + usd2(e.onixUsd) : '') + ' \u00b7 ' + (e.status === 'landed' ? 'in custody' : e.status) + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">claim</a></span></div>'; }
         if (e.type === 'bought') { return '<div class="row"><span class="k">Bought</span><span class="muted">the treasury bought <a href="#/item/' + e.mint + '">' + esc(e.name || short(e.mint)) + '</a> for ' + usd2(e.priceUsd) + ' (index ' + usd(e.insuredUsd) + ') · ' + (e.status === 'landed' ? 'in custody' : e.status) + '</span><span class="sig"><a href="https://solscan.io/tx/' + e.signature + '" target="_blank" rel="noopener">purchase</a></span></div>'; }
         if (e.type === 'play') { return '<div class="row"><span class="k">Play</span><span class="muted">' + short(e.to) + ' paid ' + (e.unit === 'token' ? Math.round(e.price).toLocaleString('en-US') + ' ' + SYM() + ' (burned)' : usd2(e.price) + ' USDC') + ' · ' + (e.mint ? '<a href="#/item/' + e.mint + '">' + short(e.mint) + '</a> ' : '') + (e.status === 'delivered' ? 'delivered' : e.status.replace(/_/g, ' ')) + '</span><span class="sig">' + (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '') + (e.deliverySignature ? ' · <a href="https://solscan.io/tx/' + e.deliverySignature + '" target="_blank" rel="noopener">delivery</a>' : '') + '</span></div>'; }
-        var k = e.type === 'gacha' ? 'Gacha' : 'Redeemed';
+        var k = e.type === 'gacha' ? 'Gacha' : 'Play';
         var what = e.type === 'gacha' ? 'a gacha paid ' + usd2(e.priceUsd) + ' → delivered to ' + short(e.to) : 'tokens burned → ' + (e.status === 'delivered' ? 'delivered to ' : e.status + ' · ') + short(e.to);
         var sigs = (e.paymentSignature ? '<a href="https://solscan.io/tx/' + e.paymentSignature + '" target="_blank" rel="noopener">payment</a>' : '')
           + (e.burnSignature ? '<a href="https://solscan.io/tx/' + e.burnSignature + '" target="_blank" rel="noopener">burn</a>' : '')
@@ -249,7 +249,8 @@
     $('t-venue').textContent = !p ? '' : migrated
       ? 'The swap is built against this vault\'s Meteora pool and signed in your wallet; the page never leaves. Jupiter becomes a second route once the pool is listed there.'
       : 'Buys fill up to the graduation threshold and return the rest. Signed in your wallet; the server never holds your keys.';
-    $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? 'Buy ' : 'Sell ') + SYM() : 'Connect wallet') : 'Opens when the token launches';
+    $('t-go').textContent = p ? (T.wallet ? (T.side === 'buy' ? '▲ Buy ' : '▼ Sell ') + SYM() : 'Connect wallet') : 'Opens when the token launches';
+    $('t-go').classList.toggle('sell', !!(p && T.wallet && T.side === 'sell'));
     $('t-unit').textContent = T.side === 'buy' ? 'USDC' : SYM();
   }
   function quoteNow() {
@@ -605,6 +606,8 @@
       user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg>',
       game: '<svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M8 10v5M5.5 12.5h5M16 11h.01M18.5 13.5h.01"/></svg>',
       trade: '<svg viewBox="0 0 24 24"><path d="M4 9h13l-3-3M20 15H7l3 3"/></svg>',
+      buy: '<svg viewBox="0 0 24 24"><path d="M12 20V5M6 11l6-6 6 6"/></svg>',
+      sell: '<svg viewBox="0 0 24 24"><path d="M12 4v15M6 13l6 6 6-6"/></svg>',
       fire: '<svg viewBox="0 0 24 24"><path d="M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-3-1-6-4-8 0 4-4 6-4 11 0 4 3 8 7 8z"/></svg>',
       cart: '<svg viewBox="0 0 24 24"><path d="M3 4h2l2 12h11l2-8H6"/><circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/></svg>'
     };
@@ -619,12 +622,12 @@
     var shelf = $('t-shelf'), feed = $('t-feed');
     if (!shelf) return;
     function paint(delta) {
-      $('t-usd').textContent = usd(S.usd); $('t-items').textContent = S.items.length; $('t-fees').textContent = usd(S.fees); $('t-sold').textContent = usd(S.sold);
+      $('t-usd').textContent = usd(S.usd); $('t-items').textContent = S.items.length; $('t-fees').textContent = usd(S.cash); $('t-sold').textContent = usd(S.sold);
       if (delta) { var d = $('t-delta'); d.textContent = (delta > 0 ? '+' : '−') + usd(Math.abs(delta)); d.classList.add('on'); setTimeout(function () { d.classList.remove('on'); }, 1400); }
     }
     function drawShelf() { shelf.innerHTML = S.items.slice(-8).map(function (it) { return '<div class="it" title="' + esc(it.n) + '">' + ICON[it.k] + '<span class="pr">' + usd(it.v) + '</span></div>'; }).join(''); }
-    function push(icon, html, amt, sub, red) {
-      var row = document.createElement('div'); row.className = 'ev' + (red ? ' red' : '');
+    function push(icon, html, amt, sub, kind) {
+      var row = document.createElement('div'); row.className = 'ev' + (kind ? ' ' + kind : '');
       row.innerHTML = ICON[icon] + '<span>' + html + '</span><span class="amt">' + amt + (sub ? '<small>' + sub + '</small>' : '') + '</span>';
       feed.insertBefore(row, feed.firstChild);
       while (feed.children.length > 7) feed.removeChild(feed.lastChild);
@@ -632,11 +635,11 @@
     var pool = ITEMS_X.slice();
     function take() { if (!pool.length) pool = ITEMS_X.slice(); return pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; }
     var steps = [
-      function () { var it = take(); S.items.push(it); S.usd += it.v; push('user', '<span class="who">the creator</span> <span class="what">put in</span> <span class="item">' + esc(it.n) + '</span>', '+' + usd(it.v), 'no new tokens \u00b7 backing per token up'); paint(it.v); drawShelf(); },
-      function () { var t = [40, 120, 260, 75, 900, 310][Math.floor(Math.random() * 6)]; var fee = t * 0.10; S.fees += fee; S.cash += fee * 0.32; S.usd += fee * 0.32; push('trade', '<span class="who">' + who() + '</span> <span class="what">traded</span> ' + usd(t) + ' <span class="who">of the token</span>', '+' + usd(fee * 0.32), 'fee: 3.2% creator \u00b7 3.2% the vault \u00b7 2% Meteora'); paint(fee * 0.32); },
-      function () { if (S.items.length < 2) return steps[0](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var app = ['Pixel Gacha', 'Slab Arena', 'Cellar Club', 'Vault Royale'][Math.floor(Math.random() * 4)]; S.sold += it.v; S.cash += it.v; push('game', '<span class="who">' + app + '</span> <span class="what">bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">for a player</span>', usd(it.v), 'paid in USDC through the API \u00b7 money stays'); paint(0); drawShelf(); },
-      function () { if (S.cash < 400) return steps[1](); var it = take(); var spend = Math.min(S.cash, it.v); it = { n: it.n, k: it.k, v: spend }; S.items.push(it); S.cash -= spend; push('cart', '<span class="what">The vault bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">with the money inside</span>', '+1 item', usd(spend) + ' → an item'); paint(0); drawShelf(); },
-      function () { if (S.items.length < 3) return steps[1](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; S.usd -= it.v; push('fire', '<span class="who">' + who() + '</span> <span class="what">played</span> <span class="who">and drew</span> <span class="item">' + esc(it.n) + '</span> <span class="who">\u00b7 burned tokens</span>', '\u2212' + usd(it.v), 'supply down \u00b7 share of backing paid', true); paint(-it.v); drawShelf(); }
+      function () { var it = take(); S.items.push(it); S.usd += it.v; push('user', '<span class="who">the creator</span> <span class="what">added</span> <span class="item">' + esc(it.n) + '</span>', '+' + usd(it.v), 'backing \u25b2 \u00b7 no new tokens'); paint(it.v); drawShelf(); },
+      function () { var t = [40, 120, 260, 75, 900, 310][Math.floor(Math.random() * 6)], buy = Math.random() < 0.6, cut = t * 0.032; S.fees += t * 0.10; S.cash += cut; push(buy ? 'buy' : 'sell', '<span class="who">' + who() + '</span> <span class="what">' + (buy ? 'bought' : 'sold') + '</span> ' + usd(t) + ' <span class="who">of the token</span>', '+' + usd(cut), '3.2% of the trade \u2192 treasury', buy ? 'buy' : 'sell'); paint(0); },
+      function () { if (S.items.length < 2) return steps[0](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var app = ['Pixel Gacha', 'Slab Arena', 'Cellar Club', 'Vault Royale'][Math.floor(Math.random() * 4)]; S.usd -= it.v; S.sold += it.v; S.cash += it.v; push('game', '<span class="who">' + app + '</span> <span class="what">bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">for a player</span>', '+' + usd(it.v), 'USDC to the treasury through the API'); paint(0); drawShelf(); },
+      function () { if (S.cash < 400) return steps[1](); var it = take(); var spend = Math.min(S.cash, it.v); it = { n: it.n, k: it.k, v: spend }; S.items.push(it); S.cash -= spend; S.usd += spend; push('cart', '<span class="what">The treasury bought</span> <span class="item">' + esc(it.n) + '</span>', '+1 item', usd(spend) + ' \u2192 backing'); paint(spend); drawShelf(); },
+      function () { if (S.items.length < 3) return steps[1](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; S.usd -= it.v; push('fire', '<span class="who">' + who() + '</span> <span class="what">burned tokens</span> <span class="who">and drew</span> <span class="item">' + esc(it.n) + '</span>', 'burned', 'supply \u25bc \u00b7 backing per token \u25b2', 'burn'); paint(0); drawShelf(); }
     ];
     var order = [0, 1, 0, 1, 1, 2, 3, 1, 0, 1, 4, 1, 2, 1, 3, 0, 1, 1, 2, 3, 1, 4, 0, 1], k = 0;
     function next() { steps[order[k % order.length]](); k++; }
