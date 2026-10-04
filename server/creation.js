@@ -17,6 +17,10 @@
  *   confirm({ creationId })          the pool exists → the vault is registered and served
  *   abandon({ creationId, owner })   before launch: custody returns the items to the creator
  *
+ * Once a launch is submitted the items belong to the token: abandon, the sweep and a second launch are refused
+ * while the pool is on chain or the launch can still land. Only a launch the chain rejected, or one whose
+ * blockhash can no longer land, frees them (launchState, read from the chain each time).
+ *
  * Supply split (src/curve/params.js, decided 2 Oct 2026): 50% creator in lockedVesting (released at
  * graduation, linear 6 months), 50% curve. Opens at 2× realisable backing. Only the creator adds items.
  */
@@ -41,6 +45,8 @@ const LIMITS = Object.freeze({
   gasSol: 0.05,
   txMaxBytes: 1232,
   creationTtlMs: 2 * 60 * 60 * 1000,
+  // a launch transaction's blockhash lives ~60–90 s; past this, a launch with no pool on chain can no longer land
+  launchExpiryMs: 5 * 60_000,
   maxOpenPerHour: 10,           // global: every launch costs Onix the config rent
   // symbols nobody may take: money, the chain, the big names a buyer could be fooled by
   reservedSymbols: Object.freeze(['USDC', 'USDT', 'SOL', 'WSOL', 'JUP', 'MET', 'BONK', 'VEONIX', 'ONIX', 'CARDS', 'BTC', 'ETH']),
@@ -81,6 +87,13 @@ function instructionsOf(tx) {
 
 function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quoteMint, fetchAssets, buildTransfer, rpcUrl = null, metadataBase, haircut = REALISABLE_MULTIPLIER, now = Date.now, existingSymbols = () => [], reservedIndexes = () => [], gasSol = LIMITS.gasSol, limits = LIMITS, retryMs = 2000, uploads = null }) {
   const pending = new Map(); // creationId → { baseMintKp, baseMint, pool, content } (the mint key lives only here, only until submit)
+  // one step at a time per creation: two `deposited` at once would pay the config twice; abandon during a submit would race it
+  const busy = new Set();
+  async function exclusive(creationId, fn) {
+    if (busy.has(creationId)) throw err(409, 'another step of this creation is running — try again in a moment');
+    busy.add(creationId);
+    try { return await fn(); } finally { busy.delete(creationId); }
+  }
 
   // ── reading ──
   async function itemsOf(owner, rules) {
@@ -184,8 +197,30 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   // ── step 2: deposited — the chain says custody holds the items → config (Onix pays) → launch tx ──
   function creation(creationId) { const c = db.prepare('SELECT * FROM vault_creations WHERE id = ?').get(creationId); if (!c) throw err(404, 'unknown creation'); return c; }
 
-  async function deposited({ creationId }) {
+  /**
+   * Where the creator's launch stands, read from the chain: 'none' (never submitted) · 'live' (the pool exists) ·
+   * 'in flight' (it may still land) · 'dead' (the chain rejected it, or its blockhash can no longer land).
+   */
+  async function launchState(c) {
+    if (!c.pool) return 'none';
+    if (await chain.getAccountInfoBase64(c.pool)) return 'live';
+    let st = null;
+    try { [st] = c.launch_sig ? await chain.getSignatureStatuses([c.launch_sig]) : [null]; } catch { return 'in flight'; }
+    if (st && st.err) return 'dead';
+    if (st) return 'in flight';   // landed, and the node we read the pool from has not caught up
+    return now() - (c.launch_at || c.updated_at) > limits.launchExpiryMs ? 'dead' : 'in flight';
+  }
+  const LAUNCH_HELD = { live: 'the token is live — its items back it and stay in custody', 'in flight': 'a launch is in flight — the items stay until it lands or can no longer land' };
+
+  const deposited = ({ creationId }) => exclusive(creationId, () => depositedStep(creationId));
+  async function depositedStep(creationId) {
     const c = creation(creationId);
+    if (c.pool) {
+      const s = await launchState(c);
+      if (LAUNCH_HELD[s]) throw err(409, LAUNCH_HELD[s]);
+      // the earlier launch is dead: the creator may sign a new one
+      db.prepare('UPDATE vault_creations SET base_mint = NULL, pool = NULL, launch_sig = NULL, launch_at = NULL, updated_at = ? WHERE id = ?').run(now(), c.id);
+    }
     if (!['opened', 'deposited'].includes(c.status)) throw err(409, `this creation is ${c.status}`);
     if (c.expires_at <= now()) throw err(410, 'this creation expired — open again');
     const mints = JSON.parse(c.mints_json), rules = JSON.parse(c.rules_json);
@@ -239,18 +274,24 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   }
 
   // ── step 3: submit — the creator signed; the mint key completes; broadcast ──
-  async function submit({ creationId, signedTransaction }) {
+  const submit = ({ creationId, signedTransaction }) => exclusive(creationId, () => submitStep({ creationId, signedTransaction }));
+  async function submitStep({ creationId, signedTransaction }) {
     const c = creation(creationId);
+    if (c.status !== 'deposited') throw err(409, `this creation is ${c.status}`);
+    if (c.expires_at <= now()) throw err(410, 'this creation expired — open again');
     const p = pending.get(creationId);
     if (!p) throw err(409, 'the launch transaction is no longer held — call deposited again to rebuild it');
+    if (c.pool && c.pool !== p.pool) throw err(409, 'another launch was already submitted for this creation');
     let tx; try { tx = Transaction.from(Buffer.from(String(signedTransaction || ''), 'base64')); } catch { throw err(400, 'signedTransaction must be a base64 transaction'); }
     if (instructionsOf(tx) !== p.content) { console.warn('[create] signed tx differs from the built one · built:', p.content, '· got:', instructionsOf(tx)); throw err(409, 'the signed transaction is not the one that was built'); }
     const fail = checkCreatorPlusMint(tx, c.owner, p.baseMint, { creatorSigned: true, mintSigned: false });
     if (fail) throw err(409, `signed transaction does not pass assertions: ${fail.assertion} (${fail.message})`);
     tx.partialSign(p.baseMintKp);
     if (!tx.verifySignatures()) throw err(409, 'the creator signature does not verify');
-    const sig = await chain.sendRawTransaction(tx.serialize().toString('base64'));
-    db.prepare('UPDATE vault_creations SET base_mint = ?, pool = ?, launch_sig = ?, updated_at = ? WHERE id = ?').run(p.baseMint, p.pool, sig, now(), c.id);
+    // recorded BEFORE the broadcast: from here on the items belong to this launch until the chain says it is dead
+    const sig = bs58.encode(tx.signature);
+    db.prepare('UPDATE vault_creations SET base_mint = ?, pool = ?, launch_sig = ?, launch_at = ?, updated_at = ? WHERE id = ?').run(p.baseMint, p.pool, sig, now(), now(), c.id);
+    await chain.sendRawTransaction(tx.serialize().toString('base64'));
     return { creationId, signature: sig, pool: p.pool, baseMint: p.baseMint };
   }
 
@@ -258,6 +299,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   async function confirm({ creationId, signature = null }) {
     const c = creation(creationId);
     if (c.status === 'launched') return rowToDef(db.prepare('SELECT * FROM vaults WHERE id = ?').get(c.symbol.toLowerCase()), db);
+    if (c.status !== 'deposited') throw err(409, `this creation is ${c.status}`);
     if (!c.pool) throw err(409, 'the launch has not been submitted');
     const acct = await chain.getAccountInfoBase64(c.pool);
     if (!acct) throw err(409, 'the pool is not on chain yet — try again in a few seconds');
@@ -273,10 +315,14 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   }
 
   // ── before launch: custody returns the items to the creator (build → assert → simulate → sign → broadcast) ──
-  async function abandon({ creationId, owner = null }) {
+  // 'abandoned' may run again: it retries whatever custody still holds of this creation (its index is never reused)
+  const abandon = ({ creationId, owner = null }) => exclusive(creationId, () => abandonStep({ creationId, owner }));
+  async function abandonStep({ creationId, owner }) {
     const c = creation(creationId);
     if (owner && owner !== c.owner) throw err(403, 'only the creator can abandon this creation');
     if (!['opened', 'deposited', 'abandoned'].includes(c.status)) throw err(409, `this creation is ${c.status}`);
+    const s = await launchState(c);
+    if (LAUNCH_HELD[s]) throw err(409, LAUNCH_HELD[s]);
     const signer = keyring.custodySigner(c.custody_index);
     const held = await fetchAssets(rpcUrl, c.custody_wallet);
     const returned = [];
@@ -300,6 +346,11 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
       if (amount > 0) {
         const tx = new Transaction({ feePayer: new PublicKey(c.custody_wallet), recentBlockhash: await chain.getLatestBlockhash() });
         tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(c.custody_wallet), toPubkey: new PublicKey(c.owner), lamports: amount }));
+        const unsigned = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
+        const fail = checkSingleSignerUnsigned(Transaction.from(Buffer.from(unsigned, 'base64')), c.custody_wallet);
+        if (fail) throw new Error(`gas return does not pass assertions: ${fail.assertion}`);
+        const sim = await chain.simulateTransaction(unsigned);
+        if (sim && sim.err) throw new Error(`gas return would fail on chain: ${JSON.stringify(sim.err)}`);
         signer.signTransaction(tx);
         returned.push({ sol: amount / LAMPORTS_PER_SOL, signature: await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64')) });
         solReturned = amount / LAMPORTS_PER_SOL;
@@ -310,11 +361,20 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     return { creationId, returned, solReturned };
   }
 
-  /** Expired creations are abandoned (items returned). Called by the server's sweep. */
+  /**
+   * Expired creations: a live token is registered (its items stay), a launch in flight is left for the next round,
+   * anything else is abandoned (items returned). Called by the server's sweep.
+   */
   async function sweep() {
     const rows = db.prepare("SELECT id FROM vault_creations WHERE status IN ('opened','deposited') AND expires_at <= ?").all(now());
     const out = [];
-    for (const r of rows) { try { out.push(await abandon({ creationId: r.id })); } catch (e) { console.warn(`[create] sweep could not abandon ${r.id}: ${e.message}`); } }
+    for (const r of rows) {
+      try {
+        const s = await launchState(creation(r.id));
+        if (s === 'live') out.push({ creationId: r.id, confirmed: await confirm({ creationId: r.id }) });
+        else if (s !== 'in flight') out.push(await abandon({ creationId: r.id }));
+      } catch (e) { console.warn(`[create] sweep could not settle ${r.id}: ${e.message}`); }
+    }
     return out;
   }
 

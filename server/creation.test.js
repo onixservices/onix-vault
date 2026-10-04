@@ -52,6 +52,7 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
   const chain = {
     getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
     sendRawTransaction: async (b64) => {
+      if (chain.failSend) throw new Error('blockhash not found');
       sent.push(b64);
       // a "transfer" moves the card in our world; a SOL transfer credits the custody wallet
       const tx = Transaction.from(Buffer.from(b64, 'base64'));
@@ -63,10 +64,12 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
     },
     waitForSignature: async () => ({ confirmationStatus: 'confirmed' }),
     simulateTransaction: async () => chain.sim || { err: null, logs: [] }, sim: null,
-    getAccountInfoBase64: async () => (poolOnChain ? { data: ['AA=='] } : null),
+    getAccountInfoBase64: async () => (chain.poolOnChain ? { data: ['AA=='] } : null), poolOnChain,
+    getSignatureStatuses: async (sigs) => sigs.map((x) => chain.statuses[x] || null), statuses: {},
     getBalanceLamports: async (w) => (lamports != null ? lamports : (world.sol[w] || 0)),
   };
   let configReads = 0;
+  let clock = 1_800_000_000_000;
   const client = {
     state: { getPoolConfig: async () => { configReads++; if (configReads <= 2) throw new Error('Pool config not found for virtual pool'); return { ok: true }; } },
     partner: { createConfig: async (a) => { calls.push(['config', a]); const tx = new Transaction(); tx.add(SystemProgram.createAccount({ fromPubkey: a.payer, newAccountPubkey: a.config, lamports: 1, space: 0, programId: SystemProgram.programId })); return tx; } },
@@ -81,10 +84,10 @@ function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lam
   };
   const kr = { custodySigner: (i) => keyring.custodySigner(i, SEED) };
   const creator = createVaultCreator({ db, chain, sdk, getClient: async () => client, partner: fromKeypair(partnerKp), keyring: kr, quoteMint: Keypair.generate().publicKey.toBase58(),
-    fetchAssets: async (rpc, owner) => world.assets.filter((a) => a.ownership.owner === owner), buildTransfer, metadataBase: 'https://v.test', now: () => 1_800_000_000_000, retryMs: 1, existingSymbols: () => ['VEONIX', 'TAKEN'], reservedIndexes: () => [0], uploads });
+    fetchAssets: async (rpc, owner) => world.assets.filter((a) => a.ownership.owner === owner), buildTransfer, metadataBase: 'https://v.test', now: () => clock, retryMs: 1, existingSymbols: () => ['VEONIX', 'TAKEN'], reservedIndexes: () => [0], uploads });
   // the creator "signs and sends" the deposit txs in the world
   const deposit = async (txs) => { for (const b64 of txs) { const tx = Transaction.from(Buffer.from(b64, 'base64')); tx.partialSign(ownerKp); await chain.sendRawTransaction(tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64')); } };
-  return { creator, db, chain, sent, calls, world, deposit, configReads: () => configReads };
+  return { creator, db, chain, sent, calls, world, deposit, configReads: () => configReads, tick: (ms) => { clock += ms; } };
 }
 const rejects = async (p, code) => { try { await p; assert.fail('expected rejection'); } catch (e) { assert.equal(e.statusCode, code, e.message); } };
 
@@ -293,5 +296,98 @@ describe('rowToDef', () => {
     const def = rowToDef({ id: 'x', name: 'X', operator: 'o', wallet: 'C', creator: 'K', custody_index: 4, pool: 'P', base_mint: 'M', graduation_usd: 500, grad_mult: 2.5, creator_fee_pct: 40, token_name: 'X', token_symbol: 'X', rules: 'vault1', rules_json: JSON.stringify({ custodians: ['Collector Crypt'], category: 'mixed' }), image: 'abc.png', banner: null, links_json: '{"x":"https://x.com/a"}', created_by: 'K', created_at: 1 });
     assert.equal(def.custodyIndex, 4); assert.equal(def.creator, 'K'); assert.equal(def.rules.category, 'mixed'); assert.equal(def.openingMcapUsd, 200);
     assert.equal(def.token.image, '/token/M.png'); assert.equal(def.token.banner, null); assert.deepEqual(def.links, { x: 'https://x.com/a' });
+  });
+});
+
+describe('Create door — once a launch is submitted, the items stay with the token', () => {
+  // open → deposit → deposited → the creator signs → submit; the pool may or may not be on chain yet
+  const launched = async (w) => {
+    const o = await w.creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a', 'b'] });
+    await w.deposit(o.depositTransactions);
+    const d = await w.creator.deposited({ creationId: o.creationId });
+    const t = Transaction.from(Buffer.from(d.transaction, 'base64')); t.partialSign(ownerKp);
+    const r = await w.creator.submit({ creationId: o.creationId, signedTransaction: t.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') });
+    return { o, d, r };
+  };
+  const inCustody = (w, o) => w.world.assets.filter((a) => a.ownership.owner === o.custodyWallet).length;
+
+  test('the pool is on chain → abandon is refused and nothing leaves custody; the sweep registers the vault instead', async () => {
+    const w = make(); const { o } = await launched(w);
+    const sentBefore = w.sent.length;
+    await rejects(w.creator.abandon({ creationId: o.creationId, owner: OWNER }), 409);
+    assert.equal(inCustody(w, o), 2); assert.equal(w.sent.length, sentBefore, 'nothing signed by custody');
+    w.db.prepare('UPDATE vault_creations SET expires_at = ? WHERE id = ?').run(1, o.creationId);
+    const out = await w.creator.sweep();
+    assert.equal(out.length, 1); assert.equal(out[0].confirmed.id, 'myc');
+    assert.equal(inCustody(w, o), 2, 'the sweep never returns the items of a live token');
+    assert.equal(w.db.prepare('SELECT status FROM vault_creations WHERE id = ?').get(o.creationId).status, 'launched');
+  });
+  test('a launch in flight (no pool yet, recent) → abandon and the sweep wait; once it can no longer land, the items go back', async () => {
+    const w = make({ poolOnChain: false }); const { o } = await launched(w);
+    await rejects(w.creator.abandon({ creationId: o.creationId, owner: OWNER }), 409);
+    w.db.prepare('UPDATE vault_creations SET expires_at = ? WHERE id = ?').run(1, o.creationId);
+    assert.equal((await w.creator.sweep()).length, 0, 'in flight: the sweep leaves it');
+    assert.equal(inCustody(w, o), 2);
+    w.tick(LIMITS.launchExpiryMs + 1);
+    const r = await w.creator.abandon({ creationId: o.creationId, owner: OWNER });
+    assert.equal(r.returned.filter((x) => x.mint).length, 2); assert.equal(inCustody(w, o), 0);
+  });
+  test('a launch the chain rejected → the creator may abandon, or build a new launch', async () => {
+    const w = make({ poolOnChain: false }); const { o, r } = await launched(w);
+    w.chain.statuses[r.signature] = { confirmationStatus: 'confirmed', err: { InstructionError: [0, { Custom: 1 }] } };
+    const again = await w.creator.deposited({ creationId: o.creationId });
+    assert.ok(again.transaction, 'a dead launch can be rebuilt');
+    assert.equal(w.db.prepare('SELECT pool FROM vault_creations WHERE id = ?').get(o.creationId).pool, null, 'the dead launch is cleared');
+    const ab = await w.creator.abandon({ creationId: o.creationId, owner: OWNER });
+    assert.equal(ab.returned.filter((x) => x.mint).length, 2);
+  });
+  test('deposited after a submit (live or in flight) builds no second launch', async () => {
+    const live = make(); const a = await launched(live);
+    const pools = () => live.calls.filter((c) => c[0] === 'pool').length;
+    const n = pools();
+    await rejects(live.creator.deposited({ creationId: a.o.creationId }), 409);
+    assert.equal(pools(), n);
+    const flight = make({ poolOnChain: false }); const b = await launched(flight);
+    await rejects(flight.creator.deposited({ creationId: b.o.creationId }), 409);
+  });
+  test('confirm is only for a creation still being launched: after abandon → 409, no vault registered', async () => {
+    const w = make({ poolOnChain: false }); const { o } = await launched(w);
+    w.tick(LIMITS.launchExpiryMs + 1);
+    await w.creator.abandon({ creationId: o.creationId, owner: OWNER });
+    w.chain.poolOnChain = true;
+    await rejects(w.creator.confirm({ creationId: o.creationId }), 409);
+    assert.equal(w.db.prepare('SELECT count(*) n FROM vaults').get().n, 0);
+  });
+  test('submit records the pool and the signature BEFORE broadcasting: a failed broadcast still counts as a launch in flight', async () => {
+    const w = make({ poolOnChain: false });
+    const o = await w.creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a', 'b'] });
+    await w.deposit(o.depositTransactions);
+    const d = await w.creator.deposited({ creationId: o.creationId });
+    const t = Transaction.from(Buffer.from(d.transaction, 'base64')); t.partialSign(ownerKp);
+    w.chain.failSend = true;
+    await assert.rejects(w.creator.submit({ creationId: o.creationId, signedTransaction: t.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64') }));
+    const row = w.db.prepare('SELECT pool, launch_sig, launch_at FROM vault_creations WHERE id = ?').get(o.creationId);
+    assert.equal(row.pool, d.pool); assert.ok(row.launch_sig); assert.ok(row.launch_at);
+    w.chain.failSend = false;
+    await rejects(w.creator.abandon({ creationId: o.creationId, owner: OWNER }), 409);
+  });
+  test('two deposited calls at once: one pays the config, the other is refused', async () => {
+    const w = make();
+    const o = await w.creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await w.deposit(o.depositTransactions);
+    const both = await Promise.allSettled([w.creator.deposited({ creationId: o.creationId }), w.creator.deposited({ creationId: o.creationId })]);
+    assert.equal(both.filter((x) => x.status === 'fulfilled').length, 1);
+    assert.equal(both.find((x) => x.status === 'rejected').reason.statusCode, 409);
+    assert.equal(w.calls.filter((c) => c[0] === 'config').length, 1, 'Onix paid one config');
+  });
+  test('abandon returns the gas only after simulating that transfer; a refused simulation signs nothing for it', async () => {
+    const w = make();
+    const o = await w.creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await w.deposit(o.depositTransactions);
+    const realSim = w.chain.simulateTransaction;
+    w.chain.simulateTransaction = async (b64) => { const tx = Transaction.from(Buffer.from(b64, 'base64')); return tx.instructions.some((ix) => ix.programId.equals(SystemProgram.programId)) ? { err: 'nope', logs: [] } : realSim(b64); };
+    const r = await w.creator.abandon({ creationId: o.creationId, owner: OWNER });
+    assert.equal(r.returned.filter((x) => x.mint).length, 1); assert.equal(r.solReturned, 0);
+    assert.ok(w.world.sol[o.custodyWallet] > 0, 'the gas stays until a retry');
   });
 });

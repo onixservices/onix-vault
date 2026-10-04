@@ -113,6 +113,7 @@ const SCHEMA = `
     base_mint TEXT,
     pool TEXT,
     launch_sig TEXT,
+    launch_at INTEGER,                 -- when the creator's launch was submitted (it can land for ~60–90 s)
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     expires_at INTEGER NOT NULL
@@ -202,6 +203,8 @@ function migrate(db) {
     if (!cols.includes('vault')) db.exec(`ALTER TABLE ${t} ADD COLUMN vault TEXT`);
     if (t === 'vault_admissions' && !cols.includes('unlock_at')) db.exec(`ALTER TABLE ${t} ADD COLUMN unlock_at INTEGER`);
   }
+  const ccols = db.prepare('PRAGMA table_info(vault_creations)').all().map((c) => c.name);
+  if (!ccols.includes('launch_at')) db.exec('ALTER TABLE vault_creations ADD COLUMN launch_at INTEGER');
   // vaults created before custody (1-2 Oct) lack these columns
   const vcols = db.prepare('PRAGMA table_info(vaults)').all().map((c) => c.name);
   for (const [name, type] of [['creator', 'TEXT'], ['custody_index', 'INTEGER'], ['rules_json', 'TEXT'], ['grad_mult', 'REAL'], ['creator_fee_pct', 'INTEGER'], ['description', 'TEXT'], ['image', 'TEXT'], ['banner', 'TEXT'], ['links_json', 'TEXT']]) {

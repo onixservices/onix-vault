@@ -170,7 +170,7 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
 }
 
 function main() {
-  const { app, vaults, creator, uploads, db, pause } = createServer();
+  const { app, vaults, creator, uploads, db, pause, addVault } = createServer();
   const paused = (v) => pause.isPaused(v ? { wallet: v.wallet, id: v.meta && v.meta.id } : null);
   app.listen(C.PORT, '127.0.0.1', () => {
     for (const v of vaults) console.log(`[vault] ${v.meta.name} (${v.meta.id}) · ${v.wallet} · pool ${v.def.pool || '—'} · signer ${v.signerConfigured() ? 'configured' : 'NOT configured (list only)'}`);
@@ -178,7 +178,12 @@ function main() {
   });
   setInterval(() => { for (const v of vaults) { try { v.service.sweepExpired(); } catch (e) { console.warn(`[vault ${v.meta.id}] sweep failed`, e.message); } } }, 60_000).unref();
   setInterval(() => { for (const v of vaults) if (v.play && !paused(v)) v.play.sweep().then((r) => { if (r.delivered || r.failed) console.log(`[vault ${v.meta.id}] plays: ${r.verified} verified · ${r.delivered} delivered · ${r.failed} failed`); }).catch((e) => console.warn(`[vault ${v.meta.id}] play sweep failed`, e.message)); }, 10_000).unref();
-  setInterval(() => { if (paused(null)) return; creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
+  // expired creations: a live token is registered and mounted (its items stay), the rest are abandoned (items returned)
+  setInterval(() => { if (paused(null)) return; creator.sweep().then((r) => {
+    for (const x of r) if (x.confirmed && !vaults.some((v) => v.wallet === x.confirmed.wallet)) addVault(x.confirmed);
+    const n = r.filter((x) => x.confirmed).length;
+    if (r.length) console.log(`[create] sweep: ${n} launched creation(s) registered · ${r.length - n} abandoned, items returned`);
+  }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
   // images nobody attached to a vault or a live creation within an hour are removed
   setInterval(() => { try { const keep = [...db.prepare('SELECT image, banner FROM vaults').all(), ...db.prepare("SELECT image, banner FROM vault_creations WHERE status IN ('opened','deposited')").all()].flatMap((r) => [r.image, r.banner]).filter(Boolean); const r = uploads.sweep({ keep }); if (r.removed) console.log(`[uploads] ${r.removed} orphan image(s) removed`); } catch (e) { console.warn('[uploads] sweep failed', e.message); } }, 15 * 60_000).unref();
   // purchases sent by the script or the sweep are confirmed against the chain; the buying itself only when enabled
