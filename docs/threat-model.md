@@ -25,8 +25,8 @@ hardest to undo; the fourth is the one we can engineer against today.
 Every custody wallet derives from one seed. Lose it and every vault can be emptied in one block.
 
 **Today:** the seed is generated on the server, lives in a `.env` readable by one user, is read by one
-module (`server/keyring.js`) and is never logged, returned or written anywhere else; the operator keeps an
-offline backup. Each custody wallet signs **only** through the doors (Play delivery, gacha settlement,
+module (`server/keyring.js`) and is never logged, returned or written anywhere else. An offline, encrypted
+backup is an open operator action (`docs/security-review.md`, R-07a). The same seed derives the draw key (R-04). Each custody wallet signs **only** through the doors (Play delivery, gacha settlement,
 abandon-before-launch), each one built after a payment or a burn was read from the chain. Addresses are
 public: a theft would be visible within one block.
 **Roadmap, in order:** a program with escrow that can only release under the published rules; until then,
@@ -95,7 +95,8 @@ only more backing per token makes a play cheaper. Tokens paid are burned, so the
 ### The draw is rigged, or re-rolled until it suits
 **Mitigations:** commit-reveal — sha256 of the server seed published *before* payment; the player's seed
 rides in the payment memo; the band's snapshot (mints sorted) is frozen when the play opens; the index
-comes only from `HMAC(seed, playId|clientSeed|nonce)`; the seed is revealed with the result; a redraw
+comes only from `HMAC(seed, playId|clientSeed|nonce)`; the seed is derived per play from a server key and never
+stored, so the database cannot predict a draw; it is revealed with the result; a redraw
 (nonce + 1, at most 5) happens only when the drawn item is no longer free, and every nonce is recorded.
 Anyone recomputes the draw with the proof on the page (we did, outside the server, on the first mainnet play).
 
