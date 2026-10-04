@@ -45,6 +45,10 @@ function buildApp(deps) {
   const limits = deps.limits || {};
   const fence = (name) => (req, res, next) => { const f = limits[name]; if (f && !f(req.ip)) return next(new VaultError(429, `too many ${name} requests from this address — try again in a while`)); next(); };
   const keyringConfigured = deps.keyringConfigured || (() => false);
+  const pause = deps.pause || require('./pause').neverPaused;
+  // the emergency stop (server/pause.js): every route that moves value answers 503 while paused
+  const halt = (req, res, next) => (pause.isPaused(req.vb ? { wallet: req.vb.wallet, id: req.vb.meta && req.vb.meta.id } : null)
+    ? next(new VaultError(503, 'paused for maintenance — nothing is lost; try again later')) : next());
   const vaults = deps.vaults || (!deps.vaultWallet ? [] : [{
     wallet: deps.vaultWallet, meta: deps.vaultMeta || {}, service: deps.service, stats: deps.stats || null, admissions: deps.admissions || null,
     trader: deps.trader || null, itemsAge: deps.itemsAge || (() => null), signerConfigured: deps.signerConfigured || (() => false),
@@ -62,7 +66,7 @@ function buildApp(deps) {
   const summary = async (v) => ({ vault: v.wallet, ...v.meta, rules: v.admissions ? v.admissions.rules : null, stats: v.stats ? await v.stats.read() : null });
   const swapUrl = deps.swapUrl || 'https://onix.finance';
 
-  app.get('/v1/health', (req, res) => res.json({ ok: true, keyring: keyringConfigured(), vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), ...(vaults[0] ? { vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() } : {}) }));
+  app.get('/v1/health', (req, res) => res.json({ ok: true, paused: pause.state(), keyring: keyringConfigured(), vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), ...(vaults[0] ? { vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() } : {}) }));
 
   // ── what the page reads (no RPC key ever reaches the browser) ──
   app.get('/v1/vaults', wrap(async (req, res) => {
@@ -74,7 +78,7 @@ function buildApp(deps) {
     let rules = {}; if (req.query.rules) { try { rules = JSON.parse(String(req.query.rules)); } catch { throw new VaultError(400, 'rules must be JSON'); } }
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().quote({ owner: String(req.query.wallet || ''), rules })) });
   }));
-  app.post('/v1/vaults/create/open', fence('create'), wrap(async (req, res) => {
+  app.post('/v1/vaults/create/open', halt, fence('create'), wrap(async (req, res) => {
     const { owner, name, symbol, mints, rules, description, links, imageId, bannerId } = req.body || {};
     res.status(201).json({ readAt: new Date().toISOString(), ...(await needCreator().open({ owner, name, symbol, mints, rules, description, links, imageId, bannerId })) });
   }));
@@ -94,22 +98,22 @@ function buildApp(deps) {
   app.get('/v1/vaults/create/uploads/:id', (req, res) => sendUpload(res, req.params.id));
   app.get('/token/:mint-banner.png', (req, res, next) => { const r = db ? db.prepare('SELECT banner FROM vaults WHERE base_mint = ?').get(req.params.mint) : null; if (!r || !r.banner) return next(); sendUpload(res, r.banner); });
   app.get('/token/:mint.png', (req, res, next) => { const r = db ? db.prepare('SELECT image FROM vaults WHERE base_mint = ?').get(req.params.mint) : null; if (!r || !r.image) return next(); sendUpload(res, r.image); });
-  app.post('/v1/vaults/create/deposited', wrap(async (req, res) => {
+  app.post('/v1/vaults/create/deposited', halt, wrap(async (req, res) => {
     const { creationId } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().deposited({ creationId })) });
   }));
-  app.post('/v1/vaults/create/submit', wrap(async (req, res) => {
+  app.post('/v1/vaults/create/submit', halt, wrap(async (req, res) => {
     const { creationId, signedTransaction } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().submit({ creationId, signedTransaction })) });
   }));
-  app.post('/v1/vaults/create/confirm', wrap(async (req, res) => {
+  app.post('/v1/vaults/create/confirm', halt, wrap(async (req, res) => {
     const { creationId, signature } = req.body || {};
     const def = await needCreator().confirm({ creationId, signature });
     const already = vaults.find((x) => x.wallet === def.wallet);
     const b = already || (addVault ? addVault(def) : null);
     res.status(201).json({ readAt: new Date().toISOString(), vault: b ? await summary(b) : def });
   }));
-  app.post('/v1/vaults/create/abandon', wrap(async (req, res) => {
+  app.post('/v1/vaults/create/abandon', halt, wrap(async (req, res) => {
     const { creationId, owner } = req.body || {};
     if (!owner) throw new VaultError(400, 'owner is required');
     res.json({ readAt: new Date().toISOString(), ...(await needCreator().abandon({ creationId, owner })) });
@@ -148,11 +152,11 @@ function buildApp(deps) {
   app.get('/v1/vaults/:vault/eligible-items', pick, wrap(async (req, res) => {
     res.json({ readAt: new Date().toISOString(), ...(await need(req.vb.admissions, 'admissions').eligible(String(req.query.wallet || ''))) });
   }));
-  app.post('/v1/vaults/:vault/admissions/build', pick, fence('build'), wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/admissions/build', pick, halt, fence('build'), wrap(async (req, res) => {
     const { owner, mint } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await need(req.vb.admissions, 'admissions').build({ owner, mint })) });
   }));
-  app.post('/v1/vaults/:vault/admissions', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/admissions', pick, halt, wrap(async (req, res) => {
     const { mint, owner, signature, valueUsd } = req.body || {};
     res.status(202).json(need(req.vb.admissions, 'admissions').record({ mint, owner, signature, valueUsd: Number(valueUsd) }));
   }));
@@ -178,11 +182,11 @@ function buildApp(deps) {
   // ── the Play door ──
   const playOf = (req) => need(req.vb.play, 'play');
   app.get('/v1/vaults/:vault/play', pick, wrap(async (req, res) => { const b = await playOf(req).bands(); res.json({ ...b, tokenSymbol: req.vb.meta.token ? req.vb.meta.token.symbol : null }); }));
-  app.post('/v1/vaults/:vault/plays', pick, fence('play'), wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/plays', pick, halt, fence('play'), wrap(async (req, res) => {
     const { band, player, currency, clientSeed } = req.body || {};
     res.status(201).json({ readAt: new Date().toISOString(), ...(await playOf(req).start({ band, player, currency, clientSeed })) });
   }));
-  app.post('/v1/vaults/:vault/plays/:id/submit', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/plays/:id/submit', pick, halt, wrap(async (req, res) => {
     res.status(202).json(playOf(req).submit({ playId: req.params.id, signature: req.body?.signature }));
   }));
   app.get('/v1/vaults/:vault/plays/:id', pick, wrap(async (req, res) => { res.json(playOf(req).get(req.params.id)); }));
@@ -197,17 +201,17 @@ function buildApp(deps) {
     const items = await req.vb.service.listItems();
     res.json({ readAt: new Date().toISOString(), itemsAgeMs: req.vb.itemsAge(), items });
   }));
-  app.post('/v1/vaults/:vault/reservations', pick, fence('build'), wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/reservations', pick, halt, fence('build'), wrap(async (req, res) => {
     const { mint, integrator, winner } = req.body || {};
     res.status(201).json(await req.vb.service.reserve({ mint, integrator, winner, idempotencyKey: req.get('Idempotency-Key') || null }));
   }));
-  app.post('/v1/vaults/:vault/reservations/:id/settle', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/reservations/:id/settle', pick, halt, wrap(async (req, res) => {
     res.json(await req.vb.service.settle({ reservationId: req.params.id, paymentSignature: req.body?.paymentSignature }));
   }));
   app.get('/v1/vaults/:vault/reservations/:id', pick, wrap(async (req, res) => {
     res.json(req.vb.service.status({ reservationId: req.params.id }));
   }));
-  app.post('/v1/vaults/:vault/redemptions', pick, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/redemptions', pick, halt, wrap(async (req, res) => {
     const { mint, burnSignature, recipient } = req.body || {};
     res.status(202).json(req.vb.service.recordRedemption({ mint, burnSignature, recipient }));
   }));

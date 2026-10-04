@@ -30,6 +30,8 @@ const { createRestock, productionRestockDeps } = require('./restock');
 const { createFeeClaim, productionFeeClaimDeps } = require('./feeclaim');
 const { createUploads } = require('./uploads');
 const { createRateLimiter } = require('./ratelimit');
+const { createPause } = require('./pause');
+const path = require('path');
 const reservationsRepo = require('./reservationsRepo');
 const keyring = require('./keyring');
 const { normalize } = require('./registry');
@@ -137,7 +139,8 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
  * Builds the whole server from the registry (or, for a rehearsal, from the one vault
  * passed in with its pieces).
  */
-function createServer({ readItems = null, db: dbOverride = null, signer = null, vaultWallet = null, chain = defaultChain, vaults: defs = null, creator: creatorOverride = null } = {}) {
+function createServer({ readItems = null, db: dbOverride = null, signer = null, vaultWallet = null, chain = defaultChain, vaults: defs = null, creator: creatorOverride = null, pause: pauseOverride = null } = {}) {
+  const opts = { pause: pauseOverride };
   const db = dbOverride || getDb();
   const list = defs || (vaultWallet
     ? [{ id: '1', name: 'Vault #1', operator: 'Onix', wallet: vaultWallet, secretEnv: 'VAULT_SECRET_KEY', rules: VAULT_RULES.vault1, custodians: VAULT_RULES.vault1.custodians, pool: C.POOL || null, baseMint: C.BASE_MINT || null, graduationUsd: C.GRADUATION_USD, token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' } }]
@@ -159,21 +162,23 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
     existingSymbols: () => bundles.map((b) => (b.meta.token && b.meta.token.symbol) || ''), reservedIndexes: () => bundles.map((b) => b.def.custodyIndex).filter((i) => i != null), uploads });
   // a vault created through the door mounts without a restart
   const addVault = (def) => { const b = createVaultBundle(normalize(def), { db, chain }); bundles.push(b); return b; };
-  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, swapUrl: C.SWAP_URL, keyringConfigured: keyring.configured });
+  const pause = opts.pause || createPause({ dir: path.dirname(C.DB_PATH) });
+  const app = buildApp({ vaults: bundles, readWallet, creator, addVault, db, uploads, uploadLimiter: (ip) => uploadLimiter.take(ip), limits, swapUrl: C.SWAP_URL, keyringConfigured: keyring.configured, pause });
   // zero vaults is a valid state (before the first one is created, or after all are closed)
   const primary = bundles[0] || null;
-  return { app, db, vaults: bundles, addVault, creator, uploads, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
+  return { app, db, vaults: bundles, addVault, creator, uploads, pause, service: primary ? primary.service : null, admissions: primary ? primary.admissions : null };
 }
 
 function main() {
-  const { app, vaults, creator, uploads, db } = createServer();
+  const { app, vaults, creator, uploads, db, pause } = createServer();
+  const paused = (v) => pause.isPaused(v ? { wallet: v.wallet, id: v.meta && v.meta.id } : null);
   app.listen(C.PORT, '127.0.0.1', () => {
     for (const v of vaults) console.log(`[vault] ${v.meta.name} (${v.meta.id}) · ${v.wallet} · pool ${v.def.pool || '—'} · signer ${v.signerConfigured() ? 'configured' : 'NOT configured (list only)'}`);
     console.log(`[vault] Onix.Vault server on 127.0.0.1:${C.PORT} · ${vaults.length} vault(s)`);
   });
   setInterval(() => { for (const v of vaults) { try { v.service.sweepExpired(); } catch (e) { console.warn(`[vault ${v.meta.id}] sweep failed`, e.message); } } }, 60_000).unref();
-  setInterval(() => { for (const v of vaults) if (v.play) v.play.sweep().then((r) => { if (r.delivered || r.failed) console.log(`[vault ${v.meta.id}] plays: ${r.verified} verified · ${r.delivered} delivered · ${r.failed} failed`); }).catch((e) => console.warn(`[vault ${v.meta.id}] play sweep failed`, e.message)); }, 10_000).unref();
-  setInterval(() => { creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
+  setInterval(() => { for (const v of vaults) if (v.play && !paused(v)) v.play.sweep().then((r) => { if (r.delivered || r.failed) console.log(`[vault ${v.meta.id}] plays: ${r.verified} verified · ${r.delivered} delivered · ${r.failed} failed`); }).catch((e) => console.warn(`[vault ${v.meta.id}] play sweep failed`, e.message)); }, 10_000).unref();
+  setInterval(() => { if (paused(null)) return; creator.sweep().then((r) => { if (r.length) console.log(`[create] ${r.length} expired creation(s) abandoned, items returned`); }).catch((e) => console.warn('[create] sweep failed', e.message)); }, 5 * 60_000).unref();
   // images nobody attached to a vault or a live creation within an hour are removed
   setInterval(() => { try { const keep = [...db.prepare('SELECT image, banner FROM vaults').all(), ...db.prepare("SELECT image, banner FROM vault_creations WHERE status IN ('opened','deposited')").all()].flatMap((r) => [r.image, r.banner]).filter(Boolean); const r = uploads.sweep({ keep }); if (r.removed) console.log(`[uploads] ${r.removed} orphan image(s) removed`); } catch (e) { console.warn('[uploads] sweep failed', e.message); } }, 15 * 60_000).unref();
   // purchases sent by the script or the sweep are confirmed against the chain; the buying itself only when enabled
@@ -183,7 +188,7 @@ function main() {
   const restockWhy = new Map();
   // the 1st round runs a minute after boot, then every 15 min: a deploy restarts the server, and with only the interval a
   // run of deploys closer than 15 min apart starved the loop (3 Oct 2026: no claim for 40 min)
-  const treasuryRound = async () => { for (const v of vaults) { try { const st = await v.stats.read(); if (!st.pool || !v.signerConfigured()) continue;
+  const treasuryRound = async () => { for (const v of vaults) { try { if (paused(v)) continue; const st = await v.stats.read(); if (!st.pool || !v.signerConfigured()) continue;
     // 1st the fees reach the treasury (any vault with a curve), then the treasury buys (graduated vaults only)
     if (v.feeclaim) { try { const c = await v.feeclaim.execute({ go: true }); if (c.claimed) console.log(`[vault ${v.meta.id}] fees CLAIMED: treasury +$${c.claimed.treasuryUsd.toFixed(2)} · Onix +$${c.claimed.onixUsd.toFixed(2)} · ${c.claimed.signature}`); } catch (e) { console.warn(`[vault ${v.meta.id}] fee claim failed`, e.message); } }
     if (st.poolStatus !== 'migrated') continue; const r = await v.restock.execute({ go: true }); if (r.bought) console.log(`[vault ${v.meta.id}] restock BOUGHT ${r.bought.name} for $${r.bought.priceUsd} (index $${r.bought.insuredUsd}) · ${r.bought.signature}`); else if (restockWhy.get(v.wallet) !== r.why) console.log(`[vault ${v.meta.id}] restock: no buy — ${r.why} (treasury $${r.treasuryUsd})`); restockWhy.set(v.wallet, r.bought ? null : r.why); } catch (e) { console.warn(`[vault ${v.meta.id}] restock failed`, e.message); } } };
