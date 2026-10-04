@@ -126,7 +126,14 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
   }
 
   /** The chain is the witness: finalized + the right payment → draw → deliver. Called every few seconds. */
+  // one sweep at a time in this process; across processes, only the sweep that claims a play (submitted → drawn) delivers
+  let sweeping = false;
   async function sweep() {
+    if (sweeping) return { verified: 0, delivered: 0, failed: 0, expired: 0, skipped: 'a sweep is already running' };
+    sweeping = true;
+    try { return await sweepOnce(); } finally { sweeping = false; }
+  }
+  async function sweepOnce() {
     const t = now(); const out = { verified: 0, delivered: 0, failed: 0, expired: 0 };
     out.expired = db.prepare("UPDATE vault_plays SET status = 'expired', updated_at = ? WHERE vault = ? AND status = 'created' AND expires_at <= ?").run(t, vaultWallet, t).changes;
     for (const p of db.prepare("SELECT * FROM vault_plays WHERE vault = ? AND status = 'submitted'").all(vaultWallet)) {
@@ -148,7 +155,8 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
       let nonce = 0, result = null;
       for (; nonce <= MAX_REDRAWS; nonce++) { const d = draw({ serverSeed, playId: p.id, clientSeed: p.client_seed, nonce, snapshot }); if (free.has(d.mint)) { result = d; break; } }
       if (!result) { db.prepare("UPDATE vault_plays SET status = 'delivery_failed', fail_reason = 'no free item left in the band', updated_at = ? WHERE id = ?").run(t, p.id); out.failed += 1; continue; }
-      db.prepare("UPDATE vault_plays SET status = 'drawn', mint = ?, digest = ?, draw_index = ?, nonce = ?, updated_at = ? WHERE id = ? AND status = 'submitted'").run(result.mint, result.digest, result.index, nonce, t, p.id);
+      const claimed = db.prepare("UPDATE vault_plays SET status = 'drawn', mint = ?, digest = ?, draw_index = ?, nonce = ?, updated_at = ? WHERE id = ? AND status = 'submitted'").run(result.mint, result.digest, result.index, nonce, t, p.id).changes === 1;
+      if (!claimed) continue;   // another sweep drew this play first: one payment, one delivery
       try {
         const { sig } = await deliver({ mint: result.mint, toAddress: p.player, onSigned: (b64) => db.prepare("UPDATE vault_plays SET delivery_tx_b64 = ?, status = 'delivering', updated_at = ? WHERE id = ?").run(b64, now(), p.id) });
         db.prepare("UPDATE vault_plays SET status = 'delivered', delivery_sig = ?, updated_at = ? WHERE id = ?").run(sig, now(), p.id);

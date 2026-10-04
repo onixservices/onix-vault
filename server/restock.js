@@ -155,7 +155,14 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
     return { treasuryUsd, budgetUsd, ...decide({ budgetUsd, rules, listings, exclude: inCustody, limits }) };
   }
 
-  async function execute({ go = false } = {}) {
+  // one purchase at a time: overlapping rounds would both pass plan() before either persisted its buy
+  let executing = false;
+  async function execute(opts = {}) {
+    if (executing) return { pick: null, bought: null, why: 'a purchase is already running' };
+    executing = true;
+    try { return await executeOnce(opts); } finally { executing = false; }
+  }
+  async function executeOnce({ go = false } = {}) {
     const p = await plan();
     if (!p.pick) return { ...p, bought: null };
     const pick = p.pick;

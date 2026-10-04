@@ -219,3 +219,26 @@ describe('play — inputs', () => {
     assert.equal(w.play.get(s.playId).status, 'created');
   });
 });
+
+describe('play — one payment, one delivery, even when sweeps overlap', () => {
+  test('two sweeps running at once deliver exactly one item for one payment', async () => {
+    const w = make();
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'twice' });
+    w.play.submit({ playId: s.playId, signature: 'PAYR' });
+    w.chain.statuses.PAYR = { confirmationStatus: 'finalized' }; w.chain.parsed.PAYR = w.usdcPaid({ memo: s.memo, amount: s.price });
+    await Promise.all([w.play.sweep(), w.play.sweep()]);
+    assert.equal(w.delivered.length, 1, 'one payment, one item');
+    assert.equal(w.play.get(s.playId).status, 'delivered');
+  });
+  test('two workers on one database (two processes) still deliver once: only the one that claims the play draws', async () => {
+    const w = make();
+    const second = createPlay({ db: w.db, chain: w.chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => [item('a', 20), item('b', 24)],
+      readStats: async () => ({ backing: { realisableUsd: 154.86 }, poolStatus: 'migrated', pool: { supply: 10_000_000, isMigrated: true } }),
+      deliver: async ({ mint, toAddress }) => { w.delivered.push({ mint, toAddress }); return { sig: 'DELIV-2' }; }, usdcMint: USDC, memoProgramId: MEMO, now: () => 1_800_000_000_000, seedFor: seedOf });
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'two' });
+    w.play.submit({ playId: s.playId, signature: 'PAYW' });
+    w.chain.statuses.PAYW = { confirmationStatus: 'finalized' }; w.chain.parsed.PAYW = w.usdcPaid({ memo: s.memo, amount: s.price });
+    await Promise.all([w.play.sweep(), second.sweep()]);
+    assert.equal(w.delivered.length, 1, 'one payment, one item');
+  });
+});

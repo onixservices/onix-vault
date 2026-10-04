@@ -206,3 +206,13 @@ describe('restock — only the measured shape of a buy is ever signed', () => {
     await refused({ itemProgram: SystemProgram.programId.toBase58() }, /not readable as an MPL Core asset/);
   });
 });
+
+describe('restock — one purchase at a time', () => {
+  test('two runs at once buy once', async () => {
+    const w = make();
+    const [a, b] = await Promise.all([w.rs.execute({ go: true }), w.rs.execute({ go: true })]);
+    assert.equal([a, b].filter((x) => x.bought).length, 1);
+    assert.equal(w.sent.length, 1);
+    assert.equal(w.db.prepare('SELECT count(*) n FROM vault_purchases').get().n, 1);
+  });
+});
