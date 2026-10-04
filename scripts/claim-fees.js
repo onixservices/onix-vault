@@ -53,6 +53,9 @@ async function main() {
   const client = sdk.DynamicBondingCurveClient.create(conn, 'confirmed');
   const tx = await client.partner.claimPartnerTradingFee({ feeClaimer: vault, payer: vault, pool, maxBaseAmount: new BN(0), maxQuoteAmount: p.partnerQuoteFee });
   tx.feePayer = vault; tx.recentBlockhash = (await conn.getLatestBlockhash('confirmed')).blockhash;
+  // simulated BEFORE the vault key signs (the house rule; the RPC's preflight runs only after signing)
+  const sim = await conn.simulateTransaction(tx);
+  if (sim.value.err) throw new Error(`the claim would fail on chain: ${JSON.stringify(sim.value.err)} · ${(sim.value.logs || []).slice(-2).join(' | ')}`);
   signer.signTransaction(tx);
   const sig = await conn.sendRawTransaction(tx.serialize(), { preflightCommitment: 'confirmed' });
   const res = await conn.confirmTransaction(sig, 'confirmed');

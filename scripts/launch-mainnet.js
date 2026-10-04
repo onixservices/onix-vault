@@ -45,6 +45,9 @@ function saveState(s) { fs.mkdirSync(path.dirname(STATE), { recursive: true }); 
 async function send(conn, tx, extraSigners, label) {
   tx.feePayer = new PublicKey(signer.publicKey());
   tx.recentBlockhash = (await conn.getLatestBlockhash('confirmed')).blockhash;
+  // simulated BEFORE anything signs (the house rule; the RPC's preflight runs only after signing)
+  const sim = await conn.simulateTransaction(tx);
+  if (sim.value.err) throw new Error(`${label} would fail on chain: ${JSON.stringify(sim.value.err)} · ${(sim.value.logs || []).slice(-2).join(' | ')}`);
   if (extraSigners.length) tx.partialSign(...extraSigners);
   signer.signTransaction(tx);
   const sig = await conn.sendRawTransaction(tx.serialize(), { preflightCommitment: 'confirmed' });

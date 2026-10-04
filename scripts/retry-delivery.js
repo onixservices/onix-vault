@@ -3,7 +3,8 @@
  * retry-delivery.js — the OPERATOR's path for a paid reservation whose delivery failed.
  *
  *   node scripts/retry-delivery.js                 # list reservations in `delivery_failed`
- *   node scripts/retry-delivery.js <reservationId> # run that delivery again
+ *   node scripts/retry-delivery.js <reservationId>       # show what would be retried (nothing signed)
+ *   node scripts/retry-delivery.js <reservationId> --go  # run that delivery again
  *
  * Runs on the server, with the server's environment (same .env, same DB, same key —
  * there is deliberately no HTTP route for this). The payment is not re-read: it was
@@ -20,6 +21,15 @@ async function main() {
     const rows = db.prepare("SELECT id, mint, winner, exit_price_usd, payment_sig, fail_reason, updated_at FROM vault_reservations WHERE status = 'delivery_failed' ORDER BY updated_at").all();
     if (!rows.length) { console.log('no reservation in delivery_failed'); return; }
     for (const r of rows) console.log(`${r.id}  mint ${r.mint}  → ${r.winner}  $${r.exit_price_usd}  paid ${r.payment_sig}\n    ${new Date(r.updated_at).toISOString()}  ${r.fail_reason}`);
+    return;
+  }
+  if (!process.argv.includes('--go')) {
+    const r = db.prepare('SELECT id, status, mint, winner, exit_price_usd, payment_sig, fail_reason FROM vault_reservations WHERE id = ?').get(id);
+    if (!r) throw new Error('unknown reservation');
+    console.log(`${r.id}  ${r.status}  mint ${r.mint}  → ${r.winner}  $${r.exit_price_usd}  paid ${r.payment_sig}
+    ${r.fail_reason || ''}
+
+(dry-run: nothing signed. Re-run with --go to deliver again.)`);
     return;
   }
   const out = await service.retryDelivery({ reservationId: id });
