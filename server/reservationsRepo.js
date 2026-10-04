@@ -20,7 +20,9 @@ function byIdempotencyKey(db, key) {
   return db.prepare('SELECT * FROM vault_reservations WHERE idempotency_key = ?').get(key) || null;
 }
 
-function get(db, id) {
+/** A reservation of THIS vault (rows from before the `vault` column, all settled long ago, carry NULL). */
+function get(db, id, vault = null) {
+  if (vault) return db.prepare('SELECT * FROM vault_reservations WHERE id = ? AND (vault = ? OR vault IS NULL)').get(id, vault) || null;
   return db.prepare('SELECT * FROM vault_reservations WHERE id = ?').get(id) || null;
 }
 

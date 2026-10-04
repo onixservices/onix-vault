@@ -114,7 +114,7 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
 
   function submit({ playId, signature }) {
     if (!playId || !signature) throw err(400, 'playId and signature are required');
-    const p = db.prepare('SELECT * FROM vault_plays WHERE id = ?').get(playId);
+    const p = db.prepare('SELECT * FROM vault_plays WHERE id = ? AND vault = ?').get(playId, vaultWallet);
     if (!p) throw err(404, 'unknown play');
     if (p.status !== 'created') throw err(409, `this play is ${p.status}`);
     if (p.expires_at <= now()) throw err(410, 'this play expired before it was paid');
@@ -170,7 +170,7 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
       at: p.created_at, updatedAt: p.updated_at, expiresAt: p.expires_at,
     };
   }
-  function get(playId) { const p = db.prepare('SELECT * FROM vault_plays WHERE id = ?').get(playId); if (!p) throw err(404, 'unknown play'); return view(p); }
+  function get(playId) { const p = db.prepare('SELECT * FROM vault_plays WHERE id = ? AND vault = ?').get(playId, vaultWallet); if (!p) throw err(404, 'unknown play'); return view(p); }
   function list({ limit = 50 } = {}) { return db.prepare("SELECT * FROM vault_plays WHERE vault = ? AND status NOT IN ('created','expired') ORDER BY created_at DESC LIMIT ?").all(vaultWallet, limit).map(view); }
   /** Mints a live play has claimed — so reservations never sell them underneath a draw. */
   function busyMints() { return db.prepare("SELECT mint FROM vault_plays WHERE vault = ? AND status IN ('drawn','delivering','delivery_failed')").all(vaultWallet).map((r) => r.mint); }

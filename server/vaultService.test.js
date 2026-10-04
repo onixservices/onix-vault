@@ -251,3 +251,24 @@ describe('redemption v1', () => {
     assert.equal(svc.listRedemptions().length, 1);
   });
 });
+
+describe('scope — a reservation is reached only through its own vault and integrator', () => {
+  test("another vault's service answers 404 for status, settle and retry", async () => {
+    const { svc, db, chain } = make();
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    const OTHER_VAULT = Keypair.generate().publicKey.toBase58();
+    const other = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => ({ sig: 'X' }), now: () => T0,
+      config: { vaultWallet: OTHER_VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+    assert.throws(() => other.status({ reservationId: r.reservationId }), (e) => e.statusCode === 404);
+    await rejectsWith(other.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' }), 404);
+    await rejectsWith(other.retryDelivery({ reservationId: r.reservationId }), 404);
+    assert.equal(svc.status({ reservationId: r.reservationId }).status, 'reserved');
+  });
+  test("an Idempotency-Key used by another integrator never returns that integrator's reservation", async () => {
+    const { svc } = make();
+    const a = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER, idempotencyKey: 'shared' });
+    await rejectsWith(svc.reserve({ mint: MINT, integrator: OTHER, winner: WINNER, idempotencyKey: 'shared' }), 409);
+    const again = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER, idempotencyKey: 'shared' });
+    assert.equal(again.reservationId, a.reservationId);
+  });
+});

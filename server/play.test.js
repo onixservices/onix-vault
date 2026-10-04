@@ -199,3 +199,14 @@ describe('play — the server seed is derived from a key, never stored', () => {
     assert.equal(w.play.get(s.playId).serverSeed, row.server_seed);
   });
 });
+
+describe('play — scope: a play is reached only through its own vault', () => {
+  test("another vault's Play answers 404 for get and submit", async () => {
+    const w = make();
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'mine' });
+    const other = createPlay({ db: w.db, chain: w.chain, vaultWallet: Keypair.generate().publicKey.toBase58(), baseMint: MINT, readItems: async () => [], readStats: async () => ({}), deliver: async () => ({}), usdcMint: USDC, memoProgramId: MEMO });
+    assert.throws(() => other.get(s.playId), (e) => e.statusCode === 404);
+    assert.throws(() => other.submit({ playId: s.playId, signature: 'X' }), (e) => e.statusCode === 404);
+    assert.equal(w.play.get(s.playId).status, 'created');
+  });
+});

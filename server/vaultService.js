@@ -104,6 +104,8 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     sweepExpired();
     if (idempotencyKey) {
       const prev = reservationsRepo.byIdempotencyKey(db, idempotencyKey);
+      // the key replays only for the same vault and integrator; anyone else's reservation is never handed back
+      if (prev && (prev.integrator !== integrator || (prev.vault && prev.vault !== config.vaultWallet))) throw new VaultError(409, 'this Idempotency-Key is already in use — choose another');
       if (prev) return _reservationView(prev, prev.payment_tx_b64);
     }
     if (reservationsRepo.expiredCountFor(db, integrator) >= strikes) {
@@ -131,7 +133,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
   async function settle({ reservationId, paymentSignature }) {
     if (!reservationId || !paymentSignature) throw new VaultError(400, 'reservationId and paymentSignature are required');
     sweepExpired();
-    const r = reservationsRepo.get(db, reservationId);
+    const r = reservationsRepo.get(db, reservationId, config.vaultWallet);
     if (!r) throw new VaultError(404, 'unknown reservation');
     if (r.status === 'settled') return { ..._reservationView(r), alreadySettled: true };
     if (r.status === 'expired') throw new VaultError(410, 'reservation expired — if you paid, the operator refunds by hand');
@@ -174,7 +176,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
    * (`scripts/retry-delivery.js`). The payment was already read and is kept.
    */
   async function retryDelivery({ reservationId }) {
-    const r = reservationsRepo.get(db, reservationId);
+    const r = reservationsRepo.get(db, reservationId, config.vaultWallet);
     if (!r) throw new VaultError(404, 'unknown reservation');
     if (r.status !== 'delivery_failed') throw new VaultError(409, `reservation is ${r.status}; only delivery_failed can be retried`);
     if (!reservationsRepo.transition(db, r.id, 'delivery_failed', 'settling', { at: now() })) throw new VaultError(409, 'reservation changed under us — retry');
@@ -182,7 +184,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
   }
 
   function status({ reservationId }) {
-    const r = reservationsRepo.get(db, reservationId);
+    const r = reservationsRepo.get(db, reservationId, config.vaultWallet);
     if (!r) throw new VaultError(404, 'unknown reservation');
     return _reservationView(r);
   }
