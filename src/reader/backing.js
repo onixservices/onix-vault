@@ -53,7 +53,9 @@ function parseUsd(v) {
 function custodianOf(asset) {
   const groups = asset.grouping || [];
   const col = groups.find((g) => g && g.group_key === 'collection');
-  if (!col) return null;
+  // membership is the custodian's only when the collection verified it (MPL Core: the collection is the update
+  // authority; Token Metadata: verified flag). The indexer omits unverified ones by default; refuse them if it says so.
+  if (!col || col.verified === false) return null;
   for (const [name, collections] of Object.entries(KNOWN_CUSTODIANS)) {
     if (collections.includes(col.group_value)) return name;
   }

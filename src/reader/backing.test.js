@@ -112,3 +112,12 @@ test('median is over counted cards only', () => {
   cards.push(parseCard(ccAsset({ id: 'x', insured: 'n/a' })));
   assert.equal(computeBacking(cards).medianInsuredUsd, 25);
 });
+
+test('a collection the indexer marks unverified never counts, even with a known address (membership is the custodian call)', () => {
+  const a = ccAsset();
+  a.grouping = [{ group_key: 'collection', group_value: 'CCryptUfeFSZ3Fgc9FLeKrhLVAP67FSqi1GuVoj9CRac', verified: false }];
+  const c = parseCard(a);
+  assert.equal(c.counts, false); assert.equal(c.excludedBecause, 'unknown custodian');
+  a.grouping[0].verified = true;
+  assert.equal(parseCard(a).counts, true);
+});
