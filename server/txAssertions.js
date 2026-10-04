@@ -36,5 +36,42 @@ function checkBuyerWithKnownCosigners(tx, buyer, cosigners = []) {
   return null;
 }
 
+/**
+ * Only the instructions a flow is known to need, nothing else. `shape` lists, per program, how many top-level
+ * instructions may appear (`min`/`max`) and, when given, which 8-byte discriminators (hex) are accepted.
+ * A program that is not in the shape is refused, whatever it does.
+ */
+function checkInstructionShape(tx, shape) {
+  const byProgram = new Map(shape.map((s) => [s.programId, { ...s, n: 0 }]));
+  for (const ix of tx.instructions) {
+    const pid = ix.programId.toBase58();
+    const rule = byProgram.get(pid);
+    if (!rule) return { assertion: 'program', message: `program ${pid} is not one this flow uses` };
+    if (rule.discriminators && !rule.discriminators.includes(Buffer.from(ix.data).subarray(0, 8).toString('hex'))) {
+      return { assertion: 'instruction', message: `an instruction of ${rule.name || pid} that this flow does not use` };
+    }
+    rule.n += 1;
+  }
+  for (const r of byProgram.values()) {
+    if (r.n < (r.min || 0)) return { assertion: 'shape', message: `expected ${r.min} instruction(s) of ${r.name || r.programId}, got ${r.n}` };
+    if (r.max != null && r.n > r.max) return { assertion: 'shape', message: `at most ${r.max} instruction(s) of ${r.name || r.programId}, got ${r.n}` };
+  }
+  return null;
+}
+
+/** The priority fee a transaction asks for, in lamports (ComputeBudget price × limit; default limit 200k per instruction). */
+function priorityFeeLamports(tx) {
+  const CB = 'ComputeBudget111111111111111111111111111111';
+  let price = 0n, limit = null;
+  for (const ix of tx.instructions) {
+    if (ix.programId.toBase58() !== CB) continue;
+    const d = Buffer.from(ix.data);
+    if (d[0] === 3 && d.length >= 9) price = d.readBigUInt64LE(1);
+    if (d[0] === 2 && d.length >= 5) limit = BigInt(d.readUInt32LE(1));
+  }
+  const units = limit != null ? limit : BigInt(Math.min(1_400_000, 200_000 * tx.instructions.length));
+  return Number((price * units) / 1_000_000n);
+}
+
 module.exports = {
-  checkBuyerWithKnownCosigners, checkSingleSignerUnsigned };
+  checkBuyerWithKnownCosigners, checkSingleSignerUnsigned, checkInstructionShape, priorityFeeLamports };

@@ -20,13 +20,22 @@
 'use strict';
 const crypto = require('crypto');
 const { Transaction } = require('@solana/web3.js');
-const { checkBuyerWithKnownCosigners } = require('./txAssertions');
+const { checkBuyerWithKnownCosigners, checkInstructionShape, priorityFeeLamports } = require('./txAssertions');
 const { AccountLayout, getAssociatedTokenAddressSync } = require('@solana/spl-token');
 const { PublicKey } = require('@solana/web3.js');
 
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 // Collector Crypt co-signs its marketplace buys (read-only attestation on a noop instruction); a list, not a switch
 const CC_BUY_COSIGNERS = Object.freeze(['cc3novbXuNSe292qKH2gGhxToaWjuBvJbA7zQf8NVxi']);
+// The exact shape of a Collector Crypt buy, read from the two buys this vault made on mainnet (3 Oct 2026,
+// A3j4Vh1E… and 4WwGQuk1…): ComputeBudget, ONE marketplace `buy`, the co-signer's noop. Anything else is refused.
+const CC_MARKETPLACE_PROGRAM = 'CcmRKTuZCGJBWQwMHvDYApBRvSZNHqGJXkznqpDTSQUr';
+const CC_BUY_SHAPE = Object.freeze([
+  { programId: 'ComputeBudget111111111111111111111111111111', name: 'ComputeBudget', max: 2 },
+  { programId: CC_MARKETPLACE_PROGRAM, name: 'the CC marketplace', discriminators: ['a9e357ff4c56ff19'], min: 1, max: 1 },
+  { programId: 'noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV', name: 'the co-signer noop', max: 1 },
+]);
+const MPL_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
 const { categoryOf, gradeOf } = require('./rules');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
@@ -41,6 +50,8 @@ const RESTOCK = Object.freeze({
   minIntervalMs: 60 * 60_000,// one purchase an hour per vault at most
   pendingTtlMs: 30 * 60_000, // a sent purchase that never lands is marked failed after this
   minSol: 0.05,              // below this the venue hands a sponsored, two-signer transaction (measured ~0.02–0.09 SOL, Jul 2026)
+  maxPriorityLamports: 1_000_000,  // the priority fee a buy may ask for (measured: ~4 000 lamports)
+  maxSolSpendLamports: 3_000_000,  // what the custody's SOL may fall by in one buy: fee + at most one account rent (measured: 14 030)
 });
 
 /** A CC marketplace row → the shape the rules read. Exported for the tests and the script. */
@@ -153,9 +164,15 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
     const tx = Transaction.from(Buffer.from(b64, 'base64'));
     const fail = checkBuyerWithKnownCosigners(tx, vaultWallet, cosigners);
     if (fail) throw err(409, `the venue's buy transaction does not pass assertions: ${fail.assertion} (${fail.message})`);
-    // the money, measured: the custody's USDC before, and after the simulated transaction — it must fall by the price, never more
+    const shape = checkInstructionShape(tx, CC_BUY_SHAPE);
+    if (shape) throw err(409, `the venue's buy transaction is not a plain buy: ${shape.assertion} (${shape.message}) — refused, nothing signed`);
+    const prio = priorityFeeLamports(tx);
+    if (prio > limits.maxPriorityLamports) throw err(409, `the venue's buy asks a priority fee of ${prio} lamports (cap ${limits.maxPriorityLamports}) — refused`);
+    // measured by simulation: the custody's USDC (falls by the price, never more), its SOL (the fee and at most one rent),
+    // and the item itself (an MPL Core asset owned by the custody afterwards)
     const preUnits = await chain.getTokenAccountAmount(usdcAta);
-    const sim = await chain.simulateWithAccounts(b64, [usdcAta]);
+    const preLamports = chain.getBalanceLamports ? await chain.getBalanceLamports(vaultWallet) : null;
+    const sim = await chain.simulateWithAccounts(b64, [usdcAta, vaultWallet, pick.mint]);
     if (sim && sim.err) throw err(409, `the buy would fail on chain: ${JSON.stringify(sim.err)} · ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ')}`);
     const acc = sim && sim.accounts && sim.accounts[0];
     let postUnits = null; try { postUnits = acc && acc.data ? Number(AccountLayout.decode(Buffer.from(acc.data[0], 'base64')).amount) : null; } catch { postUnits = null; }
@@ -163,6 +180,14 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
     const debitUsd = r2((preUnits - postUnits) / 1e6);
     if (!(debitUsd > 0)) throw err(409, `the simulated buy does not debit the treasury ($${debitUsd}) — refused`);
     if (debitUsd > pick.priceUsd + 0.02) throw err(409, `the simulated buy debits $${debitUsd}, the listing says $${pick.priceUsd} — refused`);
+    const solAcc = sim.accounts && sim.accounts[1];
+    if (preLamports == null || !solAcc || typeof solAcc.lamports !== 'number') throw err(409, "could not read the custody's SOL after the simulated buy — nothing signed blind");
+    const solSpent = preLamports - solAcc.lamports;
+    if (solSpent > limits.maxSolSpendLamports) throw err(409, `the simulated buy takes ${solSpent} lamports from the custody (cap ${limits.maxSolSpendLamports}) — refused`);
+    const item = sim.accounts && sim.accounts[2];
+    let itemOwner = null;
+    try { if (item && item.owner === MPL_CORE_PROGRAM) { const d = Buffer.from(item.data[0], 'base64'); if (d[0] === 1) itemOwner = new PublicKey(d.subarray(1, 33)).toBase58(); } } catch { itemOwner = null; }
+    if (itemOwner !== vaultWallet) throw err(409, `after the simulated buy the item is not in custody (${itemOwner ? 'owner ' + itemOwner : 'not readable as an MPL Core asset'}) — refused`);
     if (!go) return { ...p, bought: null, dry: true, simulated: true, debitUsd };
     signer.signTransaction(tx);
     const bs58 = require('bs58'); const encode = bs58.encode || bs58.default.encode;
@@ -231,4 +256,4 @@ function productionRestockDeps({ ccApiBase = 'https://api.collectorcrypt.com', r
   };
 }
 
-module.exports = { createRestock, decide, buyRules, listingView, listingPassesRules, productionRestockDeps, RESTOCK, CC_BUY_COSIGNERS };
+module.exports = { createRestock, decide, buyRules, listingView, listingPassesRules, productionRestockDeps, RESTOCK, CC_BUY_COSIGNERS, CC_BUY_SHAPE, CC_MARKETPLACE_PROGRAM, MPL_CORE_PROGRAM };

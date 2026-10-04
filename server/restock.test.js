@@ -1,8 +1,8 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
-const { Keypair, Transaction, SystemProgram, PublicKey } = require('@solana/web3.js');
+const { Keypair, Transaction, SystemProgram, PublicKey, TransactionInstruction, ComputeBudgetProgram } = require('@solana/web3.js');
 const { getTestDb } = require('./db');
-const { createRestock, decide, listingView, listingPassesRules, RESTOCK } = require('./restock');
+const { createRestock, decide, listingView, listingPassesRules, RESTOCK, CC_MARKETPLACE_PROGRAM, MPL_CORE_PROGRAM } = require('./restock');
 const { fromKeypair } = require('./signer');
 
 // The treasury buys the next item: the rules decide, the custody key signs, the chain confirms.
@@ -58,26 +58,45 @@ describe('restock — the decision is pure', () => {
 const { AccountLayout } = require('@solana/spl-token');
 const tokenAccount = (units) => { const b = Buffer.alloc(AccountLayout.span); b.writeBigUInt64LE(BigInt(units), 64); return [b.toString('base64'), 'base64']; };
 const ccKp = Keypair.generate();
+// A buy in the shape Collector Crypt hands it (measured on mainnet, 3 Oct 2026): ComputeBudget price, ONE marketplace
+// `buy` (discriminator a9e357ff4c56ff19 + u64), the co-signer's noop. The simulation answers for the custody's USDC,
+// its SOL, and the bought item (an MPL Core asset: byte 0 = 1, owner in bytes 1..33).
+const BUY_DISC = Buffer.from('a9e357ff4c56ff19', 'hex');
+const NOOP = new PublicKey('noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV');
+const SOL_PRE = 50_000_000;
+const coreAsset = (owner) => { const b = Buffer.alloc(1 + 32 + 33); b[0] = 1; new PublicKey(owner).toBuffer().copy(b, 1); return [b.toString('base64'), 'base64']; };
 
-function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], sponsored = false, simErr = null, inCustody = [], cosigned = false, debitUsd = null } = {}) {
+function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], sponsored = false, simErr = null, inCustody = [], cosigned = false, debitUsd = null,
+  priorityMicroLamports = 10_000, cuLimit = null, buys = 1, buyDisc = BUY_DISC, extra = null, solSpent = 14_030, solReadable = true,
+  itemOwner = CUSTODY, itemProgram = MPL_CORE_PROGRAM } = {}) {
   const db = getTestDb();
   const sent = [];
   const chain = {
     simulateTransaction: async () => ({ err: simErr, logs: simErr ? ['Program log: Error: nope'] : [] }),
     getTokenAccountAmount: async () => usdc * 1e6,
-    // the treasury after the simulated buy: falls by the listing price unless the test says otherwise
-    simulateWithAccounts: async () => ({ err: simErr, logs: simErr ? ['Program log: Error: nope'] : [], accounts: [{ data: tokenAccount(Math.round((usdc - (debitUsd ?? chain.lastPrice)) * 1e6)) }] }), lastPrice: 0,
+    getBalanceLamports: async () => SOL_PRE,
+    // after the simulated buy: the treasury falls by the listing price (unless the test says otherwise), the SOL by the fee, the item is the custody's
+    simulateWithAccounts: async () => ({ err: simErr, logs: simErr ? ['Program log: Error: nope'] : [], accounts: [
+      { data: tokenAccount(Math.round((usdc - (debitUsd ?? chain.lastPrice)) * 1e6)) },
+      solReadable ? { lamports: SOL_PRE - solSpent } : null,
+      { owner: itemProgram, data: coreAsset(itemOwner) },
+    ] }), lastPrice: 0,
     sendRawTransaction: async (b64) => { sent.push(b64); return 'sig'; },
     getSignatureStatuses: async (sigs) => sigs.map((s) => chain.statuses[s] || null), statuses: {},
   };
   const owners = {};
   const otherKp = Keypair.generate();
-  const buildBuyTx = async ({ mint, wallet, priceUsd }) => {
+  const buildBuyTx = async ({ wallet, priceUsd }) => {
     chain.lastPrice = priceUsd;
-    const tx = new Transaction({ feePayer: new PublicKey(wallet), recentBlockhash: Keypair.generate().publicKey.toBase58() });
-    tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(wallet), toPubkey: Keypair.generate().publicKey, lamports: 1 }));
-    if (sponsored) { tx.add(SystemProgram.transfer({ fromPubkey: otherKp.publicKey, toPubkey: new PublicKey(wallet), lamports: 1 })); tx.partialSign(otherKp); }
-    if (cosigned) { tx.add(SystemProgram.transfer({ fromPubkey: ccKp.publicKey, toPubkey: ccKp.publicKey, lamports: 0 })); tx.partialSign(ccKp); }
+    const buyer = new PublicKey(wallet);
+    const tx = new Transaction({ feePayer: buyer, recentBlockhash: Keypair.generate().publicKey.toBase58() });
+    tx.add(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityMicroLamports }));
+    if (cuLimit) tx.add(ComputeBudgetProgram.setComputeUnitLimit({ units: cuLimit }));
+    for (let i = 0; i < buys; i++) tx.add(new TransactionInstruction({ programId: new PublicKey(CC_MARKETPLACE_PROGRAM), keys: [{ pubkey: buyer, isSigner: true, isWritable: true }], data: Buffer.concat([buyDisc, Buffer.alloc(8)]) }));
+    const cosigner = sponsored ? otherKp : cosigned ? ccKp : null;
+    if (cosigner) tx.add(new TransactionInstruction({ programId: NOOP, keys: [{ pubkey: cosigner.publicKey, isSigner: true, isWritable: false }], data: Buffer.alloc(0) }));
+    if (extra) extra(tx, buyer);
+    if (cosigner) tx.partialSign(cosigner);
     return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
   };
   let t = 1_800_000_000_000;
@@ -150,5 +169,40 @@ describe('restock — execute and confirm', () => {
     w3.tick(RESTOCK.pendingTtlMs + 1);
     assert.deepEqual(await w3.rs.confirm(), { landed: 0, failed: 1, pending: 0 });
     assert.equal(w3.rs.list()[0].failReason, 'never landed');
+  });
+});
+
+describe('restock — only the measured shape of a buy is ever signed', () => {
+  // each case: refused with 409, nothing sent, nothing persisted
+  const refused = async (opts, re) => {
+    const w = make(opts);
+    await assert.rejects(w.rs.execute({ go: true }), (e) => e.statusCode === 409 && re.test(e.message));
+    assert.equal(w.sent.length, 0);
+    assert.equal(w.db.prepare('SELECT count(*) n FROM vault_purchases').get().n, 0);
+  };
+  test('the measured shape passes: ComputeBudget + one marketplace buy + the co-signer noop', async () => {
+    const x = await make({ cosigned: true, cuLimit: 200_000 }).rs.execute();
+    assert.equal(x.dry, true); assert.equal(x.simulated, true);
+  });
+  test('an added instruction of any other program is refused (System transfer, Token approve)', async () => {
+    const { createApproveInstruction } = require('@solana/spl-token');
+    await refused({ cosigned: true, extra: (tx, buyer) => tx.add(SystemProgram.transfer({ fromPubkey: buyer, toPubkey: Keypair.generate().publicKey, lamports: 1 })) }, /not a plain buy: program/);
+    await refused({ cosigned: true, extra: (tx, buyer) => tx.add(createApproveInstruction(Keypair.generate().publicKey, Keypair.generate().publicKey, buyer, 1n)) }, /not a plain buy: program/);
+  });
+  test('two marketplace buys, none, or a marketplace instruction other than buy are refused', async () => {
+    await refused({ buys: 2 }, /not a plain buy: shape .*at most 1/);
+    await refused({ buys: 0 }, /not a plain buy: shape .*expected 1/);
+    await refused({ buyDisc: Buffer.from('0000000000000000', 'hex') }, /not a plain buy: instruction/);
+  });
+  test('a priority fee above the cap is refused', async () => {
+    await refused({ priorityMicroLamports: 10_000_000, cuLimit: 200_000 }, /priority fee of 2000000 lamports/);
+  });
+  test("the custody's SOL: falling by more than the fee and one rent is refused; unreadable is refused", async () => {
+    await refused({ solSpent: RESTOCK.maxSolSpendLamports + 1 }, /takes \d+ lamports from the custody/);
+    await refused({ solReadable: false }, /could not read the custody's SOL/);
+  });
+  test('after the simulated buy the item must be an MPL Core asset owned by the custody', async () => {
+    await refused({ itemOwner: Keypair.generate().publicKey.toBase58() }, /item is not in custody \(owner /);
+    await refused({ itemProgram: SystemProgram.programId.toBase58() }, /not readable as an MPL Core asset/);
   });
 });
