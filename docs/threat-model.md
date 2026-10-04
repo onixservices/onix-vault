@@ -25,8 +25,8 @@ hardest to undo; the fourth is the one we can engineer against today.
 Every custody wallet derives from one seed. Lose it and every vault can be emptied in one block.
 
 **Today:** the seed is generated on the server, lives in a `.env` readable by one user, is read by one
-module (`server/keyring.js`) and is never logged, returned or written anywhere else. An offline, encrypted
-backup is an open operator action (`docs/security-review.md`, R-07a). The same seed derives the draw key (R-04). Each custody wallet signs **only** through the doors (Play delivery, gacha settlement,
+module (`server/keyring.js`) and is never logged, returned or written anywhere else. The operator keeps an
+offline backup (made 4 Oct 2026; `docs/security-review.md`, R-07a). The same seed derives the draw key (R-04). Each custody wallet signs **only** through the doors (Play delivery, gacha settlement,
 abandon-before-launch), each one built after a payment or a burn was read from the chain. Addresses are
 public: a theft would be visible within one block.
 **Roadmap, in order:** a program with escrow that can only release under the published rules; until then,

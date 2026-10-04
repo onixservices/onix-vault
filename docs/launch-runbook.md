@@ -155,7 +155,7 @@ play `52202e96`, delivery `5Tjw3g…`).
 | pool created, first buy fails in Phantom with a red warning | the warning **only reproduces in production** (learned three times) | do not touch the config; investigate the transaction shape, not the parameters |
 | a secret reached the public repo | compromised the moment it landed | **rotate the key.** Deleting the commit is not a remedy. |
 | anything looks wrong with money or items | unknown | **pause first:** `touch /opt/onixvault/data/PAUSE` (one vault: `PAUSE-<id>`). Value routes answer 503 within 5 s, sweeps and the treasury loop stop, nothing is lost. Diagnose, then `rm` the file. |
-| the server is lost | custody wallets derive from the master seed | restore the seed from its offline backup (R-07a in `docs/security-review.md`) and the DB from `/var/backups/onixvault` |
+| the server is lost | custody wallets derive from the master seed | restore the seed from the operator's offline backup and the DB from `/var/backups/onixvault` |
 | the fee claim arrives at the wrong wallet | `fee_claimer` was set wrong | it cannot be changed. This is why §0 asks twice. |
 
 ## 5. The rehearsal is not optional
