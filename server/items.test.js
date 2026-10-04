@@ -31,3 +31,11 @@ describe('items reader', () => {
     t = 2000; await reader(); assert.equal(rpcCalls.length, 2);  // refreshed
   });
 });
+
+describe('items reader — images', () => {
+  test('an image that is not an https URL reaches the page as null', async () => {
+    const a = asset('A', 20); a.content.links.image = 'javascript:alert(1)';
+    const items = await createItemsReader({ rpcUrl: 'http://rpc', vaultWallet: 'V', cacheMs: 0, fetchAssets: async () => [a] })();
+    assert.equal(items[0].imageUrl, null);
+  });
+});

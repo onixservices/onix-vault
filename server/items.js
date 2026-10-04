@@ -5,6 +5,7 @@
  * the exit price is the custodian's value, and the API says so.
  */
 'use strict';
+const { safeImageUrl } = require('./inputs');
 const das = require('../src/reader/das');
 const { parseCard } = require('../src/reader/backing');
 
@@ -26,7 +27,7 @@ function createItemsReader({ rpcUrl, vaultWallet, marketRefUrl = null, cacheMs =
     const items = assets.map((a) => ({ c: parseCard(a), img: a.content?.links?.image || a.content?.files?.[0]?.uri || null }))
       .filter(({ c }) => c.counts).map(({ c, img }) => ({
       mint: c.mint, custodian: c.custodian, name: c.name, category: c.category,
-      imageUrl: img,
+      imageUrl: safeImageUrl(img),
       custodianValueUsd: c.insuredUsd, custodianValueBasis: 'insured',
       marketRefUsd: Number.isFinite(refs[c.mint]) ? refs[c.mint] : null,
       grade: c.grade, gradingCompany: c.gradingCompany, certNumber: c.certNumber, physicalVault: c.vault,

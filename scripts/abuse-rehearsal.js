@@ -66,6 +66,9 @@ async function main() {
     await expect('a client seed with markup', 'seed format', 400, () => call('POST', `/v1/vaults/${V}/plays`, { band: 'b1', player: STRANGER, currency: 'usdc', clientSeed: '<img src=x>' }));
     await expect('submit a payment for a play that does not exist', 'play id checked', 404, () => call('POST', `/v1/vaults/${V}/plays/nope/submit`, { signature: '1'.repeat(88) }));
     await expect('settle a reservation that does not exist', 'reservation id checked', 404, () => call('POST', `/v1/vaults/${V}/reservations/nope/settle`, { paymentSignature: '1'.repeat(88) }));
+    await expect('a payment signature with markup', 'signatures are base58 before they are stored', 400, () => call('POST', `/v1/vaults/${V}/plays/nope/submit`, { signature: '"><a href=x>pay</a>' }));
+    await expect('record an admission with markup in the mint', 'addresses checked before they are stored', 400, () => call('POST', `/v1/vaults/${V}/admissions`, { mint: '<b>x</b>', owner: STRANGER, signature: '1'.repeat(88), valueUsd: 99999 }));
+    await expect('a reservation for a winner that is not a wallet', 'addresses checked', 400, () => call('POST', `/v1/vaults/${V}/reservations`, { mint: Keypair.generate().publicKey.toBase58(), integrator: STRANGER, winner: '"><a>' }));
     await expect('reserve an item the vault does not hold', 'items read on chain', [404, 409, 422], () => call('POST', `/v1/vaults/${V}/reservations`, { mint: Keypair.generate().publicKey.toBase58(), integrator: STRANGER, winner: STRANGER }));
   }
   await expect('an unknown vault', 'vaults resolved per request', 404, () => call('GET', `/v1/vaults/${Keypair.generate().publicKey.toBase58()}/stats`));

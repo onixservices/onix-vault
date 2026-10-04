@@ -157,7 +157,7 @@ function buildApp(deps) {
     const { owner, mint } = req.body || {};
     res.json({ readAt: new Date().toISOString(), ...(await need(req.vb.admissions, 'admissions').build({ owner, mint })) });
   }));
-  app.post('/v1/vaults/:vault/admissions', pick, halt, wrap(async (req, res) => {
+  app.post('/v1/vaults/:vault/admissions', pick, halt, fence('build'), wrap(async (req, res) => {
     const { mint, owner, signature, valueUsd } = req.body || {};
     res.status(202).json(need(req.vb.admissions, 'admissions').record({ mint, owner, signature, valueUsd: Number(valueUsd) }));
   }));

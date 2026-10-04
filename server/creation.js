@@ -31,6 +31,7 @@ const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 const { paramsFor, DECIDED } = require('../src/curve/params');
 const { validateRules, itemPassesRules } = require('./rules');
 const { checkSingleSignerUnsigned } = require('./txAssertions');
+const { safeImageUrl } = require('./inputs');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
@@ -101,7 +102,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     const items = [], ineligible = [];
     for (const a of assets) {
       const v = itemPassesRules(a, rules); const c = parseCard(a);
-      const row = { mint: c.mint, name: c.name, category: c.category, grade: c.grade, imageUrl: a.content?.links?.image || null };
+      const row = { mint: c.mint, name: c.name, category: c.category, grade: c.grade, imageUrl: safeImageUrl(a.content?.links?.image) };
       if (v.ok) items.push({ ...row, custodianValueUsd: c.insuredUsd }); else ineligible.push({ ...row, reason: v.reason });
     }
     const indexUsd = items.reduce((s, it) => s + it.custodianValueUsd, 0);

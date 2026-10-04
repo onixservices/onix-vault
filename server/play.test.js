@@ -173,7 +173,7 @@ describe('play — submit → sweep: verify on chain, draw, deliver', () => {
     t += PLAY.payTtlMs + 1;
     assert.equal((await play.sweep()).expired, 1); assert.equal(play.get(s1.playId).status, 'expired');
     const s2 = await play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'b' });
-    play.submit({ playId: s2.playId, signature: 'GHOST' });
+    play.submit({ playId: s2.playId, signature: 'GHST' });
     t += PLAY.payTtlMs + 1;
     await play.sweep(); assert.equal(play.get(s2.playId).status, 'payment_missing');
   });
@@ -195,7 +195,7 @@ describe('play — the server seed is derived from a key, never stored', () => {
     const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'old' });
     const row = w.db.prepare('SELECT server_seed FROM vault_plays WHERE id = ?').get(s.playId);
     assert.equal(sha256Hex(row.server_seed), s.serverSeedHash);
-    assert.equal((await pay(w, s, 'PAYO')).delivered, 1);
+    assert.equal((await pay(w, s, 'PAYX')).delivered, 1);
     assert.equal(w.play.get(s.playId).serverSeed, row.server_seed);
   });
 });
@@ -207,6 +207,15 @@ describe('play — scope: a play is reached only through its own vault', () => {
     const other = createPlay({ db: w.db, chain: w.chain, vaultWallet: Keypair.generate().publicKey.toBase58(), baseMint: MINT, readItems: async () => [], readStats: async () => ({}), deliver: async () => ({}), usdcMint: USDC, memoProgramId: MEMO });
     assert.throws(() => other.get(s.playId), (e) => e.statusCode === 404);
     assert.throws(() => other.submit({ playId: s.playId, signature: 'X' }), (e) => e.statusCode === 404);
+    assert.equal(w.play.get(s.playId).status, 'created');
+  });
+});
+
+describe('play — inputs', () => {
+  test('a payment signature that is not base58 is refused (400) and the play stays created', async () => {
+    const w = make();
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'in' });
+    assert.throws(() => w.play.submit({ playId: s.playId, signature: '"><a href=x>pay</a>' }), (e) => e.statusCode === 400);
     assert.equal(w.play.get(s.playId).status, 'created');
   });
 });

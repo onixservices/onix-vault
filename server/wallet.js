@@ -5,6 +5,7 @@
  * token) or listed with the reason it is not. Nothing is dropped silently.
  */
 'use strict';
+const { safeImageUrl } = require('./inputs');
 const { PublicKey } = require('@solana/web3.js');
 const das = require('../src/reader/das');
 const { parseCard } = require('../src/reader/backing');
@@ -16,7 +17,7 @@ function createWalletReader({ rpcUrl, fetchAssets = das.fetchAssetsByOwner }) {
     const eligible = [], ineligible = [];
     for (const a of assets) {
       const c = parseCard(a);
-      const row = { mint: c.mint, name: c.name, category: c.category, imageUrl: a.content?.links?.image || null };
+      const row = { mint: c.mint, name: c.name, category: c.category, imageUrl: safeImageUrl(a.content?.links?.image) };
       if (c.counts) eligible.push({ ...row, custodian: c.custodian, custodianValueUsd: c.insuredUsd, grade: c.grade, gradingCompany: c.gradingCompany, certNumber: c.certNumber, physicalVault: c.vault });
       else ineligible.push({ ...row, reason: c.excludedBecause });
     }

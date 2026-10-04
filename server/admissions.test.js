@@ -59,14 +59,17 @@ function make({ assets = [asset(MINT)], creator = CREATOR } = {}) {
     getAsset: async (id) => assets.find((x) => x.id === id) || null,
     getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
     simulateTransaction: async () => chain.sim || { err: null, logs: [] }, sim: null,
+    // the admission's transfer, as the chain records it: signed by the creator unless a test says otherwise
+    getParsedTransaction: async (sig) => (chain.txs[sig] !== undefined ? chain.txs[sig] : { meta: { err: null }, transaction: { message: { accountKeys: [{ pubkey: CREATOR, signer: true }] } } }), txs: {},
   };
+  let clock = 1_800_000_000_000;
   const adm = createAdmissions({
     db, chain, vaultWallet: CUSTODY, creator, rules: VAULT_RULES.vault1,
     fetchAssets: async (rpc, owner) => assets.filter((a) => a.ownership.owner === owner),
     buildTransfer: async ({ mint, fromAddress, toAddress, recentBlockhash }) => { built.push({ mint, fromAddress, toAddress }); const tx = new Transaction({ feePayer: new PublicKey(fromAddress), recentBlockhash }); tx.add(SystemProgram.transfer({ fromPubkey: new PublicKey(fromAddress), toPubkey: new PublicKey(toAddress), lamports: 1 })); return tx.serialize({ requireAllSignatures: false }).toString('base64'); },
-    now: () => 1_800_000_000_000, haircut: 0.89, onAdmitted: (m) => admitted.push(m),
+    now: () => clock, haircut: 0.89, onAdmitted: (m) => admitted.push(m),
   });
-  return { adm, db, built, chain, admitted };
+  return { adm, db, built, chain, admitted, tick: (ms) => { clock += ms; } };
 }
 const rejectsWith = async (p, code) => { try { await p; assert.fail('expected rejection'); } catch (e) { assert.equal(e.statusCode, code, e.message); } };
 
@@ -112,19 +115,50 @@ describe('admissions — build the transfer for the creator to sign', () => {
 describe('admissions — record and verify', () => {
   test('recorded as pending; verified when the chain says custody owns it; then it joins the manifest', async () => {
     const { adm, chain, admitted } = make();
-    const r = adm.record({ mint: MINT, owner: CREATOR, signature: 'SIG1', valueUsd: 40 });
+    const r = adm.record({ mint: MINT, owner: CREATOR, signature: 'SGA1', valueUsd: 40 });
     assert.equal(r.status, 'pending'); assert.equal(r.owedUsd, undefined);
     assert.equal((await adm.verifyPending()).verified, 0);           // still owned by the creator
     chain.getAsset = async (id) => ({ ...asset(id), ownership: { owner: CUSTODY } });
     assert.equal((await adm.verifyPending()).verified, 1);
     assert.deepEqual(admitted, [MINT]);
     const list = adm.list();
-    assert.equal(list[0].status, 'admitted'); assert.equal(list[0].signature, 'SIG1');
+    assert.equal(list[0].status, 'admitted'); assert.equal(list[0].signature, 'SGA1');
   });
   test('the same signature twice is one admission (409); a stranger cannot record (403)', () => {
     const { adm } = make();
-    adm.record({ mint: MINT, owner: CREATOR, signature: 'SIG1', valueUsd: 40 });
-    assert.throws(() => adm.record({ mint: MINT, owner: CREATOR, signature: 'SIG1', valueUsd: 40 }), (e) => e.statusCode === 409);
-    assert.throws(() => adm.record({ mint: MINT, owner: STRANGER, signature: 'SIG2', valueUsd: 40 }), (e) => e.statusCode === 403);
+    adm.record({ mint: MINT, owner: CREATOR, signature: 'SGA1', valueUsd: 40 });
+    assert.throws(() => adm.record({ mint: MINT, owner: CREATOR, signature: 'SGA1', valueUsd: 40 }), (e) => e.statusCode === 409);
+    assert.throws(() => adm.record({ mint: MINT, owner: STRANGER, signature: 'SGA2', valueUsd: 40 }), (e) => e.statusCode === 403);
+  });
+});
+
+describe('admissions — what the public Activity shows is read from the chain', () => {
+  const inCustody = (chain) => { chain.getAsset = async (id) => ({ ...asset(id), ownership: { owner: CUSTODY } }); };
+  test('pending shows no value; once admitted, the value is the custodian\'s, read from the chain (not the one sent)', async () => {
+    const { adm, chain } = make();
+    adm.record({ mint: MINT, owner: CREATOR, signature: 'SGA1', valueUsd: 99999 });
+    assert.equal(adm.list()[0].valueUsd, null, 'nothing shown while pending');
+    inCustody(chain);
+    await adm.verifyPending();
+    assert.equal(adm.list()[0].status, 'admitted'); assert.equal(adm.list()[0].valueUsd, 40);
+  });
+  test('a transfer not signed by the creator (or failed on chain) is rejected, not admitted', async () => {
+    const { adm, chain, admitted, db } = make();
+    adm.record({ mint: MINT, owner: CREATOR, signature: 'SGA9', valueUsd: 40 });
+    chain.txs.SGA9 = { meta: { err: null }, transaction: { message: { accountKeys: [{ pubkey: STRANGER, signer: true }] } } };
+    inCustody(chain);
+    await adm.verifyPending();
+    assert.equal(db.prepare('SELECT status FROM vault_admissions').get().status, 'rejected'); assert.deepEqual(admitted, []);
+    assert.deepEqual(adm.list(), [], 'a rejected admission is not in the public Activity');
+  });
+  test('mint must be an address and the signature base58 (400); a pending admission that never lands expires', async () => {
+    const { adm, tick, db } = make();
+    assert.throws(() => adm.record({ mint: '<b>x</b>', owner: CREATOR, signature: 'SGA1', valueUsd: 40 }), (e) => e.statusCode === 400);
+    assert.throws(() => adm.record({ mint: MINT, owner: CREATOR, signature: '"><a>', valueUsd: 40 }), (e) => e.statusCode === 400);
+    adm.record({ mint: MINT, owner: CREATOR, signature: 'SGA1', valueUsd: 40 });
+    tick(60 * 60_000 + 1);
+    await adm.verifyPending();
+    assert.equal(db.prepare('SELECT status FROM vault_admissions').get().status, 'expired');
+    assert.deepEqual(adm.list(), [], 'an expired admission is not in the public Activity');
   });
 });

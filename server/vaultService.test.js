@@ -233,7 +233,7 @@ describe('activity — the doors that fired, newest first', () => {
     chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
     await svc.settle({ reservationId: r.reservationId, paymentSignature: 'PAY1' });
     await svc.reserve({ mint: 'M2', integrator: GACHA, winner: WINNER });               // live, not an event
-    svc.recordRedemption({ mint: 'M3', burnSignature: 'BURN1', recipient: OTHER });
+    svc.recordRedemption({ mint: Keypair.generate().publicKey.toBase58(), burnSignature: 'BURN1', recipient: OTHER });
     const a = svc.listActivity();
     assert.deepEqual(a.map((e) => e.type), ['redeem', 'gacha']);
     assert.equal(a[1].mint, MINT); assert.equal(a[1].paymentSignature, 'PAY1'); assert.match(a[1].deliverySignature, /^SIG-/); assert.equal(a[1].priceUsd, 20); assert.equal(a[1].to, WINNER);
@@ -270,5 +270,25 @@ describe('scope — a reservation is reached only through its own vault and inte
     await rejectsWith(svc.reserve({ mint: MINT, integrator: OTHER, winner: WINNER, idempotencyKey: 'shared' }), 409);
     const again = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER, idempotencyKey: 'shared' });
     assert.equal(again.reservationId, a.reservationId);
+  });
+});
+
+describe('inputs — what is stored and shown is checked first', () => {
+  test('reserve: integrator and winner must be wallet addresses (400)', async () => {
+    const { svc } = make();
+    await rejectsWith(svc.reserve({ mint: MINT, integrator: GACHA, winner: '"><a href=x>win</a>' }), 400);
+    await rejectsWith(svc.reserve({ mint: MINT, integrator: 'gacha', winner: WINNER }), 400);
+  });
+  test('settle: a payment signature that is not base58 is refused before the chain is asked (400)', async () => {
+    const { svc, chain } = make();
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    chain.getSignatureStatuses = async () => { throw new Error('the chain must not be asked'); };
+    await rejectsWith(svc.settle({ reservationId: r.reservationId, paymentSignature: '"><img src=x>' }), 400);
+  });
+  test('redemptions: mint and recipient are addresses, the burn signature is base58 (400)', () => {
+    const { svc } = make();
+    assert.throws(() => svc.recordRedemption({ mint: MINT, burnSignature: '<b>', recipient: WINNER }), (e) => e.statusCode === 400);
+    assert.throws(() => svc.recordRedemption({ mint: 'M3', burnSignature: 'BURN', recipient: WINNER }), (e) => e.statusCode === 400);
+    assert.throws(() => svc.recordRedemption({ mint: MINT, burnSignature: 'BURN', recipient: 'me' }), (e) => e.statusCode === 400);
   });
 });

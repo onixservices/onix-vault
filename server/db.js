@@ -54,7 +54,7 @@ const SCHEMA = `
     value_usd REAL NOT NULL,           -- custodian value at admission
     owed_usd REAL,                     -- (legacy, 1 Oct) nothing is owed per item since 2 Oct
     lock_months INTEGER,
-    status TEXT NOT NULL,              -- pending (sent) | admitted (custody owns it) | rejected
+    status TEXT NOT NULL,              -- pending (sent) | admitted (custody owns it, creator signed) | rejected | expired
     tokens_sig TEXT,                   -- (legacy)
     tokens_amount REAL,
     unlock_at INTEGER,

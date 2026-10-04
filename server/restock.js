@@ -37,6 +37,7 @@ const CC_BUY_SHAPE = Object.freeze([
 ]);
 const MPL_CORE_PROGRAM = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
 const { categoryOf, gradeOf } = require('./rules');
+const { safeImageUrl } = require('./inputs');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -63,7 +64,7 @@ function listingView(raw) {
     marketplace: String((raw.listing && raw.listing.marketplace) || 'CC').toUpperCase(),
     priceUsd: raw.listing ? Number(raw.listing.price) : null,
     insuredUsd: Number.isFinite(ins) ? ins : null,
-    imageUrl: (raw.images && (raw.images.frontM || raw.images.front)) || raw.frontImage || null,
+    imageUrl: safeImageUrl((raw.images && (raw.images.frontM || raw.images.front)) || raw.frontImage || null),
     seller: raw.owner && raw.owner.wallet ? raw.owner.wallet : null,
   };
 }

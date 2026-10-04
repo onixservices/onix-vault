@@ -22,6 +22,7 @@ const crypto = require('crypto');
 const { PublicKey } = require('@solana/web3.js');
 const { generateCommit, sha256Hex, draw, validClientSeed, MAX_REDRAWS } = require('./draw');
 const { buildPaymentTx, buildBurnTx, readPayment, readBurnPayment } = require('./payment');
+const { isSignatureText } = require('./inputs');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -114,6 +115,7 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
 
   function submit({ playId, signature }) {
     if (!playId || !signature) throw err(400, 'playId and signature are required');
+    if (!isSignatureText(signature)) throw err(400, 'signature must be a transaction signature (base58)');
     const p = db.prepare('SELECT * FROM vault_plays WHERE id = ? AND vault = ?').get(playId, vaultWallet);
     if (!p) throw err(404, 'unknown play');
     if (p.status !== 'created') throw err(409, `this play is ${p.status}`);

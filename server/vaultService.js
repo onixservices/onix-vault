@@ -26,6 +26,7 @@ const crypto = require('crypto');
 const reservationsRepo = require('./reservationsRepo');
 const redemptionsRepo = require('./redemptionsRepo');
 const { buildPaymentTx, readPayment } = require('./payment');
+const { isAddress, isSignatureText } = require('./inputs');
 
 class VaultError extends Error {
   constructor(statusCode, message) { super(message); this.name = 'VaultError'; this.statusCode = statusCode; }
@@ -98,6 +99,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
 
   async function reserve({ mint, integrator, winner, idempotencyKey = null }) {
     if (!mint || !integrator || !winner) throw new VaultError(400, 'mint, integrator and winner are required');
+    if (!isAddress(integrator) || !isAddress(winner)) throw new VaultError(400, 'integrator and winner must be wallet addresses');
     // nothing leaves custody while the curve is filling — for integrators as for Play
     const open = await canSell();
     if (!open.ok) throw new VaultError(409, open.reason || 'this vault sells once it graduates');
@@ -132,6 +134,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
 
   async function settle({ reservationId, paymentSignature }) {
     if (!reservationId || !paymentSignature) throw new VaultError(400, 'reservationId and paymentSignature are required');
+    if (!isSignatureText(paymentSignature)) throw new VaultError(400, 'paymentSignature must be a transaction signature (base58)');
     sweepExpired();
     const r = reservationsRepo.get(db, reservationId, config.vaultWallet);
     if (!r) throw new VaultError(404, 'unknown reservation');
@@ -192,6 +195,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
   // ── redemption, v1 (semi-manual): record the burn; the operator verifies and delivers ──
   function recordRedemption({ mint, burnSignature, recipient }) {
     if (!mint || !burnSignature || !recipient) throw new VaultError(400, 'mint, burnSignature and recipient are required');
+    if (!isAddress(mint) || !isAddress(recipient) || !isSignatureText(burnSignature)) throw new VaultError(400, 'mint and recipient must be addresses, burnSignature a transaction signature');
     if (redemptionsRepo.byBurnSig(db, burnSignature)) throw new VaultError(409, 'this burn was already submitted');
     const id = crypto.randomUUID();
     const r = redemptionsRepo.add(db, { id, mint, recipient, burnSig: burnSignature, createdAt: now(), vault: config.vaultWallet });

@@ -14,6 +14,10 @@ const { PublicKey, Transaction } = require('@solana/web3.js');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 const { checkSingleSignerUnsigned } = require('./txAssertions');
 const { itemPassesRules, DEFAULT_RULES } = require('./rules');
+const { isAddress, isSignatureText, safeImageUrl } = require('./inputs');
+const { firstSigner } = require('./payment');
+// an admission that never lands (or was never real) leaves the public Activity after this
+const PENDING_TTL_MS = 60 * 60_000;
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
 const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
@@ -36,7 +40,7 @@ function createAdmissions({ db, chain, vaultWallet, creator = null, rules, fetch
     const out = { wallet: owner, canSend: isCreator(owner), total: assets.length, eligible: [], ineligible: [], rules };
     for (const a of assets) {
       const c = parseCard(a); const v = itemPassesRules(a, rules);
-      const row = { mint: c.mint, name: c.name, category: c.category, imageUrl: a.content?.links?.image || null };
+      const row = { mint: c.mint, name: c.name, category: c.category, imageUrl: safeImageUrl(a.content?.links?.image) };
       if (v.ok) out.eligible.push({ ...row, custodian: c.custodian, custodianValueUsd: c.insuredUsd, grade: c.grade, gradingCompany: c.gradingCompany, certNumber: c.certNumber, physicalVault: c.vault, realisableUsd: r2(c.insuredUsd * haircut) });
       else out.ineligible.push({ ...row, reason: v.reason });
     }
@@ -67,6 +71,7 @@ function createAdmissions({ db, chain, vaultWallet, creator = null, rules, fetch
 
   function record({ mint, owner, signature, valueUsd }) {
     if (!mint || !owner || !signature || !(valueUsd > 0)) throw err(400, 'mint, owner, signature and valueUsd are required');
+    if (!isAddress(mint) || !isAddress(owner) || !isSignatureText(signature)) throw err(400, 'mint and owner must be addresses, signature a transaction signature');
     if (!isCreator(owner)) throw err(403, 'only the creator of this vault can add items');
     if (db.prepare('SELECT id FROM vault_admissions WHERE signature = ?').get(signature)) throw err(409, 'this admission was already recorded');
     const id = crypto.randomUUID(); const t = now();
@@ -75,26 +80,40 @@ function createAdmissions({ db, chain, vaultWallet, creator = null, rules, fetch
     return view(db.prepare('SELECT * FROM vault_admissions WHERE id = ?').get(id));
   }
 
-  /** The chain is the witness: pending → admitted when the custody wallet owns the item; then it counts. */
+  /**
+   * The chain is the witness: pending → admitted when the custody wallet owns the item AND the transfer named in the
+   * record is the creator's own, landed without error; the value shown is then the custodian's, read from the item.
+   * A transfer someone else signed → rejected; nothing after an hour → expired (it leaves the public Activity).
+   */
   async function verifyPending() {
     const rows = db.prepare("SELECT * FROM vault_admissions WHERE status = 'pending' AND vault = ?").all(vaultWallet);
     let verified = 0;
+    const set = (r, status, valueUsd = r.value_usd) => db.prepare('UPDATE vault_admissions SET status = ?, value_usd = ?, updated_at = ? WHERE id = ? AND status = \'pending\'').run(status, valueUsd, now(), r.id);
     for (const r of rows) {
-      let a; try { a = await chain.getAsset(r.mint); } catch { continue; }
+      let a = null, tx = null;
+      try { a = await chain.getAsset(r.mint); } catch { continue; }
       if (a && a.ownership && a.ownership.owner === vaultWallet && !a.burnt) {
-        db.prepare("UPDATE vault_admissions SET status = 'admitted', updated_at = ? WHERE id = ? AND status = 'pending'").run(now(), r.id);
-        if (onAdmitted) onAdmitted(r.mint);
-        verified += 1;
+        try { tx = await chain.getParsedTransaction(r.signature); } catch { continue; }
+        if (tx && (tx.meta?.err || firstSigner(tx) !== r.owner)) { set(r, 'rejected'); continue; }
+        if (tx) {
+          const c = parseCard(a);
+          set(r, 'admitted', Number.isFinite(c.insuredUsd) ? c.insuredUsd : r.value_usd);
+          if (onAdmitted) onAdmitted(r.mint);
+          verified += 1;
+          continue;
+        }
       }
+      if (now() - r.created_at > PENDING_TTL_MS) set(r, 'expired');
     }
     return { checked: rows.length, verified };
   }
 
   function view(r) {
-    return { id: r.id, mint: r.mint, owner: r.owner, signature: r.signature, valueUsd: r.value_usd, status: r.status, at: r.created_at, updatedAt: r.updated_at };
+    // the value is shown once the chain confirmed it (admitted); what a client sent is never displayed
+    return { id: r.id, mint: r.mint, owner: r.owner, signature: r.signature, valueUsd: r.status === 'admitted' ? r.value_usd : null, status: r.status, at: r.created_at, updatedAt: r.updated_at };
   }
   function list({ limit = 100 } = {}) {
-    return db.prepare('SELECT * FROM vault_admissions WHERE vault = ? ORDER BY created_at DESC LIMIT ?').all(vaultWallet, limit).map(view);
+    return db.prepare("SELECT * FROM vault_admissions WHERE vault = ? AND status IN ('pending','admitted') ORDER BY created_at DESC LIMIT ?").all(vaultWallet, limit).map(view);
   }
 
   return { eligible, build, record, verifyPending, list, rules, creator };
