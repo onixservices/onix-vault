@@ -172,7 +172,8 @@ a second net. **If it happens anyway: rotate.**
   a card it buys is sold to a gacha at the index later. It is automatic and in this repository (`server/restock.js`),
   signed by the custody key, the debit measured before signing — but it is a server-side key spending a vault's money,
   bounded by the vault's rules, one item an hour and $150 a card.
-- **Rehearsed attacks** (`scripts/abuse-rehearsal.js`, run against production 3 Oct 2026): 21 of 21 refused. The first run
+- **Rehearsed attacks** (`scripts/abuse-rehearsal.js`, run against production): 21 of 21 refused on 3 Oct 2026; 24 of 24 on 4 Oct, after
+  the security review. The first run
   found a raw error for wallets with no SOL (now a clear 402) and a broken word-boundary in two regexes (fixed).
 - **Legal shape.** A token whose treasury buys items and a draw for physical goods touch securities and
   gaming rules in several jurisdictions. Named, not solved; the copy avoids making it worse.

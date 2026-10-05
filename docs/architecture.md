@@ -2,7 +2,8 @@
 
 > How Onix.Vault is put together, and where the lines are drawn. First written 21 September 2026,
 > before the code; rewritten 3 October 2026 after the model changed (creator-owned vaults, custody
-> per vault, Play) and the whole cycle ran on mainnet.
+> per vault, Play) and the whole cycle ran on mainnet; updated 5 October after the security review
+> (`docs/security-review.md`).
 
 ## The rules everything else follows
 
@@ -92,13 +93,15 @@ One item from a band (by custodian value) is drawn and sent from custody. **USDC
 × 1.15, paid to the custody wallet: the item leaves, the money stays and buys the next one. **Token** =
 the band's average × 1.10 ÷ (realisable backing ÷ supply), **in share of backing, never at the market
 price**: a pump buys nothing cheaper; the tokens are burned by the player, so supply falls. The draw is
-commit-reveal (`server/draw.js`, ported from Onix.Cards): sha256 of the server seed is published before
-payment, the player's seed rides in the memo, `HMAC(seed, playId|clientSeed|nonce)` picks the index in the
+commit-reveal (`server/draw.js`, ported from Onix.Cards): each play's server seed is derived from a server key
+(`HMAC(drawKey, vault|playId)`, the key itself derived from the master seed) and never stored, so neither the database
+nor a backup predicts a draw; sha256 of that seed is published before payment, the player's seed rides in the memo, `HMAC(seed, playId|clientSeed|nonce)` picks the index in the
 band's snapshot sorted by mint, and the seed is revealed with the result. **Play opens at graduation**:
 while the curve is filling, nothing leaves custody.
 
 The gacha API (`reservations` → payment → `settle`) is the same door for integrators: Onix.Cards' gacha is
-the first one, through the public client in `examples/`.
+the first one, through the public client in `examples/`. Its **Onix.Vault** machine sells the cards of every graduated
+vault at the house's price and band odds; each card drawn is reserved, paid and settled with the vault that holds it.
 
 ## The treasury loop — automatic (3 October 2026)
 
@@ -111,13 +114,41 @@ Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOC
    in the simulation before signing; anything that moves them differently is refused. Minimum $1 per round.
 2. **Treasury → next item** (`server/restock.js`), graduated vaults only. The cheapest graded card relative to its
    custodian index on Collector Crypt that passes **this vault's rules** (the entry rule, or the creator's own restock
-   rule), at or below the index, under $150, one purchase an hour. The venue's transaction is asserted (the custody pays;
-   only Collector Crypt's known co-signer may come already signed), the USDC debit is measured in the simulation, it is
-   signed by the custody key, persisted, sent, and confirmed against the chain before the item joins the manifest.
+   rule), at or below the index, under $150, one purchase an hour. The custody key signs **only the exact shape of a
+   Collector Crypt buy** (measured on two mainnet purchases: ComputeBudget, one marketplace `buy`, the co-signer's noop),
+   with a priority-fee cap; the simulation measures the custody's USDC, its SOL and that the item ends in custody; then it
+   is signed, persisted, sent, and confirmed against the chain before the item joins the manifest.
 3. A round that does nothing says why in the log, once per change of reason.
 
 The first automatic purchase: a Weedle PSA 9 for $15 (index $18), 3 Oct 2026 — and the Magnemite the treasury bought
 an hour earlier was won in Onix.Cards' vault machine minutes later, paid to the vault through the public API.
+
+## Inside the server — layers and patterns
+
+- **Pure core, no I/O.** `src/reader` (custody and pool decoding), `src/curve` (the configuration and the fee split),
+  `server/draw.js` (the draw), `server/rules.js` (a vault's rules), the payment readers in `server/payment.js` and the
+  transaction checks in `server/txAssertions.js`. The same `src/reader` runs on the server, in the CLI and in the
+  browser (`web/verify.html`).
+- **Services as factories with their dependencies injected** (`createVaultCreator`, `createPlay`, `createRestock`,
+  `createFeeClaim`, `createVaultService`, `createAdmissions`, the curve and pool traders). Each receives the chain, the
+  indexer, the signer, the clock and the database; tests pass fakes for those and keep the business logic real
+  (ports and adapters).
+- **Adapters at the edges:** `server/chain.js` (RPC), `src/reader/das.js` (the indexer), the venue API in the restock's
+  production dependencies, `server/transfer.js` (one transfer builder per token standard: MPL Core, pNFT, SPL).
+- **Routes are thin** (`server/app.js`): validate, call one service, answer. `server/index.js` is the only place the
+  pieces meet — one bundle per vault.
+- **State machines** for every flow that crosses the chain. Reservations, plays, purchases and admissions move only with
+  `UPDATE … WHERE status = <expected>`, and only the caller whose update changed the row continues — one payment, one
+  delivery, even with two workers. Creations take a per-creation lock and read the launch state from the chain before
+  every step.
+- **One signing discipline everywhere the server signs** (deliveries, the treasury's purchase and fee claim, the curve
+  config, returns before launch): build → assert the exact shape → simulate and measure what moves → sign → persist →
+  broadcast → read the chain back before counting.
+- **Operational safety as code:** the emergency pause (`server/pause.js`), per-address rate fences
+  (`server/ratelimit.js`), inputs checked at the door (`server/inputs.js`), generic 500s with a reference, and the
+  public contract held to the routes by a test (`server/openapi.test.js`).
+- **Tests:** `node:test`, 224 of them, mocks only at the transport; every security finding has a regression test that
+  fails on the code before its fix (`docs/security-review.md`).
 
 ## `web/` — the page
 

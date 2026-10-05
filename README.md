@@ -20,7 +20,7 @@ Dynamic Bonding Curve. From there:
 | **Create** | the creator's items go into custody; a token launches; the creator keeps **50%** (locked, released over 6 months from graduation) and earns **40% of the trading fee on the curve**, paid by the program | set |
 | **Trade** | 10% fee on the curve: 2% Meteora · 3.2% creator · 3.2% the vault's treasury · 1.6% Onix; the first 60 s charge 99%→10% so bots cannot front-run. At graduation the token moves to a DAMM v2 pool (liquidity locked for good) and **30% of the USDC raised goes to the vault** | rises |
 | **Play** | opens at graduation. One item from a band is drawn — provably — and sent from custody. Pay **USDC** (the band's average × 1.15; the money stays in the vault and buys the next item) or **burn the token** (average × 1.10 in *share of backing*, never at the market price) | rises |
-| **Integrate** | any gacha buys an item at the published price through the API; Onix.Cards runs a **Vaults** category with one machine per graduated vault | rises |
+| **Integrate** | any gacha buys an item at the published price through the API; Onix.Cards' **Onix.Vault** machine sells the cards of every graduated vault, paying each vault for its own card | rises |
 
 Nothing leaves custody except through Play or the API, at the same price for the creator and for a
 stranger. Anyone can verify what is inside a vault without asking us for anything. That is the point.
@@ -32,7 +32,7 @@ and every purchase is a public transaction on the vault's Activity tab.
 
 The mechanism does not care what the asset is. It cares about three things: possession is provable on
 chain, the custodian publishes identity and value in the token, and the custodian offers a way to redeem
-the physical item. **Vault #1 holds graded trading cards** because that is where custody is most mature
+the physical item. **The first vaults hold graded trading cards** because that is where custody is most mature
 today (Collector Crypt writes insured value, grader, certificate and the vault's street address into every
 token). Wine, watches or comics enter the day their custodian meets the same three conditions. Liquid RWAs
 (tokenized stocks) do not need this: they redeem at NAV by design. This is for the illiquid kind.
@@ -67,9 +67,9 @@ Anyone who prefers their own RPC can run `web/verify.html` with their own endpoi
 | `src/curve/` | the bonding-curve configuration (`DECIDED`), the fee split, and the reasoning behind each parameter |
 | `server/` | the vault server: the API (`/v1/vaults/{vault}/…`), creation with custody by derivation, the trade door (curve, then pool), Play, the delivery that signs with the custody key, uploads, rate limits. `server/openapi.json` is the contract |
 | `web/` | the app: the board, each vault's mini-site (Trade · Play · Items · Activity · Proof), create a vault, integrate. Static; reads only `/v1` |
-| `scripts/` | `create-vault.js` (the four steps with a server-side creator), `graduate.js` (locker → migrate → fee → leftover), `restock.js` (the treasury loop by hand), `abuse-rehearsal.js` (21 attacks through the public routes), `return-item.js` / `return-usdc.js` / `return-sol.js` |
+| `scripts/` | `create-vault.js` (the four steps with a server-side creator), `graduate.js` (locker → migrate → fee → leftover), `restock.js` (the treasury loop by hand), `abuse-rehearsal.js` (24 refusals through the public routes, run against production), `return-item.js` / `return-usdc.js` / `return-sol.js` |
 | `examples/integrator/` | a complete client of the API — the one Onix.Cards' gacha runs |
-| `docs/` | architecture, threat model, the curve spec, the API, the runbook, the business model |
+| `docs/` | architecture, **security review**, threat model, the curve spec, the API, the runbook, the business model |
 
 **The code is public; the keys are not.** The master seed every custody wallet derives from and the
 operator key exist only in the server's `.env`, generated there, never committed (allowlist `.gitignore`,
@@ -90,7 +90,9 @@ npm run server                         # the API + the page on :3004 (see server
 This repository is public and is expected to contain **no secrets at all**. A blocking `pre-commit` hook
 refuses anything that looks like a private key, an API key or a `.env` file. Install it once with
 `bash setup.sh`. If you believe a secret reached this repository, treat it as compromised and rotate it —
-deleting the commit is not enough. The threat model is in `docs/threat-model.md`.
+deleting the commit is not enough. The threat model is in `docs/threat-model.md`; the security review — every finding with its
+fix commit and a regression test that fails on the code before it — is in `docs/security-review.md`. The operator can stop
+every route that moves value with a file (`data/PAUSE`, or `data/PAUSE-<vault>`); nothing is lost while paused.
 
 ## License
 

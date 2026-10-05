@@ -1,7 +1,7 @@
 # The vault API — v1
 
 > How a vault is created, traded and played, and how a gacha (ours or anyone's) buys an item out of it.
-> Written for Vault #1 (graded cards); the contract is the same for any registered custodian.
+> Written for vaults of graded cards; the contract is the same for any registered custodian.
 > Drafted 30 September 2026; served by `server/` since 1 October. The server only ever
 > moves an item *after* a payment or a burn is confirmed on chain, and every delivery is a
 > public transaction paired with the one that caused it.

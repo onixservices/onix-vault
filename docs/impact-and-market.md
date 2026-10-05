@@ -20,7 +20,7 @@ redeem at NAV by design; this is for the illiquid kind.
 
 Graded trading cards are the first class that meets all three today: grade, grading company,
 certificate number, insured value and the physical vault's street address are attributes of
-the token itself, for two custodians (Collector Crypt, Phygitals). That is why Vault #1 holds
+the token itself, for two custodians (Collector Crypt, Phygitals). That is why the first vaults hold
 cards. Wine and spirits (BAXUS, dVIN), watches (Watch.fun) and fossils (JurassicFi) are
 tokenized on Solana today; **whether their custodians publish value and redemption in the
 token is not yet measured** — one probe per custodian, and that number is not in this memo.
@@ -87,7 +87,7 @@ And it pays the person who brought the items, which SV151 never did.
 
 ## Where it goes if it works
 
-Vault #1 is the seed, not the product. The mechanism does not care what the asset is; it
+The first vaults are the seed, not the product. The mechanism does not care what the asset is; it
 cares that **custody is provable on chain**. Where a credible custodian tokenizes a real
 thing, a vault works the next day. That is the market: not cards, but **every custodian's
 inventory**, one vault at a time.
