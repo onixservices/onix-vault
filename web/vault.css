@@ -473,6 +473,9 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .ba2 .ba-s{font:500 13px var(--font); fill:var(--text-muted)} .ba2 .ba-s.b{fill:var(--text); font-weight:600}
 @media(max-width:860px){ .hero2{grid-template-columns:1fr} }
 .why-head{display:flex; flex-direction:column; gap:8px}
+.why-problem{color:var(--text-muted); font-size:15px; max-width:62ch; margin:0 0 4px; padding-left:12px; border-left:2px solid var(--border2)}
+.why-now{display:flex; flex-direction:column; gap:8px; padding-block:8px}
+.why-now .lede{color:var(--text-muted); font-size:17px; max-width:62ch}
 .why-head h1{font-size:clamp(30px,4.4vw,46px); letter-spacing:-.03em}
 .steps2{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px}
 .steps2>div{background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:18px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px}
