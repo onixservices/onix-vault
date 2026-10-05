@@ -7,7 +7,7 @@
  *   const items = await vault.items();
  *   const r = await vault.reserve({ mint, integrator: myWallet, winner: playerWallet, idempotencyKey });
  *   // sign r.paymentTransaction with `integrator`, send it, keep the signature
- *   const settled = await vault.settle(r.reservationId, paymentSignature);   // retry on 409 until finalized
+ *   const settled = await vault.settle(r.reservationId, paymentSignature);   // retry on 409 (not finalized), 429 and 503 (paused): none is a failure
  *
  *   // an integrator of EVERY vault: discover them, keep the graduated ones (only those sell)
  *   const vaults = await listVaults({ baseUrl: 'https://vault.onix.finance' });   // [{ vault, id, name, graduated, … }]

@@ -41,12 +41,25 @@ Play, token                       = the band's average × 1.10 ÷ (realisable ba
 The money stays in the vault; a burn shrinks the supply. The vault never picks which item leaves: the gacha
 picks by paying for a specific item, Play draws by commit-reveal.
 
+## Status codes an integrator handles (contract 1.4.0)
+
+| code | meaning | what to do |
+|---|---|---|
+| `400` | malformed input: an address that is not a base58 public key, a signature that is not base58 text, `slippageBps` outside 1–500 | fix the request |
+| `404` | unknown vault, or a reservation / play that belongs to another vault | use the vault the object was created on |
+| `409` | the state does not allow it yet (payment not finalized, item reserved, launch in flight) — or an `Idempotency-Key` already used by another integrator or vault | **retry later**, or choose another key |
+| `429` | rate limit for this address on this kind of request | **retry later** |
+| `503` | the operator paused the server or this vault (`GET /v1/health` → `paused`); nothing is lost, payments already made are processed when it lifts | **retry later** — never treat it as a failure |
+| `500` | unexpected; the body carries a `ref` the operator finds in the log, never the error text | retry; report the `ref` if it persists |
+
+The machine-readable contract is [`server/openapi.json`](../server/openapi.json); a test holds it to the routes the
+server actually serves.
+
 ## Endpoints
 
-Served at `vault.onix.finance`. `{vault}` is the vault wallet; v1 serves one vault and answers
-404 for any other, so the paths will not change when the second vault exists. `x-api-key` is
-optional: it identifies an integrator for limits and never unlocks anything. `POST` honours
-`Idempotency-Key`. All responses carry `readAt` and the basis of every price.
+Served at `vault.onix.finance`. `{vault}` is the vault wallet; `GET /v1/vaults` lists every vault, and any other wallet
+answers 404. `x-api-key` is optional: it identifies an integrator for limits and never unlocks anything. `POST` honours
+`Idempotency-Key` (per vault and integrator). All responses carry `readAt` and the basis of every price.
 
 ### What the page reads
 

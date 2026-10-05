@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Onix.Vault API",
-    "version": "1.3.0",
-    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing."
+    "version": "1.4.0",
+    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`."
   },
   "servers": [
     {
@@ -240,6 +240,9 @@
           },
           "400": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -300,7 +303,8 @@
             "in": "header",
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "replays the same reservation for the same vault and integrator; a key already used by another integrator or vault answers 409"
           }
         ],
         "requestBody": {
@@ -320,11 +324,11 @@
                   },
                   "integrator": {
                     "type": "string",
-                    "description": "the wallet that will pay"
+                    "description": "the wallet that will pay — a base58 Solana address"
                   },
                   "winner": {
                     "type": "string",
-                    "description": "the wallet that receives the item"
+                    "description": "the wallet that receives the item — a base58 Solana address"
                   }
                 }
               }
@@ -342,6 +346,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
           "404": {
             "$ref": "#/components/responses/Error"
           },
@@ -350,6 +357,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       }
@@ -357,7 +367,7 @@
     "/v1/vaults/{vault}/reservations/{id}/settle": {
       "post": {
         "summary": "Prove the payment landed; the vault delivers",
-        "description": "The vault reads the transaction from the chain and checks: finalized; credits the vault's USDC account with at least the frozen price; memo equals the reservation id. Only then it builds the delivery to `winner`, asserts it has a single unsigned signer (the vault), SIMULATES it, signs, persists the signed transaction and broadcasts. A payment signature settles one reservation, ever.",
+        "description": "The vault reads the transaction from the chain and checks: finalized; credits the vault's USDC account with at least the frozen price; memo equals the reservation id. Only then it builds the delivery to `winner`, asserts it has a single unsigned signer (the vault), SIMULATES it, signs, persists the signed transaction and broadcasts. A payment signature settles one reservation, ever. `paymentSignature` must be base58 text (400 otherwise, before the chain is asked). A reservation of another vault answers 404.",
         "parameters": [
           {
             "$ref": "#/components/parameters/vault"
@@ -400,6 +410,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
           "402": {
             "description": "payment does not cover the reservation",
             "content": {
@@ -429,6 +442,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           },
           "503": {
             "description": "paid, but the delivery failed (it is simulated before it is signed; a delivery that would fail on chain is never broadcast). The reservation is `delivery_failed`, keeps the payment, and the operator re-runs the delivery by hand (`scripts/retry-delivery.js`); poll `GET …/reservations/{id}` for `deliverySignature`.",
@@ -516,6 +532,12 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       },
@@ -567,6 +589,9 @@
           },
           "422": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -765,6 +790,12 @@
           },
           "410": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       }
@@ -806,6 +837,12 @@
           },
           "409": {
             "description": "not the transaction that was built, or the creator did not sign"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       }
@@ -845,6 +882,12 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       }
@@ -888,6 +931,12 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       }
@@ -914,6 +963,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -1066,6 +1118,9 @@
           },
           "429": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       },
@@ -1149,8 +1204,15 @@
           },
           "410": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
-        }
+        },
+        "description": " `signature` must be base58 text (400 otherwise). A play of another vault answers 404."
       }
     },
     "/v1/vaults/{vault}/plays/{id}": {
@@ -1221,7 +1283,10 @@
                   },
                   "slippageBps": {
                     "type": "integer",
-                    "default": 100
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100,
+                    "description": "how far the price may move before the transaction fails; 1–500 bps"
                   }
                 }
               }
@@ -1244,6 +1309,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -1284,7 +1352,10 @@
                   },
                   "slippageBps": {
                     "type": "integer",
-                    "default": 100
+                    "minimum": 1,
+                    "maximum": 500,
+                    "default": 100,
+                    "description": "how far the price may move before the transaction fails; 1–500 bps"
                   }
                 }
               }
@@ -1320,6 +1391,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -1360,6 +1434,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -1386,6 +1463,9 @@
           },
           "400": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
           }
         }
       }
@@ -1460,6 +1540,12 @@
           },
           "422": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
         }
       }
@@ -1506,10 +1592,20 @@
           "202": {
             "description": "recorded as pending"
           },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
           "409": {
             "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooMany"
+          },
+          "503": {
+            "$ref": "#/components/responses/Paused"
           }
-        }
+        },
+        "description": " `mint` and `owner` must be base58 addresses and `signature` base58 text. The admission is admitted only when custody holds the item and the named transfer was signed by the creator; its value is then read from the item (the one sent is never shown); a transfer signed by anyone else is rejected; nothing after an hour expires."
       },
       "get": {
         "summary": "Every admission with its signature, status (pending | admitted) and what is owed",
@@ -1522,7 +1618,8 @@
           "200": {
             "description": "admissions + the vault's rules"
           }
-        }
+        },
+        "description": " Lists pending and admitted admissions; `valueUsd` is null until admitted."
       }
     },
     "/v1/vaults/{vault}/fee-claims": {
@@ -1600,6 +1697,26 @@
             }
           }
         }
+      },
+      "Paused": {
+        "description": "paused for maintenance — nothing is lost; try again later",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooMany": {
+        "description": "rate limit for this address on this kind of request; try again later",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -1620,6 +1737,22 @@
               "integer",
               "null"
             ]
+          },
+          "paused": {
+            "type": "object",
+            "description": "The emergency stop: while `global` is true, or the vault is listed, every route that moves value answers 503. Nothing is lost; payments already made are processed when it lifts.",
+            "properties": {
+              "global": {
+                "type": "boolean"
+              },
+              "vaults": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "vault ids or wallets paused one by one"
+              }
+            }
           }
         }
       },
@@ -1756,6 +1889,10 @@
           },
           "code": {
             "type": "integer"
+          },
+          "ref": {
+            "type": "string",
+            "description": "only on 500: a reference the operator finds in the server log (the error text itself never leaves the server)"
           }
         }
       },
