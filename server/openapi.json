@@ -227,6 +227,16 @@
                           "name": {
                             "type": "string"
                           },
+                          "custodian": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "the registered custodian holding the item; null for a token nobody registered (its picture is never relayed)"
+                          },
+                          "imageUrl": {
+                            "type": "string",
+                            "nullable": true,
+                            "description": "only for an item from a registered custodian"
+                          },
                           "reason": {
                             "type": "string"
                           }

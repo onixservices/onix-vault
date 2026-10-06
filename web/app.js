@@ -447,15 +447,21 @@
     return r;
   }
   $('f-rs').addEventListener('change', function () { $('f-rs-custom').hidden = this.value !== 'custom'; });
+  // What cannot go in: a registered custodian's card shows itself with the reason; a stranger's token (anyone can
+  // airdrop one into any wallet, and spam carries phishing art) is counted in one line and never pictured.
+  function ineligibleHtml(list, label) {
+    var known = list.filter(function (x) { return x.custodian; }), rest = list.length - known.length;
+    return known.map(function (x) {
+      var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
+      return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>' + label + '</span></div></div>';
+    }).join('') + (rest ? '<div class="rest">+' + rest + ' other token' + (rest === 1 ? '' : 's') + ' in this wallet · not from a registered custodian</div>' : '');
+  }
   function renderPick() {
     var q = CQ;
     $('pick').innerHTML = !q ? '' : q.items.map(function (c) {
       var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
       return '<button type="button" class="pk' + (CSEL[c.mint] ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + usd(c.custodianValueUsd) + '</span></div></button>';
-    }).join('') + (q ? q.ineligible.map(function (x) {
-      var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
-      return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>not eligible</span></div></div>';
-    }).join('') : '');
+    }).join('') + (q ? ineligibleHtml(q.ineligible, 'not eligible') : '');
     $('c-calc').style.display = q ? '' : 'none';
     var n = 0, idx = 0; if (q) q.items.forEach(function (c) { if (CSEL[c.mint]) { n++; idx += c.custodianValueUsd; } });
     var real = Math.round(idx * 0.89 * 100) / 100, gm = Number($('f-grad').value) || 2.5;
@@ -652,10 +658,7 @@
     $('sd-pick').innerHTML = SD.items.eligible.map(function (c) {
       var ph = c.imageUrl ? '<img src="' + esc(c.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
       return '<button type="button" class="pk' + (SD.pick === c.mint ? ' sel' : '') + '" data-mint="' + c.mint + '">' + ph + '<div class="t"><b>' + esc(c.name) + '</b><span>' + esc([c.gradingCompany, c.grade].filter(Boolean).join(' ')) + ' \u00b7 ' + usd(c.custodianValueUsd) + '</span></div></button>';
-    }).join('') + SD.items.ineligible.map(function (x) {
-      var ph = x.imageUrl ? '<img src="' + esc(x.imageUrl) + '" alt="" loading="lazy">' : '<div style="aspect-ratio:3/4;background:var(--tile)"></div>';
-      return '<div class="pk no" aria-disabled="true"><span class="why">' + esc(x.reason) + '</span>' + ph + '<div class="t"><b>' + esc(x.name) + '</b><span>cannot go in</span></div></div>';
-    }).join('');
+    }).join('') + ineligibleHtml(SD.items.ineligible, 'cannot go in');
     var c = SD.items.eligible.filter(function (x) { return x.mint === SD.pick; })[0];
     $('sd-calc').style.display = c ? '' : 'none';
     if (c) { $('sd-val').textContent = usd2(c.custodianValueUsd); $('sd-real').textContent = usd2(c.realisableUsd); var bd = BANDS_DEF.filter(function (b) { return b.id === bandOf(c.custodianValueUsd || 0); })[0]; $('sd-owed').textContent = bd ? bd.label : '\u2014'; }

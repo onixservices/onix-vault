@@ -23,4 +23,13 @@ function safeImageUrl(u) {
   try { const x = new URL(u); return x.protocol === 'https:' ? x.href : null; } catch { return null; }
 }
 
-module.exports = { isAddress, isSignatureText, safeImageUrl };
+/**
+ * The picture of a token in someone's wallet, relayed only when a registered custodian holds the item. Anyone can
+ * airdrop an NFT into any wallet, and spam airdrops carry phishing art (6 Oct 2026: two "JUP" cNFTs spelled with zero-width
+ * characters showed up in the Create step) — the page lists them, it never shows them.
+ */
+function shownImageUrl(card, asset) {
+  return card.custodian ? safeImageUrl(asset?.content?.links?.image) : null;
+}
+
+module.exports = { isAddress, isSignatureText, safeImageUrl, shownImageUrl };

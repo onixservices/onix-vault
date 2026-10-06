@@ -74,8 +74,9 @@ function validateRules(input = {}) {
 function itemPassesRules(asset, rules) {
   const c = parseCard(asset);
   if (!c.custodian) return { ok: false, reason: 'unknown custodian' };
-  if (!rules.custodians.includes(c.custodian)) return { ok: false, reason: `custodian not accepted by this vault: ${c.custodian}` };
+  // no value on chain comes first: it is why a Phygitals card cannot back anything, whatever the vault accepts
   if (c.insuredUsd == null) return { ok: false, reason: 'no insured value' };
+  if (!rules.custodians.includes(c.custodian)) return { ok: false, reason: `custodian not accepted by this vault: ${c.custodian}` };
   if (rules.minValueUsd && c.insuredUsd < rules.minValueUsd) return { ok: false, reason: `below the vault's minimum value ($${rules.minValueUsd})` };
   if (rules.category && rules.category !== 'mixed') {
     const cat = categoryOf(c);

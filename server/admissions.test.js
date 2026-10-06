@@ -28,7 +28,9 @@ describe('vault rules', () => {
   test('default rules: Collector Crypt graded cards with a value on chain; Phygitals and unknowns are listed with the reason', () => {
     const rules = VAULT_RULES.vault1;
     assert.deepEqual(itemPassesRules(asset('a'), rules), { ok: true, reason: null });
-    assert.deepEqual(itemPassesRules(asset('b', { collection: PHYG }), rules), { ok: false, reason: 'custodian not accepted by this vault: Phygitals' });
+    // a Phygitals card carries identity on chain but no value: that is the reason it gives, not the vault's list
+    assert.deepEqual(itemPassesRules(asset('b', { collection: PHYG, insured: null }), rules), { ok: false, reason: 'no insured value' });
+    assert.deepEqual(itemPassesRules(asset('b2', { collection: PHYG }), rules), { ok: false, reason: 'custodian not accepted by this vault: Phygitals' });
     assert.deepEqual(itemPassesRules(asset('c', { collection: 'Zzz' }), rules), { ok: false, reason: 'unknown custodian' });
     assert.deepEqual(itemPassesRules(asset('d', { insured: null }), rules), { ok: false, reason: 'no insured value' });
     assert.deepEqual(itemPassesRules(asset('e', { insured: '5' }), { ...rules, minValueUsd: 10 }), { ok: false, reason: 'below the vault\'s minimum value ($10)' });
@@ -75,11 +77,14 @@ const rejectsWith = async (p, code) => { try { await p; assert.fail('expected re
 
 describe('admissions — eligibility for THIS vault', () => {
   test('anyone can look: what passes, what does not with the reason; canSend only for the creator', async () => {
-    const { adm } = make({ assets: [asset(MINT), asset('p', { collection: PHYG }), asset('s', { owner: STRANGER })] });
+    const { adm } = make({ assets: [asset(MINT), asset('p', { collection: PHYG }), asset('z', { collection: 'Spam111111111111111111111111111111111111111' }), asset('s', { owner: STRANGER })] });
     const out = await adm.eligible(CREATOR);
     assert.equal(out.canSend, true);
     assert.equal(out.eligible.length, 1); assert.equal(out.eligible[0].mint, MINT); assert.equal(out.eligible[0].realisableUsd, 35.6); assert.equal(out.eligible[0].owedUsd, undefined);
-    assert.deepEqual(out.ineligible.map((x) => x.reason), ['custodian not accepted by this vault: Phygitals']);
+    assert.deepEqual(out.ineligible.map((x) => [x.mint, x.reason, x.custodian, x.imageUrl]), [
+      ['p', 'custodian not accepted by this vault: Phygitals', 'Phygitals', 'https://x/p.jpg'],
+      ['z', 'unknown custodian', null, null], // a stranger's NFT: listed, never pictured
+    ]);
     assert.equal((await adm.eligible(STRANGER)).canSend, false);
   });
 });

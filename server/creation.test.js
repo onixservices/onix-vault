@@ -101,6 +101,12 @@ describe('Create door — quote', () => {
     assert.equal(q2.items.length, 1); assert.equal(q2.ineligible.length, 1);
     await rejects(creator.quote({ owner: OWNER, rules: { category: 'wine' } }), 422);
   });
+  test('the quote lists what cannot go in with its custodian; a stranger\'s NFT gets no picture', async () => {
+    const { creator } = make({ assets: [asset('a'), asset('spam', '40', OWNER, 'Spam111111111111111111111111111111111111111')] });
+    const q = await creator.quote({ owner: OWNER });
+    assert.deepEqual(q.ineligible.map((x) => [x.mint, x.custodian, x.imageUrl, x.reason]), [['spam', null, null, 'unknown custodian']]);
+    assert.equal(q.items[0].imageUrl, 'https://x/a.jpg');
+  });
   test('an empty wallet cannot create, and says why', async () => {
     const { creator } = make({ assets: [] });
     const q = await creator.quote({ owner: OWNER });

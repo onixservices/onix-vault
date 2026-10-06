@@ -14,7 +14,7 @@ const { PublicKey, Transaction } = require('@solana/web3.js');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 const { checkSingleSignerUnsigned } = require('./txAssertions');
 const { itemPassesRules, DEFAULT_RULES } = require('./rules');
-const { isAddress, isSignatureText, safeImageUrl } = require('./inputs');
+const { isAddress, isSignatureText, shownImageUrl } = require('./inputs');
 const { firstSigner } = require('./payment');
 // an admission that never lands (or was never real) leaves the public Activity after this
 const PENDING_TTL_MS = 60 * 60_000;
@@ -40,8 +40,8 @@ function createAdmissions({ db, chain, vaultWallet, creator = null, rules, fetch
     const out = { wallet: owner, canSend: isCreator(owner), total: assets.length, eligible: [], ineligible: [], rules };
     for (const a of assets) {
       const c = parseCard(a); const v = itemPassesRules(a, rules);
-      const row = { mint: c.mint, name: c.name, category: c.category, imageUrl: safeImageUrl(a.content?.links?.image) };
-      if (v.ok) out.eligible.push({ ...row, custodian: c.custodian, custodianValueUsd: c.insuredUsd, grade: c.grade, gradingCompany: c.gradingCompany, certNumber: c.certNumber, physicalVault: c.vault, realisableUsd: r2(c.insuredUsd * haircut) });
+      const row = { mint: c.mint, name: c.name, category: c.category, custodian: c.custodian, imageUrl: shownImageUrl(c, a) };
+      if (v.ok) out.eligible.push({ ...row, custodianValueUsd: c.insuredUsd, grade: c.grade, gradingCompany: c.gradingCompany, certNumber: c.certNumber, physicalVault: c.vault, realisableUsd: r2(c.insuredUsd * haircut) });
       else out.ineligible.push({ ...row, reason: v.reason });
     }
     return out;

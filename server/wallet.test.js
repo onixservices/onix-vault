@@ -24,6 +24,14 @@ describe('wallet — eligible items', () => {
     assert.deepEqual(out.ineligible.map((i) => [i.mint, i.reason]), [['no-cust', 'unknown custodian'], ['no-val', 'no insured value']]);
     assert.equal(out.total, 3);
   });
+  test('a stranger\'s NFT is listed without its picture; a registered custodian\'s card keeps it and says who holds it', async () => {
+    const PHYG = 'phygZDQZJZVHvJGYPGoKPYUtXw7mstSYtTtcuh8LJcC'; // a registered Phygitals collection: identity on chain, no value
+    const fetchAssets = async () => [asset('spam', { collection: 'Spam111111111111111111111111111111111111111', name: 'JUP' }), asset('phyg', { collection: PHYG, insured: null })];
+    const out = await createWalletReader({ rpcUrl: 'x', fetchAssets })(W);
+    const [spam, phyg] = out.ineligible;
+    assert.deepEqual([spam.mint, spam.custodian, spam.imageUrl, spam.reason], ['spam', null, null, 'unknown custodian']);
+    assert.deepEqual([phyg.mint, phyg.custodian, phyg.imageUrl, phyg.reason], ['phyg', 'Phygitals', 'https://x/y.jpg', 'no insured value']);
+  });
   test('a wallet that is not a public key is refused with 400', async () => {
     const read = createWalletReader({ rpcUrl: 'x', fetchAssets: async () => [] });
     await assert.rejects(read('not-a-key'), (e) => e.statusCode === 400);
