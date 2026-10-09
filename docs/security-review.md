@@ -67,7 +67,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 ## How to verify
 
 ```bash
-npm ci && timeout 280 npm test                       # 224 tests
+npm ci && timeout 280 npm test                       # 227 tests
 node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004   # public refusals, against a local server
 touch data/PAUSE                                      # every value route answers 503 within 5 s; rm to resume
 ```

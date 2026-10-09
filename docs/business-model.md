@@ -67,7 +67,7 @@ seed held on the server; the escrow program on the roadmap replaces it.
   to graduation, migrated to a DAMM v2 pool, a Play paid in USDC and the card delivered from custody, the draw recomputed
   outside the server. Then `$OCC`, with its own image and banner: graduated, traded on its pool from the page, its treasury
   **bought cards by itself**, one of them won on Onix.Cards' vault machine and paid to the vault through the public API,
-  and the fees claimed into the treasury automatically. 224 tests; 24 of 24 abuse attempts refused in production; an
+  and the fees claimed into the treasury automatically. 227 tests; 24 of 24 abuse attempts refused in production; an
   internal security review with every finding fixed and regression-tested (`docs/security-review.md`).
 - **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized graded cards that buys
   inventory on its own, across venues, under published rules. Its gacha is the vault's first integrator.

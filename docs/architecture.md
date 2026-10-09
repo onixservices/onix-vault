@@ -147,7 +147,7 @@ an hour earlier was won in Onix.Cards' vault machine minutes later, paid to the 
 - **Operational safety as code:** the emergency pause (`server/pause.js`), per-address rate fences
   (`server/ratelimit.js`), inputs checked at the door (`server/inputs.js`), generic 500s with a reference, and the
   public contract held to the routes by a test (`server/openapi.test.js`).
-- **Tests:** `node:test`, 224 of them, mocks only at the transport; every security finding has a regression test that
+- **Tests:** `node:test`, 227 of them, mocks only at the transport; every security finding has a regression test that
   fails on the code before its fix (`docs/security-review.md`).
 
 ## `web/` — the page
