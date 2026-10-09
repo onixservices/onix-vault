@@ -27,8 +27,10 @@ stranger. Anyone can verify what is inside a vault without asking us for anythin
 
 **The treasury runs itself.** Every 15 minutes the server claims the trading fees into custody (the curve's partner fee
 — Onix's third split off in the same transaction — and the graduated pool's LP fee), then buys the next graded card that
-passes the vault's rules, at or below the custodian's index (`server/feeclaim.js`, `server/restock.js`). Every claim
-and every purchase is a public transaction on the vault's Activity tab.
+passes the vault's rules, at or below the custodian's index (`server/feeclaim.js`, `server/restock.js`). A curve that
+fills graduates by itself within a minute: the server opens the creator's lock, migrates the pool to DAMM v2 and moves
+30% of the raise into custody (`server/graduation.js`). Every claim, purchase and graduation is a public transaction on
+the vault's Activity tab.
 
 The mechanism does not care what the asset is. It cares about three things: possession is provable on
 chain, the custodian publishes identity and value in the token, and the custodian offers a way to redeem

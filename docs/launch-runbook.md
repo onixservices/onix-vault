@@ -111,10 +111,14 @@ node scripts/create-vault.js … --go                                           
 Reversible until step 4: `abandon` returns items and gas to the creator. **Creating the pool is the point
 of no return**: the config is fixed, the mint exists, the first outside buy can happen at any moment.
 
-## 2b. Graduation — done by us, in this order
+## 2b. Graduation — the server does it; the script is the manual way
 
 The Meteora keeper does **not** migrate configs like ours (measured 2 October: five minutes, nothing).
-When `stats.pool.graduationProgress` reaches 1:
+Since 9 October the server does it by itself: with `ONIX_VAULT_GRADUATE=1` it reads every live curve once a minute
+(`server/graduation.js`) and, when the USDC in the reserve reaches the config's threshold, runs the four steps below —
+each one simulated before it is signed, once per vault (`vault_graduations`, shown on the vault's Activity tab as
+`Graduated`). A run that fails keeps the step and the reason, is retried after 10 minutes up to five times, then waits
+for you. There is no public trigger: only a full curve starts it. By hand, when `stats.pool.graduationProgress` reaches 1:
 
 ```
 node scripts/graduate.js --vault <id>          # dry run: reads the pool and the config, prints the plan

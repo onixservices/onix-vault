@@ -186,6 +186,26 @@ const SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_fee_claims_vault_status ON vault_fee_claims (vault, status);
 
+  -- the vault graduating itself (server/graduation.js): one row per vault; the steps' signatures as they land
+  CREATE TABLE IF NOT EXISTS vault_graduations (
+    id TEXT PRIMARY KEY,
+    vault TEXT NOT NULL UNIQUE,
+    pool TEXT NOT NULL,
+    status TEXT NOT NULL,              -- running | done | failed
+    step TEXT,                         -- locker | migrate | fee | leftover | done | external
+    attempts INTEGER NOT NULL DEFAULT 0,
+    raised_usd REAL,
+    threshold_usd REAL,
+    locker_sig TEXT,
+    migrate_sig TEXT,
+    fee_sig TEXT,
+    leftover_sig TEXT,
+    skipped_json TEXT,
+    fail_reason TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
   -- what a created vault declares as backing (at creation, then each verified admission)
   CREATE TABLE IF NOT EXISTS vault_items (
     vault TEXT NOT NULL,

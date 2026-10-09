@@ -155,7 +155,8 @@ function buildApp(deps) {
     const plays = req.vb.play ? req.vb.play.list({ limit: 50 }).map((p) => ({ type: 'play', at: p.at, playId: p.playId, band: p.band, currency: p.currency, price: p.price, unit: p.unit, mint: p.mint, to: p.player, status: p.status, paymentSignature: p.paymentSignature, deliverySignature: p.deliverySignature })) : [];
     const bought = req.vb.restock ? req.vb.restock.list({ limit: 50 }).map((b) => ({ type: 'bought', at: b.at, mint: b.mint, name: b.name, priceUsd: b.priceUsd, insuredUsd: b.insuredUsd, status: b.status, signature: b.signature })) : [];
     const fees = req.vb.feeclaim ? req.vb.feeclaim.list({ limit: 50 }).map((f) => ({ type: 'fees', at: f.at, treasuryUsd: f.treasuryUsd, onixUsd: f.onixUsd, curveUsd: f.curveUsd, poolUsd: f.poolUsd, status: f.status, signature: f.signature })) : [];
-    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays, ...bought, ...fees].sort((x, y) => y.at - x.at).slice(0, 50) });
+    const grads = req.vb.graduation ? req.vb.graduation.list({ limit: 5 }).map((g) => ({ type: 'graduated', at: g.at, status: g.status, step: g.step, raisedUsd: g.raisedUsd, thresholdUsd: g.thresholdUsd, signature: g.signatures.migrate, signatures: g.signatures, failReason: g.failReason })) : [];
+    res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays, ...bought, ...fees, ...grads].sort((x, y) => y.at - x.at).slice(0, 50) });
   }));
   app.get('/v1/wallets/:wallet/eligible-items', fence('read'), wrap(async (req, res) => {
     if (!readWallet) throw new VaultError(503, 'wallet reader not configured');

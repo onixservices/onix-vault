@@ -133,7 +133,12 @@
                             "type": "string",
                             "enum": [
                               "gacha",
-                              "redeem"
+                              "redeem",
+                              "admit",
+                              "play",
+                              "bought",
+                              "fees",
+                              "graduated"
                             ]
                           },
                           "at": {

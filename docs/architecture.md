@@ -53,7 +53,7 @@
  open     custody derived · deposit   pool    DAMM v2 quote/swap after migration      start   commit published, payment
           txs built (unsigned)        routed  by the migration flag in stats                  tx built (USDC → custody,
  deposited chain shows items+gas →                                                            or burnChecked by the player)
-          Onix pays the config        Graduation (scripts/graduate.js)                 submit  signature recorded (UNIQUE)
+          Onix pays the config        Graduation (server/graduation.js)                submit  signature recorded (UNIQUE)
           (simulated first) → launch  ──────────────────────────────                   sweep   finalized → payment read
           tx built (unsigned)         locker → migrateToDammV2 →                               from the tx → draw (HMAC)
  submit   creator signed → mint       partnerWithdrawMigrationFee →                            → item held → delivered
@@ -107,6 +107,12 @@ vault at the house's price and band odds; each card drawn is reserved, paid and 
 
 Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOCK=1`):
 
+0. **Graduation** (`server/graduation.js`, its own check every minute, `ONIX_VAULT_GRADUATE=1`). A curve whose USDC
+   reserve reached the config's threshold and has not migrated is graduated by the server: locker → migrateToDammV2 →
+   partnerWithdrawMigrationFee → withdrawLeftover, each simulated before it is signed (the operator key pays the first
+   two, the custody signs the last two). One record per vault (`vault_graduations`) makes it run once; a failed run
+   keeps the step and the reason, retries after 10 minutes up to five times, then waits for `scripts/graduate.js`.
+   There is no public trigger: only a full curve starts it.
 1. **Fees → treasury** (`server/feeclaim.js`). One transaction signed by the custody claims the curve's partner fee —
    2/3 stays in the treasury, 1/3 is transferred to Onix's revenue account **in the same transaction** — and, once the
    vault graduated, the 1% fee of the DAMM v2 pool accrued on the custody's locked LP position (the custody is the

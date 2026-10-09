@@ -85,6 +85,15 @@ describe('routes — what the page reads', () => {
     const st = await fetch(b3 + '/v1/vaults/create/C1'); assert.equal((await st.json()).status, 'opened');
     s3.close();
   });
+  test('activity merges the vault graduating itself: the record with its signatures, newest first', async () => {
+    const graduation = { list: () => [{ id: 'G1', pool: 'POOL', status: 'done', step: 'done', attempts: 1, raisedUsd: 140.18, thresholdUsd: 140.18, signatures: { locker: 'L', migrate: 'M', fee: 'F', leftover: null }, skipped: { leftover: 'nothing left' }, failReason: null, at: 5, landedAt: 6 }] };
+    const appG = buildApp({ vaults: [{ wallet: 'VG', meta: { id: 'vg', name: 'VG', token: { symbol: 'G' } }, service: { listItems: async () => [], listActivity: () => [{ type: 'gacha', at: 1 }], listRedemptions: () => [] }, stats: null, admissions: null, trader: null, graduation, itemsAge: () => 0, signerConfigured: () => true }], readWallet, webDir: null });
+    const sG = await new Promise((r) => { const x = appG.listen(0, '127.0.0.1', () => r(x)); });
+    const act = await (await fetch('http://127.0.0.1:' + sG.address().port + '/v1/vaults/VG/activity')).json();
+    assert.deepEqual(act.activity.map((e) => e.type), ['graduated', 'gacha']);
+    assert.equal(act.activity[0].signature, 'M'); assert.equal(act.activity[0].signatures.fee, 'F'); assert.equal(act.activity[0].raisedUsd, 140.18); assert.equal(act.activity[0].status, 'done');
+    sG.close();
+  });
   test('the Play door routes: bands, start (201), submit (202), get, list; activity merges plays', async () => {
     const got = [];
     const play = { bands: async () => ({ bands: [{ id: 'b1', items: 2 }], currencies: { usdc: true, token: true } }), start: async (a) => { got.push(a); return { playId: 'PL1', paymentTransaction: 'TX', serverSeedHash: 'H' }; }, submit: (a) => { got.push(a); return { playId: a.playId, status: 'submitted' }; }, get: (id) => ({ playId: id, status: 'delivered' }), list: () => [{ playId: 'PL1', at: 9, band: 'b1', currency: 'usdc', price: 25.3, unit: 'USDC', mint: 'M', player: 'P', status: 'delivered', paymentSignature: 'PS', deliverySignature: 'DS' }], busyMints: () => [] };

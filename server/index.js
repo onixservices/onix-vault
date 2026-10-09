@@ -28,6 +28,7 @@ const { createVaultCreator } = require('./creation');
 const { createPlay } = require('./play');
 const { createRestock, productionRestockDeps } = require('./restock');
 const { createFeeClaim, productionFeeClaimDeps } = require('./feeclaim');
+const { createGraduation, productionGraduationDeps } = require('./graduation');
 const { createUploads } = require('./uploads');
 const { createRateLimiter } = require('./ratelimit');
 const { createPause } = require('./pause');
@@ -135,7 +136,10 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   const restock = createRestock({ db, chain, vaultWallet, signer, rules: def.rules, readItems, ...productionRestockDeps({ ccApiBase: C.CC_API_BASE, rpcUrl: C.RPC_URL, chain }) });
   // the trading fees → the treasury (and Onix's third of the curve's partner fee, in the same transaction)
   const feeclaim = def.pool ? createFeeClaim({ db, chain, vaultWallet, signer, pool: def.pool, usdcMint: C.USDC_MINT, onixUsdcAccount: C.ONIX_REVENUE_USDC_ACCOUNT, ...productionFeeClaimDeps({ rpcUrl: C.RPC_URL }) }) : null;
-  return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, play, restock, feeclaim, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
+  // the vault graduating itself: the custody key claims the migration fee, the operator key pays the locker and the migration;
+  // runs by the minute check when enabled (no public trigger: only a full curve starts it)
+  const graduation = def.pool ? createGraduation({ db, chain, vaultWallet, pool: def.pool, signer, payer: defaultSigner, ...productionGraduationDeps({ getClient: curveDeps.getClient }) }) : null;
+  return { wallet: vaultWallet, def, meta, service, stats, admissions, trader, play, restock, feeclaim, graduation, readItems, signer, itemsAge: readItems.ageMs || (() => null), signerConfigured: signer.configured };
 }
 
 /**
@@ -201,6 +205,14 @@ function main() {
     if (v.feeclaim) { try { const c = await v.feeclaim.execute({ go: true }); if (c.claimed) console.log(`[vault ${v.meta.id}] fees CLAIMED: treasury +$${c.claimed.treasuryUsd.toFixed(2)} · Onix +$${c.claimed.onixUsd.toFixed(2)} · ${c.claimed.signature}`); } catch (e) { console.warn(`[vault ${v.meta.id}] fee claim failed`, e.message); } }
     if (st.poolStatus !== 'migrated') continue; const r = await v.restock.execute({ go: true }); if (r.bought) console.log(`[vault ${v.meta.id}] restock BOUGHT ${r.bought.name} for $${r.bought.priceUsd} (index $${r.bought.insuredUsd}) · ${r.bought.signature}`); else if (restockWhy.get(v.wallet) !== r.why) console.log(`[vault ${v.meta.id}] restock: no buy — ${r.why} (treasury $${r.treasuryUsd})`); restockWhy.set(v.wallet, r.bought ? null : r.why); } catch (e) { console.warn(`[vault ${v.meta.id}] restock failed`, e.message); } } };
   if (C.RESTOCK_ENABLED) { setTimeout(treasuryRound, 60_000).unref(); setInterval(treasuryRound, 15 * 60_000).unref(); }
+  // the vault graduating itself: every minute a full curve that has not migrated is migrated by the server; says why not once
+  const graduationWhy = new Map();
+  const graduationRound = async () => { for (const v of vaults) { if (!v.graduation || paused(v)) continue; try { const r = await v.graduation.execute({ go: true });
+    if (r.graduated) { console.log(`[vault ${v.meta.id}] GRADUATED: raised $${r.graduated.raisedUsd} · migrate ${r.graduated.signatures.migrate} · fee ${r.graduated.signatures.fee || 'skipped'} · leftover ${r.graduated.signatures.leftover || 'skipped'}`); await v.stats.read({ fresh: true }).catch(() => {}); }
+    else if (r.failed) console.warn(`[vault ${v.meta.id}] graduation FAILED: ${r.failed}`);
+    else if (r.why && graduationWhy.get(v.wallet) !== r.why) console.log(`[vault ${v.meta.id}] graduation: ${r.why}`);
+    graduationWhy.set(v.wallet, r.why || null); } catch (e) { console.warn(`[vault ${v.meta.id}] graduation check failed`, e.message); } } };
+  if (C.GRADUATION_ENABLED) { setTimeout(graduationRound, 30_000).unref(); setInterval(graduationRound, C.GRADUATION_CHECK_MS).unref(); }
   setInterval(() => { for (const v of vaults) v.admissions.verifyPending().then((r) => { if (r.verified) console.log(`[vault ${v.meta.id}] ${r.verified} admission(s) verified on chain`); }).catch((e) => console.warn(`[vault ${v.meta.id}] admissions sweep failed`, e.message)); }, 45_000).unref();
 }
 
