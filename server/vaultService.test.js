@@ -37,7 +37,7 @@ function make({ now = () => T0, items = [item()], finalized = true } = {}) {
   const delivered = [];
   const deliver = async ({ mint, toAddress }) => { delivered.push({ mint, toAddress }); return { sig: `SIG-${mint.slice(0, 4)}` }; };
   const svc = createVaultService({ db, readItems: async () => items, chain, deliver, now,
-    config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+    config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 } });
   return { svc, db, chain, delivered };
 }
 
@@ -53,12 +53,12 @@ describe('exitPriceUsd — the rule', () => {
 });
 
 describe('list', () => {
-  test('priced items only, with exit price, basis, redeem price (×1.15) and status', async () => {
+  test('priced items only, with exit price, basis and status', async () => {
     const { svc } = make({ items: [item(), item({ mint: 'X', custodianValueUsd: null })] });
     const out = await svc.listItems();
     assert.deepEqual(out.map((i) => i.mint), [MINT]);
     assert.equal(out[0].exitPriceUsd, 20); assert.equal(out[0].exitPriceBasis, 'custodian');
-    assert.equal(out[0].redeemPriceUsd, 23); assert.equal(out[0].status, 'available');
+    assert.equal(out[0].status, 'available');
   });
   test("the card's own facts reach the list: grade, grading company, certificate, physical vault", async () => {
     const { svc } = make({ items: [{ ...item(), grade: 'PRISTINE 10', gradingCompany: 'CGC', certNumber: '6180353022', physicalVault: 'PWCC' }] });
@@ -74,7 +74,7 @@ describe('list', () => {
   test('before graduation the vault does not sell to integrators (409 with the reason); after, it does', async () => {
     const db = getTestDb(); let open = { ok: false, reason: 'this vault sells to integrators once it graduates' };
     const svc = createVaultService({ db, readItems: async () => [item()], chain: { getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58() }, deliver: async () => ({}), now: () => T0, canSell: async () => open,
-      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 } });
     await rejectsWith(svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER }), 409);
     open = { ok: true };
     assert.ok((await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER })).reservationId);
@@ -82,7 +82,7 @@ describe('list', () => {
   test('an item a play is holding shows reserved too (an integrator never buys it underneath the draw)', async () => {
     const db = getTestDb();
     const svc = createVaultService({ db, readItems: async () => [item()], chain: {}, deliver: async () => ({}), now: () => T0, isMintBusy: (m) => m === MINT,
-      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 } });
     const [i] = await svc.listItems();
     assert.equal(i.status, 'reserved'); assert.equal(i.reservedUntil, null);
     await rejectsWith(svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER }), 409);
@@ -180,14 +180,14 @@ describe('settle', () => {
     const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
     chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
     const bad = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => { throw new Error('rpc down'); }, now: () => T0,
-      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+      config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 } });
     await rejectsWith(bad.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' }), 503);
     assert.equal(reservationsRepo.get(db, r.reservationId).status, 'delivery_failed');
   });
 });
 
 describe('retryDelivery — the operator re-runs a paid reservation whose delivery failed', () => {
-  const cfg = { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 };
+  const cfg = { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 };
   async function paidButFailed() {
     const { svc, chain, db } = make();
     const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
@@ -227,28 +227,16 @@ describe('retryDelivery — the operator re-runs a paid reservation whose delive
 });
 
 describe('activity — the doors that fired, newest first', () => {
-  test('settled gacha sales and recorded redemptions, each with its signatures; nothing else', async () => {
+  test('settled gacha sales, each with its signatures; a live reservation is not an event', async () => {
     const { svc, chain } = make({ now: (() => { let t = T0; return () => (t += 1000); })(), items: [item(), item({ mint: 'M2' })] });
     const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
     chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
     await svc.settle({ reservationId: r.reservationId, paymentSignature: 'PAY1' });
     await svc.reserve({ mint: 'M2', integrator: GACHA, winner: WINNER });               // live, not an event
-    svc.recordRedemption({ mint: Keypair.generate().publicKey.toBase58(), burnSignature: 'BURN1', recipient: OTHER });
     const a = svc.listActivity();
-    assert.deepEqual(a.map((e) => e.type), ['redeem', 'gacha']);
-    assert.equal(a[1].mint, MINT); assert.equal(a[1].paymentSignature, 'PAY1'); assert.match(a[1].deliverySignature, /^SIG-/); assert.equal(a[1].priceUsd, 20); assert.equal(a[1].to, WINNER);
-    assert.equal(a[0].burnSignature, 'BURN1'); assert.equal(a[0].status, 'verifying'); assert.equal(a[0].to, OTHER);
+    assert.deepEqual(a.map((e) => e.type), ['gacha']);
+    assert.equal(a[0].mint, MINT); assert.equal(a[0].paymentSignature, 'PAY1'); assert.match(a[0].deliverySignature, /^SIG-/); assert.equal(a[0].priceUsd, 20); assert.equal(a[0].to, WINNER);
     assert.ok(a.every((e) => typeof e.at === 'number'));
-  });
-});
-
-describe('redemption v1', () => {
-  test('records the burn once; the same burn twice → 409; listed publicly as verifying', async () => {
-    const { svc } = make();
-    const r = svc.recordRedemption({ mint: MINT, burnSignature: 'BURN', recipient: WINNER });
-    assert.equal(r.status, 'verifying');
-    assert.throws(() => svc.recordRedemption({ mint: MINT, burnSignature: 'BURN', recipient: WINNER }), (e) => e instanceof VaultError && e.statusCode === 409);
-    assert.equal(svc.listRedemptions().length, 1);
   });
 });
 
@@ -258,7 +246,7 @@ describe('scope — a reservation is reached only through its own vault and inte
     const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
     const OTHER_VAULT = Keypair.generate().publicKey.toBase58();
     const other = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => ({ sig: 'X' }), now: () => T0,
-      config: { vaultWallet: OTHER_VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3, redeemPremium: 1.15 } });
+      config: { vaultWallet: OTHER_VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 } });
     assert.throws(() => other.status({ reservationId: r.reservationId }), (e) => e.statusCode === 404);
     await rejectsWith(other.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' }), 404);
     await rejectsWith(other.retryDelivery({ reservationId: r.reservationId }), 404);
@@ -284,11 +272,5 @@ describe('inputs — what is stored and shown is checked first', () => {
     const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
     chain.getSignatureStatuses = async () => { throw new Error('the chain must not be asked'); };
     await rejectsWith(svc.settle({ reservationId: r.reservationId, paymentSignature: '"><img src=x>' }), 400);
-  });
-  test('redemptions: mint and recipient are addresses, the burn signature is base58 (400)', () => {
-    const { svc } = make();
-    assert.throws(() => svc.recordRedemption({ mint: MINT, burnSignature: '<b>', recipient: WINNER }), (e) => e.statusCode === 400);
-    assert.throws(() => svc.recordRedemption({ mint: 'M3', burnSignature: 'BURN', recipient: WINNER }), (e) => e.statusCode === 400);
-    assert.throws(() => svc.recordRedemption({ mint: MINT, burnSignature: 'BURN', recipient: 'me' }), (e) => e.statusCode === 400);
   });
 });

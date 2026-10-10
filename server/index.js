@@ -87,7 +87,7 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
   const service = createVaultService({
     db, readItems, chain, deliver, isMintBusy: (mint) => Boolean(play && play.busyMints().includes(mint)),
     canSell: async () => { if (!def.pool) return { ok: true }; const st = statsRef ? await statsRef.read() : null; return st && st.poolStatus === 'migrated' ? { ok: true } : { ok: false, reason: 'this vault sells to integrators once it graduates' }; },
-    config: { vaultWallet, usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID, reservationTtlMs: C.RESERVATION_TTL_MS, strikesToBlock: C.STRIKES_TO_BLOCK, redeemPremium: C.REDEEM_PREMIUM },
+    config: { vaultWallet, usdcMint: C.USDC_MINT, memoProgramId: C.MEMO_PROGRAM_ID, reservationTtlMs: C.RESERVATION_TTL_MS, strikesToBlock: C.STRIKES_TO_BLOCK },
   });
   const curveDeps = productionCurveDeps({ rpcUrl: C.RPC_URL, chain });
   const readConfig = async (configPk) => {
@@ -123,7 +123,7 @@ function createVaultBundle(def, { db, chain, readItems: readItemsOverride = null
     makeDamm: (pool) => createDammTrader({ pool, baseMint: def.baseMint, quoteMint: C.USDC_MINT, baseDecimals: C.BASE_DECIMALS, quoteDecimals: C.QUOTE_DECIMALS, referralTokenAccount: C.REFERRAL_USDC_ACCOUNT, ...dammDeps }),
     whereToTrade: async () => { const st = await stats.read(); const p = st.pool; return p && p.isMigrated ? { venue: 'pool', pool: p.damm ? p.damm.address : null } : { venue: 'curve', pool: null }; },
   }) : null;
-  // only the creator adds items (2 Oct 2026); a file-registry vault names its creator, else nobody can
+  // only the creator adds items; a file-registry vault names its creator, else nobody can
   const admissions = createAdmissions({ db, chain, vaultWallet, creator: def.creator || null, rules: def.rules, rpcUrl: C.RPC_URL, fetchAssets: das.fetchAssetsByOwner, buildTransfer: (a) => transfer.buildTransferTx(a), haircut: C.HAIRCUT,
     onAdmitted: def.manifest ? (mint) => db.prepare('INSERT OR IGNORE INTO vault_items (vault, mint, source, added_at) VALUES (?, ?, ?, ?)').run(vaultWallet, mint, 'admission', Date.now()) : null });
   const meta = { id: def.id, name: def.name, operator: def.operator, creator: def.creator || null, custodians: def.custodians, description: def.description, token: def.token, links: def.links || {}, graduationUsd: def.graduationUsd,
@@ -150,11 +150,11 @@ function createServer({ readItems = null, db: dbOverride = null, signer = null, 
   const opts = { pause: pauseOverride };
   const db = dbOverride || getDb();
   const list = defs || (vaultWallet
-    ? [{ id: '1', name: 'Vault #1', operator: 'Onix', wallet: vaultWallet, secretEnv: 'VAULT_SECRET_KEY', rules: VAULT_RULES.vault1, custodians: VAULT_RULES.vault1.custodians, pool: C.POOL || null, baseMint: C.BASE_MINT || null, graduationUsd: C.GRADUATION_USD, token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' } }]
+    ? [{ id: '1', name: 'Vault', operator: 'Onix', wallet: vaultWallet, secretEnv: 'VAULT_SECRET_KEY', rules: VAULT_RULES.vault1, custodians: VAULT_RULES.vault1.custodians, pool: C.POOL || null, baseMint: C.BASE_MINT || null, graduationUsd: C.GRADUATION_USD, token: { name: 'Vault token', symbol: 'VAULT', image: '/token/default.png' } }]
     : loadVaults(db));
   const bundles = list.map((def, i) => createVaultBundle(def, { db, chain, readItems: i === 0 ? readItems : null, signer: i === 0 ? signer : null }));
   // rows written before the `vault` column existed belong to the primary vault
-  if (bundles.length) for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) db.prepare(`UPDATE ${t} SET vault = ? WHERE vault IS NULL`).run(bundles[0].wallet);
+  if (bundles.length) for (const t of ['vault_reservations', 'vault_admissions']) db.prepare(`UPDATE ${t} SET vault = ? WHERE vault IS NULL`).run(bundles[0].wallet);
   const readWallet = createWalletReader({ rpcUrl: C.RPC_URL });
   // the Create door: Onix (the operator key) is the curve's partner — it pays for the config and claims the fee
   const partner = signer || defaultSigner;

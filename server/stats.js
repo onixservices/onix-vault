@@ -10,9 +10,6 @@
 'use strict';
 const { decodeVirtualPool, priceFromSqrtPrice } = require('../src/reader/pool');
 
-/** Redemption at 1.15× puts the floor near 0.87×; admission at 0.80× the ceiling at 1.25×. */
-const BAND = Object.freeze({ floor: 0.87, ceiling: 1.25, redeemPremium: 1.15, admission: 0.80 });
-
 /**
  * @param {function} [readConfig]  async (configPubkey) => { migrationQuoteThresholdUsd, lockedVestingTokens } — read once (a config is immutable)
  */
@@ -78,7 +75,6 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
       items: { count: items.length },
       backing: { indexUsd, realisableUsd, multiplier: haircut },
       treasury: { usdc: treasuryUsd },
-      band: BAND,
       ...poolPart,
     };
     cache = { at: now(), value };
@@ -88,4 +84,4 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
   return { read, ageMs: read.ageMs };
 }
 
-module.exports = { createStatsReader, BAND };
+module.exports = { createStatsReader };

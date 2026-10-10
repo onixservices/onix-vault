@@ -106,7 +106,7 @@ async function main() {
   const vault = createVaultClient({ baseUrl, vault: vaultKp.publicKey.toBase58() });
 
   const items = await vault.items();
-  log(`\n1. items      ${items.length} → ${items[0].mint.slice(0, 8)}… exit $${items[0].exitPriceUsd} (${items[0].exitPriceBasis}) · redeem $${items[0].redeemPriceUsd}`);
+  log(`\n1. items      ${items.length} → ${items[0].mint.slice(0, 8)}… exit $${items[0].exitPriceUsd} (${items[0].exitPriceBasis})`);
 
   const r = await vault.reserve({ mint: testMint.toBase58(), integrator: integrator.publicKey.toBase58(), winner: winner.publicKey.toBase58(), idempotencyKey: `rehearsal-${Date.now()}` });
   log(`2. reserve    ${r.reservationId} · $${r.exitPriceUsd} · expires in ${Math.round((r.expiresAt - Date.now()) / 1000)} s · paymentTransaction ${r.paymentTransaction.length} b64 chars`);

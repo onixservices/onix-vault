@@ -13,7 +13,7 @@
 
   var VAULTS = [], VAULT = null, META = null, STATS = null, ITEMS = null, ITEMS_AT = 0, SWAP_URL = 'https://onix.finance';
   var getUsdc = function () { return '<a href="' + esc(SWAP_URL) + '" target="_blank" rel="noopener">get USDC on onix.finance \u2197</a>'; };
-  var SYM = function () { return '$' + ((META && META.token && META.token.symbol) || 'VEONIX'); };
+  var SYM = function () { return '$' + ((META && META.token && META.token.symbol) || 'TOKEN'); };
   var vpath = function (suffix) { return '#/vault/' + (META && META.id ? META.id : '1') + (suffix || ''); };
 
   // ── data ──

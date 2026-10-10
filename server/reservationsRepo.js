@@ -26,7 +26,7 @@ function get(db, id, vault = null) {
   return db.prepare('SELECT * FROM vault_reservations WHERE id = ?').get(id) || null;
 }
 
-/** A reserva VIVA de uma carta (uma só, por construção do serviço). */
+/** The LIVE reservation of an item (one at most, by construction of the service). */
 function liveForMint(db, mint, now) {
   return db.prepare(
     "SELECT * FROM vault_reservations WHERE mint = ? AND status = 'reserved' AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
@@ -41,7 +41,7 @@ function listToExpire(db, now) {
   return db.prepare("SELECT * FROM vault_reservations WHERE status = 'reserved' AND expires_at <= ?").all(now);
 }
 
-/** Transição com guarda optimista: só muda se ainda estiver no estado `from`. */
+/** Optimistic transition: changes only if the row is still in state `from`. */
 function transition(db, id, from, to, { at, set = {} } = {}) {
   const cols = Object.keys(set);
   const sql = `UPDATE vault_reservations SET status = ?, updated_at = ?${cols.map(c => `, ${c} = ?`).join('')} WHERE id = ? AND status = ?`;

@@ -1,8 +1,7 @@
 /**
  * params.js — the bonding-curve configuration every Onix.Vault pool is created with, as data.
  *
- * DECIDED 2 Oct 2026 (after the first two launches were closed and the creator economics were
- * redesigned — see docs/curve-config.md for each field's reasoning and what Jupiter Studio,
+ * The shape every vault gets (see docs/curve-config.md for each field's reasoning and what Jupiter Studio,
  * Believe and SV151 do):
  *   · the creator is paid on chain from the first trade (creatorTradingFeePercentage)
  *   · the first 60 seconds are sniper-proof (fee scheduler 99% → 10%)

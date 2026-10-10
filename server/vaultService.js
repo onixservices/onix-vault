@@ -3,8 +3,7 @@
  *
  * The exit price: `max(custodian value, live market reference)`. v1 ships with the
  * custodian value only (a market reference is optional, injected); the response
- * says which basis was used. The same price for our own gacha and for a stranger,
- * and the same base the redemption uses (× premium).
+ * says which basis was used. The same price for our own gacha and for a stranger.
  *
  *   list    — what the CHAIN says is in the vault wallet (the reader), with the
  *             price; `status` (available/reserved) is the only thing added from SQLite.
@@ -24,7 +23,6 @@
 'use strict';
 const crypto = require('crypto');
 const reservationsRepo = require('./reservationsRepo');
-const redemptionsRepo = require('./redemptionsRepo');
 const { buildPaymentTx, readPayment } = require('./payment');
 const { isAddress, isSignatureText } = require('./inputs');
 
@@ -47,12 +45,11 @@ function exitPriceUsd(item) {
  *                                         imageUrl, custodianValueUsd, custodianValueBasis, marketRefUsd? }
  * @param {object} deps.chain              getParsedTransaction, getSignatureStatuses, getLatestBlockhash
  * @param {function} deps.deliver          ({ mint, toAddress, reservationId }) => Promise<{ sig }>
- * @param {object} deps.config             vaultWallet, usdcMint, memoProgramId, reservationTtlMs, strikesToBlock, redeemPremium
+ * @param {object} deps.config             vaultWallet, usdcMint, memoProgramId, reservationTtlMs, strikesToBlock
  */
 function createVaultService({ db, readItems, chain, deliver, now = Date.now, config, isMintBusy = () => false, canSell = async () => ({ ok: true }) }) {
   const ttl = config.reservationTtlMs;
   const strikes = config.strikesToBlock ?? 3;
-  const premium = config.redeemPremium ?? 1.15;
 
   async function _items() {
     const items = await readItems();
@@ -72,7 +69,6 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
         marketRefUsd: it.marketRefUsd ?? null,
         exitPriceUsd: it.exitPriceUsd,
         exitPriceBasis: it.marketRefUsd != null && it.marketRefUsd > it.custodianValueUsd ? 'market' : 'custodian',
-        redeemPriceUsd: Math.round(it.exitPriceUsd * premium * 100) / 100,
         // reserved by an integrator, or held by a play on its way out: either way not for sale
         status: res ? 'reserved' : isMintBusy(it.mint) ? 'reserved' : 'available',
         reservedUntil: res ? res.expires_at : null,
@@ -192,31 +188,15 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
     return _reservationView(r);
   }
 
-  // ── redemption, v1 (semi-manual): record the burn; the operator verifies and delivers ──
-  function recordRedemption({ mint, burnSignature, recipient }) {
-    if (!mint || !burnSignature || !recipient) throw new VaultError(400, 'mint, burnSignature and recipient are required');
-    if (!isAddress(mint) || !isAddress(recipient) || !isSignatureText(burnSignature)) throw new VaultError(400, 'mint and recipient must be addresses, burnSignature a transaction signature');
-    if (redemptionsRepo.byBurnSig(db, burnSignature)) throw new VaultError(409, 'this burn was already submitted');
-    const id = crypto.randomUUID();
-    const r = redemptionsRepo.add(db, { id, mint, recipient, burnSig: burnSignature, createdAt: now(), vault: config.vaultWallet });
-    return { redemptionId: r.id, mint, recipient, burnSignature, status: r.status };
-  }
-  function listRedemptions() { return redemptionsRepo.listPublic(db, config.vaultWallet); }
-
-  /** The doors that fired, newest first: gacha sales (settled) and redemptions, each with its signatures. */
+  /** The doors that fired through the API, newest first: gacha sales (settled), each with its signatures. */
   function listActivity({ limit = 50 } = {}) {
-    const sales = reservationsRepo.listSettled(db, limit, config.vaultWallet).map((r) => ({
+    return reservationsRepo.listSettled(db, limit, config.vaultWallet).map((r) => ({
       type: 'gacha', at: r.updated_at, mint: r.mint, to: r.winner, integrator: r.integrator, priceUsd: r.exit_price_usd,
       paymentSignature: r.payment_sig, deliverySignature: r.delivery_sig,
-    }));
-    const redemptions = redemptionsRepo.listPublic(db, config.vaultWallet).map((x) => ({
-      type: 'redeem', at: x.created_at, mint: x.mint, to: x.recipient, status: x.status,
-      burnSignature: x.burn_sig, deliverySignature: x.delivery_sig || null, tokensBurned: x.tokens_burned ?? null, priceUsdAtBurn: x.price_usd_at_burn ?? null,
-    }));
-    return [...sales, ...redemptions].sort((a, b) => b.at - a.at).slice(0, limit);
+    })).sort((a, b) => b.at - a.at).slice(0, limit);
   }
 
-  return { listItems, reserve, settle, retryDelivery, status, sweepExpired, recordRedemption, listRedemptions, listActivity, exitPriceUsd };
+  return { listItems, reserve, settle, retryDelivery, status, sweepExpired, listActivity, exitPriceUsd };
 }
 
 module.exports = { createVaultService, exitPriceUsd, VaultError };

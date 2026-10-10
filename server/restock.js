@@ -12,7 +12,7 @@
  *   confirm()       purchases sent → finalized → the chain shows the item in custody → added to the manifest
  *
  * The buy rule is the creator's rules + a price ceiling: price ≤ maxPriceToIndex × insured value
- * (1.0 by default — "cheap is below the custodian's index", the PO's rule for the Cards agent).
+ * (1.0 by default — "cheap is below the custodian's index", the rule the Cards agent uses).
  * The venue: Collector Crypt's public marketplace API (listings + an unsigned buy transaction for any
  * wallet). A sponsored variant for wallets without SOL comes with a second, pre-signed signer; the
  * single-signer assertion refuses it by construction.

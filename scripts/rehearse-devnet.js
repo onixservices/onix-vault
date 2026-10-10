@@ -94,7 +94,7 @@ async function main() {
   const state = loadState();
   const payer = loadOrCreateKeypair('rehearsal-wallet.json'); // name contains "wallet", not "keypair"; still under .devnet/
 
-  log('ONIX.VAULT — Vault #1 — DEVNET REHEARSAL (runbook §1)\n');
+  log('ONIX.VAULT — DEVNET REHEARSAL (runbook §1)\n');
   log(`rpc        ${RPC}`);
   log(`signer     ${payer.publicKey.toBase58()}  (ephemeral, devnet only)`);
   const sol = await ensureSol(conn, payer.publicKey, 0.5);
@@ -221,7 +221,7 @@ async function main() {
   await send(conn, sellTx, [payer], 'sold');
   vp = await readPool('after sell');
 
-  // ── 5. claim the partner fee — the cano taxa → carta starts here ──────────────────
+  // ── 5. claim the partner fee — the fee → next item pipeline starts here ──────────────────
   log('\n5. claimPartnerTradingFee → feeClaimer');
   const feeBefore = await quoteBalance();
   const claimTx = await client.partner.claimPartnerTradingFee({

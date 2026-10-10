@@ -2,7 +2,7 @@
  * server/graduation.js — the vault graduates itself.
  *
  * When the curve is full (USDC in its reserve ≥ the config's migration threshold) and the pool has not migrated,
- * the server runs what the operator ran by hand until 9 Oct 2026 (scripts/graduate.js, kept as the manual way):
+ * the server runs what the operator used to run by hand (scripts/graduate.js, kept as the manual way):
  *   1. the creator's vesting locker (the program requires it BEFORE the migration when lockedVesting is set)
  *   2. the migration to DAMM v2 — permissionless; the payer creates the pool and its two locked positions
  *   3. the migration fee (30% of the raise) → the fee claimer = the vault's custody wallet

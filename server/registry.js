@@ -6,10 +6,10 @@
  * vault IS: a wallet, the env var holding its key, its pool and mint once launched, its
  * rules (a key into VAULT_RULES or an inline rule), and what the page prints.
  *
- *   [{ "id": "1", "name": "Vault #1", "operator": "Onix", "description": "…",
+ *   [{ "id": "1", "name": "My vault", "operator": "Onix", "description": "…",
  *      "wallet": "<pubkey>", "secretEnv": "VAULT_SECRET_KEY",
  *      "pool": "<pool>", "baseMint": "<mint>", "graduationUsd": 3500,
- *      "token": { "name": "Veonix", "symbol": "VEONIX", "image": "/token/veonix.png" },
+ *      "token": { "name": "My vault token", "symbol": "MYV", "image": "/token/default.png" },
  *      "rules": "vault1" }]
  *
  * A second vault is a second entry. The key never leaves the server's .env. An entry may name
@@ -24,9 +24,9 @@ const { VAULT_RULES } = require('./admissions');
 
 function fromEnv() {
   return {
-    id: '1', name: 'Vault #1', operator: 'Onix', description: 'Graded trading cards in OmniVault, PWCC and PSA Vault',
+    id: '1', name: 'Vault', operator: 'Onix', description: 'Graded trading cards',
     wallet: C.VAULT_WALLET, secretEnv: 'VAULT_SECRET_KEY', pool: C.POOL || null, baseMint: C.BASE_MINT || null, graduationUsd: C.GRADUATION_USD,
-    token: { name: 'Veonix', symbol: 'VEONIX', image: '/token/veonix.png' }, rules: 'vault1',
+    token: { name: 'Vault token', symbol: 'VAULT', image: '/token/default.png' }, rules: 'vault1',
   };
 }
 

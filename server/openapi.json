@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Onix.Vault API",
-    "version": "1.4.0",
-    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`."
+    "version": "1.5.0",
+    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`.\n\n**1.5.0:** the first design's redemption door is gone from the contract: no `redemptions` route, no `band` in `stats`, no `redeemPriceUsd` on items. The exit by burning is Play in tokens (`/play`, `/plays`), priced in share of backing."
   },
   "servers": [
     {
@@ -30,7 +30,7 @@
     },
     "/v1/vaults": {
       "get": {
-        "summary": "The vaults this server serves (one today), each with its stats",
+        "summary": "Every vault this server serves, each with its stats",
         "responses": {
           "200": {
             "description": "vaults",
@@ -503,69 +503,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
-          }
-        }
-      }
-    },
-    "/v1/vaults/{vault}/redemptions": {
-      "post": {
-        "summary": "Record a burn to redeem a specific item (v1: verified by the operator)",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/vault"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "mint",
-                  "burnSignature",
-                  "recipient"
-                ],
-                "properties": {
-                  "mint": {
-                    "type": "string"
-                  },
-                  "burnSignature": {
-                    "type": "string"
-                  },
-                  "recipient": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": {
-            "description": "recorded, verifying"
-          },
-          "409": {
-            "$ref": "#/components/responses/Error"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooMany"
-          },
-          "503": {
-            "$ref": "#/components/responses/Paused"
-          }
-        }
-      },
-      "get": {
-        "summary": "Every redemption, with both signatures",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/vault"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "list"
           }
         }
       }
@@ -1818,10 +1755,6 @@
               "market"
             ]
           },
-          "redeemPriceUsd": {
-            "type": "number",
-            "description": "exit price × 1.15"
-          },
           "status": {
             "type": "string",
             "enum": [
@@ -1941,23 +1874,6 @@
                 "type": "number"
               },
               "multiplier": {
-                "type": "number"
-              }
-            }
-          },
-          "band": {
-            "type": "object",
-            "properties": {
-              "floor": {
-                "type": "number"
-              },
-              "ceiling": {
-                "type": "number"
-              },
-              "redeemPremium": {
-                "type": "number"
-              },
-              "admission": {
                 "type": "number"
               }
             }

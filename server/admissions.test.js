@@ -6,7 +6,7 @@ const { VAULT_RULES, itemPassesRules, createAdmissions } = require('./admissions
 const { validateRules, describeRules, RULE_OPTIONS } = require('./rules');
 const { KNOWN_CUSTODIANS } = require('../src/reader/backing');
 
-// "Send a card" (2 Oct 2026): only the vault's CREATOR adds items, only items that pass the
+// "Send a card": only the vault's CREATOR adds items, only items that pass the
 // vault's rules; the creator signs the transfer into custody; verified on chain; the item joins
 // the manifest. No tokens are owed per item. Anyone else opens their own vault.
 const CUSTODY = Keypair.generate().publicKey.toBase58();

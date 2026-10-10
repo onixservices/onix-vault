@@ -5,7 +5,7 @@
  * vesting locker, pull the migration fee (30% of the raise) into the vault's custody wallet, and
  * the leftover tokens. Dry-run by default; `--go` signs with the OPERATOR key (payer) and the
  * vault's custody key (fee claimer). Runs on the server.
- * Since 9 Oct 2026 the server does this by itself (server/graduation.js, ONIX_VAULT_GRADUATE=1): this script is the
+ * The server does this by itself (server/graduation.js, ONIX_VAULT_GRADUATE=1): this script is the
  * manual way when it did not, or to look (dry-run) at what it would do.
  *
  *   node scripts/graduate.js --vault <id> [--go]

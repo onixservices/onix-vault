@@ -8,7 +8,7 @@ const keyring = require('./keyring');
 const { KNOWN_CUSTODIANS } = require('../src/reader/backing');
 const sdkReal = require('@meteora-ag/dynamic-bonding-curve-sdk');
 
-// The Create door, with custody (2 Oct 2026): the creator's items go into a wallet derived for
+// The Create door, with custody: the creator's items go into a wallet derived for
 // the vault; the creator is the pool's creator (allocation + on-chain fee); Onix pays for the
 // config only AFTER the deposit landed. Nothing is ever pre-signed for the wallet.
 const SEED = '101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f';
@@ -395,5 +395,14 @@ describe('Create door — once a launch is submitted, the items stay with the to
     const r = await w.creator.abandon({ creationId: o.creationId, owner: OWNER });
     assert.equal(r.returned.filter((x) => x.mint).length, 1); assert.equal(r.solReturned, 0);
     assert.ok(w.world.sol[o.custodyWallet] > 0, 'the gas stays until a retry');
+  });
+});
+
+describe('the gas the creator deposits', () => {
+  test('a vault created with the default gas can afford graduation, a delivery and its first purchases above the venue minimum', () => {
+    const { RESTOCK } = require('./restock');
+    // graduation + a delivery + the fee claims spend ~0.003 SOL from custody (measured); below RESTOCK.minSol the venue hands a
+    // sponsored two-signer buy the treasury refuses — a vault born with gasSol === minSol never bought anything
+    assert.ok(LIMITS.gasSol >= RESTOCK.minSol + 0.02, `gasSol ${LIMITS.gasSol} leaves no room above the venue minimum ${RESTOCK.minSol}`);
   });
 });

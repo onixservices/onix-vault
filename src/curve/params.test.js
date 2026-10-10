@@ -4,7 +4,7 @@ const { PublicKey } = require('@solana/web3.js');
 const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
 const { DECIDED, paramsFor, buildParams, FEE_BPS, MONTH_SECONDS } = require('./params');
 
-// The curve every vault gets (decided 2 Oct 2026): the creator paid on chain, sniper-proof first
+// The curve every vault gets: the creator paid on chain, sniper-proof first
 // minute, 30% of the raise to the treasury, 50% to the creator vesting from graduation.
 describe('curve params — decided shape', () => {
   test('for $100 of backing: opens at $200, graduates at $500 (2.5×); 5M tokens vest to the creator over 6 months from migration', () => {

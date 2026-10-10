@@ -10,11 +10,11 @@
  *   sweep()                                   finalized + verified → draw → item reserved → delivered from custody
  *   get(id) · list()                           the proof: commit, seed (after delivery), digest, index, snapshot
  *
- * Prices (decided 2 Oct 2026): USDC = band average × 1.15. Token = band average × 1.10 ÷ (realisable
+ * Prices: USDC = band average × 1.15. Token = band average × 1.10 ÷ (realisable
  * backing ÷ supply) — in SHARE OF BACKING, never at the market price, so a pump buys nothing cheaper.
  * A USDC play leaves the money in custody (the treasury buys the next item); a token play burns supply.
  *
- * Play opens at GRADUATION (3 Oct 2026): while the curve is still filling, nothing leaves custody — the
+ * Play opens at GRADUATION: while the curve is still filling, nothing leaves custody — the
  * backing only grows. `bands()` still describes the machines (the page shows them locked); `start()` refuses.
  */
 'use strict';

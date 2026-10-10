@@ -352,7 +352,7 @@
         <div><b>Above 1×</b> the market pays for the fee flow and the items still to come.</div>
       </div>
     </div>
-    <div class="note blue"><b>Every number here comes from the chain.</b> <a href="/verify.html">Rebuild it yourself</a> with the open-source reader.</div>
+    <div class="note blue"><b>Every number here comes from the chain.</b> The open-source reader rebuilds it from your own RPC: <code>npm run backing -- &lt;custody wallet&gt;</code>.</div>
   </div>
 
   <!-- the reveal: steps → card flip → proof folded -->
@@ -396,9 +396,9 @@
   <div class="crumbs"><a href="#/">Vaults</a><span>›</span><a id="sd-crumb-vault" href="#/vault/1">Vault</a><span>›</span><span>Send a card</span></div>
   <div class="sec">
     <div>
-      <p class="eyebrow" id="sd-rules">Vault #1 takes graded cards from Collector Crypt</p>
+      <p class="eyebrow" id="sd-rules">This vault takes graded cards from Collector Crypt</p>
       <h2 style="margin-top:8px">Add a card to the vault</h2>
-      <p class="muted" style="margin-top:8px;max-width:62ch">Only the creator can add. No new <span id="sd-sym">$VEONIX</span> is minted, so backing per token goes up for every holder.</p>
+      <p class="muted" style="margin-top:8px;max-width:62ch">Only the creator can add. No new <span id="sd-sym">token</span> is minted, so backing per token goes up for every holder.</p>
     </div>
     <div class="walletrow">
       <span class="faint" style="font-size:13px">Your wallet, or paste an address</span>
@@ -493,7 +493,7 @@
         <div><div class="lab">Your share</div><div class="cv v" id="r-get">$0</div><div class="cs">50% of the token, released at that point</div></div>
       </div>
       <p class="muted" style="font-size:13.5px" id="r-rules"></p>
-      <p class="muted" style="font-size:13.5px">A few signatures: one per deposit (your items + 0.05 SOL of gas for the vault), then one to launch (≈0.03 SOL).</p>
+      <p class="muted" style="font-size:13.5px">A few signatures: one per deposit (your items + 0.08 SOL of gas for the vault), then one to launch (≈0.03 SOL).</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><button class="cta big" id="c-launch" type="button">Launch vault</button><button class="cta ghost" id="back2">Back</button></div>
       <div class="prog" id="c-prog" style="display:none"><i id="c-prog-i" style="width:0%"></i></div>
       <p class="faint" id="c-msg" style="font-size:12.5px;min-height:16px"></p>

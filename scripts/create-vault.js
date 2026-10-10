@@ -4,7 +4,7 @@
  * as the creator (no Phantom). This is how the operator's own vault is (re)launched, and the
  * rehearsal of the whole path: open → deposit → deposited (config, Onix pays) → launch → confirm.
  *
- *   node scripts/create-vault.js --name "Vault #1" --symbol VEONIX --mints a,b,c [--creator-env VAULT_SECRET_KEY]
+ *   node scripts/create-vault.js --name "My Cards" --symbol MYC --mints a,b,c [--creator-env VAULT_SECRET_KEY]
  *                                [--category mixed] [--grad 2.5] [--fee 40] [--description "…"] [--go]
  *
  * Dry-run by default: reads the creator's wallet, prints what would open (items, backing, curve)

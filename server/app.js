@@ -3,13 +3,12 @@
  *
  *   GET  /v1/health
  *   GET  /v1/vaults                                      every vault with its stats and rules
- *   GET  /v1/vaults/:vault/stats | items | activity | admissions | redemptions
+ *   GET  /v1/vaults/:vault/stats | items | activity | admissions
  *   GET  /v1/vaults/:vault/eligible-items?wallet=
  *   POST /v1/vaults/:vault/admissions/build | admissions
  *   POST /v1/vaults/:vault/trades/quote | trades/build
  *   GET  /v1/vaults/:vault/trades/balances?wallet=        USDC and token held by a wallet
  *   POST /v1/vaults/:vault/reservations (+ /:id/settle, GET /:id)
- *   POST /v1/vaults/:vault/redemptions
  *   GET  /v1/wallets/:wallet/eligible-items              any registered custodian, any vault
  *   GET  /v1/vaults/create/quote?wallet=                  what a wallet could open a vault on
  *   POST /v1/vaults/create/open | deposited | submit | confirm | abandon   the Create door (custody + launch)
@@ -210,7 +209,7 @@ function buildApp(deps) {
   app.get('/v1/vaults/:vault/fee-claims', pick, wrap(async (req, res) => { res.json({ readAt: new Date().toISOString(), claims: need(req.vb.feeclaim, 'fee claims').list() }); }));
   app.get('/v1/vaults/:vault/purchases', pick, wrap(async (req, res) => { res.json({ readAt: new Date().toISOString(), purchases: need(req.vb.restock, 'restock').list() }); }));
 
-  // ── items, the gacha door, redemptions ──
+  // ── items, the gacha door ──
   app.get('/v1/vaults/:vault/items', pick, wrap(async (req, res) => {
     // read first, then measure: the age served is the age of the items served
     const items = await req.vb.service.listItems();
@@ -226,19 +225,12 @@ function buildApp(deps) {
   app.get('/v1/vaults/:vault/reservations/:id', pick, wrap(async (req, res) => {
     res.json(req.vb.service.status({ reservationId: req.params.id }));
   }));
-  app.post('/v1/vaults/:vault/redemptions', pick, halt, fence('build'), wrap(async (req, res) => {
-    const { mint, burnSignature, recipient } = req.body || {};
-    res.status(202).json(req.vb.service.recordRedemption({ mint, burnSignature, recipient }));
-  }));
-  app.get('/v1/vaults/:vault/redemptions', pick, wrap(async (req, res) => {
-    res.json({ redemptions: req.vb.service.listRedemptions() });
-  }));
 
   app.all('/v1/*', (req, res) => res.status(404).json({ error: 'no such endpoint', code: 404 }));
   // the page: static, same origin, reads only /v1
   if (webDir) {
     // the page and its script are not fingerprinted: every load must revalidate (max-age=0 alone let browsers
-    // keep a stale app.js for hours — 2 Oct 2026, the PO saw a one-hour-old page after three deploys)
+    // keep a stale app.js for hours — measured: a one-hour-old page after three deploys)
     const noStale = (res) => { res.setHeader('Cache-Control', 'no-cache, must-revalidate'); res.setHeader('X-Content-Type-Options', 'nosniff'); };
     app.use(express.static(webDir, { index: 'index.html', extensions: ['html'], maxAge: 0, setHeaders: (res, file) => { if (/\.(html|js|css)$/.test(file)) noStale(res); else res.setHeader('Cache-Control', 'public, max-age=86400'); } }));
     app.get(/^\/(?!v1\/).*/, (req, res) => { noStale(res); res.sendFile(path.join(webDir, 'index.html')); });

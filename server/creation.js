@@ -21,7 +21,7 @@
  * while the pool is on chain or the launch can still land. Only a launch the chain rejected, or one whose
  * blockhash can no longer land, frees them (launchState, read from the chain each time).
  *
- * Supply split (src/curve/params.js, decided 2 Oct 2026): 50% creator in lockedVesting (released at
+ * Supply split (src/curve/params.js): 50% creator in lockedVesting (released at
  * graduation, linear 6 months), 50% curve. Opens at 2× realisable backing. Only the creator adds items.
  */
 'use strict';
@@ -41,9 +41,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const LIMITS = Object.freeze({
   nameMax: 32, symbolMax: 10, descriptionMax: 200, minItems: 1, minBackingUsd: 5,
   // what the creator sends the custody wallet for its future transactions (deliveries, fee claims, the treasury's purchases).
-  // 0.05, not 0.02 (3 Oct 2026): Collector Crypt hands a buyer with less than ~0.05 SOL a sponsored, two-signer purchase the
-  // treasury refuses — a vault born with 0.02 could never buy its next item.
-  gasSol: 0.05,
+  // Collector Crypt hands a buyer with less than ~0.05 SOL a sponsored, two-signer purchase the treasury refuses (RESTOCK.minSol),
+  // and graduation, a delivery and the fee claims spend ~0.003 SOL from custody (measured: 0.047 left after graduating) — so the
+  // gas sits well above that minimum, or a vault born with exactly 0.05 would never buy its first item.
+  gasSol: 0.08,
   txMaxBytes: 1232,
   creationTtlMs: 2 * 60 * 60 * 1000,
   // a launch transaction's blockhash lives ~60–90 s; past this, a launch with no pool on chain can no longer land

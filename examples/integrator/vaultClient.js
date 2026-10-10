@@ -43,7 +43,6 @@ function createVaultClient({ baseUrl, vault, apiKey = null, fetchImpl = fetch, t
       call('POST', '/reservations', { body: { mint, integrator, winner }, headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
     settle: (reservationId, paymentSignature) => call('POST', `/reservations/${reservationId}/settle`, { body: { paymentSignature } }),
     status: (reservationId) => call('GET', `/reservations/${reservationId}`),
-    recordRedemption: ({ mint, burnSignature, recipient }) => call('POST', '/redemptions', { body: { mint, burnSignature, recipient } }),
   };
 }
 

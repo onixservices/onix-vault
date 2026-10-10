@@ -1,5 +1,5 @@
 /**
- * server/db.js — one SQLite file. Reservations and redemptions only: what is IN the
+ * server/db.js — one SQLite file. What the doors recorded, only: what is IN the
  * vault is never stored here, it is read from the chain every time.
  */
 'use strict';
@@ -29,21 +29,6 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_res_mint ON vault_reservations (mint, status);
   CREATE INDEX IF NOT EXISTS idx_res_integrator ON vault_reservations (integrator, status);
 
-  CREATE TABLE IF NOT EXISTS vault_redemptions (
-    id TEXT PRIMARY KEY,
-    vault TEXT,
-    mint TEXT NOT NULL,
-    recipient TEXT NOT NULL,
-    burn_sig TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL,          -- verifying | delivered | rejected
-    tokens_burned REAL,
-    price_usd_at_burn REAL,
-    delivery_sig TEXT,
-    delivery_tx_b64 TEXT,
-    note TEXT,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
-  );
 
   CREATE TABLE IF NOT EXISTS vault_admissions (
     id TEXT PRIMARY KEY,
@@ -52,7 +37,7 @@ const SCHEMA = `
     owner TEXT NOT NULL,               -- the creator who sent the item
     signature TEXT NOT NULL UNIQUE,    -- the transfer the creator signed
     value_usd REAL NOT NULL,           -- custodian value at admission
-    owed_usd REAL,                     -- (legacy, 1 Oct) nothing is owed per item since 2 Oct
+    owed_usd REAL,                     -- (legacy) nothing is owed per item any more
     lock_months INTEGER,
     status TEXT NOT NULL,              -- pending (sent) | admitted (custody owns it, creator signed) | rejected | expired
     tokens_sig TEXT,                   -- (legacy)
@@ -128,7 +113,7 @@ const SCHEMA = `
     band TEXT NOT NULL,
     currency TEXT NOT NULL,            -- usdc | token
     client_seed TEXT NOT NULL,
-    server_seed TEXT NOT NULL,         -- '' since 4 Oct 2026: derived from the draw key, never stored (older rows keep theirs)
+    server_seed TEXT NOT NULL,         -- '' when derived from the draw key (never stored); older rows keep theirs
     server_seed_hash TEXT NOT NULL,    -- published at start
     snapshot_json TEXT NOT NULL,       -- the band's mints at start, sorted
     price_usdc REAL,
@@ -218,7 +203,7 @@ const SCHEMA = `
 
 /** Columns added after the first deploy: add them if an older file lacks them. */
 function migrate(db) {
-  for (const t of ['vault_reservations', 'vault_redemptions', 'vault_admissions']) {
+  for (const t of ['vault_reservations', 'vault_admissions']) {
     const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
     if (!cols.includes('vault')) db.exec(`ALTER TABLE ${t} ADD COLUMN vault TEXT`);
     if (t === 'vault_admissions' && !cols.includes('unlock_at')) db.exec(`ALTER TABLE ${t} ADD COLUMN unlock_at INTEGER`);

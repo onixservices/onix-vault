@@ -3,7 +3,7 @@
  * and only items that pass the vault's rules. The creator signs a transfer into the custody
  * wallet; the admission is recorded, verified on chain (the custody wallet now owns it), and
  * the item joins the vault's manifest. No tokens change hands: the creator is paid by the
- * 50% allocation, the on-chain creator fee and the plays — not per item (decided 2 Oct 2026).
+ * 50% allocation, the on-chain creator fee and the plays — not per item.
  *
  * Anyone else who wants in creates their own vault. Stray transfers (anything sent outside
  * this flow) never count and are returned by the operator.

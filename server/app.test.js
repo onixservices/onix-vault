@@ -12,8 +12,6 @@ const service = {
   reserve: async (args) => { calls.push(['reserve', args]); return { reservationId: 'R1', ...args }; },
   settle: async (args) => { calls.push(['settle', args]); return { reservationId: args.reservationId, status: 'settled' }; },
   status: ({ reservationId }) => { if (reservationId === 'nope') throw new VaultError(404, 'unknown reservation'); return { reservationId, status: 'reserved' }; },
-  recordRedemption: (args) => ({ redemptionId: 'X', status: 'verifying', ...args }),
-  listRedemptions: () => [],
   listActivity: () => [{ type: 'gacha', at: 1, mint: 'M', to: 'W' }],
 };
 const stats = { read: async () => ({ readAt: 1, items: { count: 1 }, backing: { indexUsd: 20, realisableUsd: 17.8, multiplier: 0.89 }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 };
@@ -63,7 +61,7 @@ describe('routes — what the page reads', () => {
       status: async (a) => ({ creationId: a.creationId, status: 'opened' }),
     };
     const mounted = [];   // in production addVault pushes into the same array the app serves; the fake does the same
-    const app3 = buildApp({ vaults: mounted, readWallet, creator, addVault: (d) => { const b = { wallet: d.wallet, meta: { id: d.id, name: d.name, token: d.token }, service: { listItems: async () => [], listActivity: () => [], listRedemptions: () => [] }, stats: { read: async () => ({ pool: null }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false }; mounted.push(b); return b; }, webDir: null });
+    const app3 = buildApp({ vaults: mounted, readWallet, creator, addVault: (d) => { const b = { wallet: d.wallet, meta: { id: d.id, name: d.name, token: d.token }, service: { listItems: async () => [], listActivity: () => [] }, stats: { read: async () => ({ pool: null }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false }; mounted.push(b); return b; }, webDir: null });
     const s3 = await new Promise((r) => { const x = app3.listen(0, '127.0.0.1', () => r(x)); });
     const b3 = 'http://127.0.0.1:' + s3.address().port;
     const post = async (p, body) => { const r = await fetch(b3 + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
@@ -87,7 +85,7 @@ describe('routes — what the page reads', () => {
   });
   test('activity merges the vault graduating itself: the record with its signatures, newest first', async () => {
     const graduation = { list: () => [{ id: 'G1', pool: 'POOL', status: 'done', step: 'done', attempts: 1, raisedUsd: 140.18, thresholdUsd: 140.18, signatures: { locker: 'L', migrate: 'M', fee: 'F', leftover: null }, skipped: { leftover: 'nothing left' }, failReason: null, at: 5, landedAt: 6 }] };
-    const appG = buildApp({ vaults: [{ wallet: 'VG', meta: { id: 'vg', name: 'VG', token: { symbol: 'G' } }, service: { listItems: async () => [], listActivity: () => [{ type: 'gacha', at: 1 }], listRedemptions: () => [] }, stats: null, admissions: null, trader: null, graduation, itemsAge: () => 0, signerConfigured: () => true }], readWallet, webDir: null });
+    const appG = buildApp({ vaults: [{ wallet: 'VG', meta: { id: 'vg', name: 'VG', token: { symbol: 'G' } }, service: { listItems: async () => [], listActivity: () => [{ type: 'gacha', at: 1 }] }, stats: null, admissions: null, trader: null, graduation, itemsAge: () => 0, signerConfigured: () => true }], readWallet, webDir: null });
     const sG = await new Promise((r) => { const x = appG.listen(0, '127.0.0.1', () => r(x)); });
     const act = await (await fetch('http://127.0.0.1:' + sG.address().port + '/v1/vaults/VG/activity')).json();
     assert.deepEqual(act.activity.map((e) => e.type), ['graduated', 'gacha']);
@@ -97,7 +95,7 @@ describe('routes — what the page reads', () => {
   test('the Play door routes: bands, start (201), submit (202), get, list; activity merges plays', async () => {
     const got = [];
     const play = { bands: async () => ({ bands: [{ id: 'b1', items: 2 }], currencies: { usdc: true, token: true } }), start: async (a) => { got.push(a); return { playId: 'PL1', paymentTransaction: 'TX', serverSeedHash: 'H' }; }, submit: (a) => { got.push(a); return { playId: a.playId, status: 'submitted' }; }, get: (id) => ({ playId: id, status: 'delivered' }), list: () => [{ playId: 'PL1', at: 9, band: 'b1', currency: 'usdc', price: 25.3, unit: 'USDC', mint: 'M', player: 'P', status: 'delivered', paymentSignature: 'PS', deliverySignature: 'DS' }], busyMints: () => [] };
-    const app4 = buildApp({ vaults: [{ wallet: 'V4', meta: { id: 'v4', name: 'V4', token: { symbol: 'FOUR' } }, service: { listItems: async () => [], listActivity: () => [], listRedemptions: () => [] }, stats: null, admissions: null, trader: null, play, itemsAge: () => 0, signerConfigured: () => true }], readWallet, webDir: null });
+    const app4 = buildApp({ vaults: [{ wallet: 'V4', meta: { id: 'v4', name: 'V4', token: { symbol: 'FOUR' } }, service: { listItems: async () => [], listActivity: () => [] }, stats: null, admissions: null, trader: null, play, itemsAge: () => 0, signerConfigured: () => true }], readWallet, webDir: null });
     const s4 = await new Promise((r) => { const x = app4.listen(0, '127.0.0.1', () => r(x)); });
     const b4 = 'http://127.0.0.1:' + s4.address().port;
     const post = async (p, body) => { const r = await fetch(b4 + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
@@ -168,7 +166,7 @@ describe('routes — what the page reads', () => {
     const sR = await new Promise((r) => { const x = appR.listen(0, '127.0.0.1', () => r(x)); });
     const bR = 'http://127.0.0.1:' + sR.address().port;
     const st = async (m, p, body) => (await fetch(bR + p, { method: m, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })).status;
-    for (const p of ['/v1/vaults/create/deposited', '/v1/vaults/create/submit', '/v1/vaults/create/confirm', '/v1/vaults/create/abandon', '/v1/vaults/' + VAULT + '/plays/x/submit', '/v1/vaults/' + VAULT + '/reservations/x/settle', '/v1/vaults/' + VAULT + '/redemptions', '/v1/vaults/' + VAULT + '/trades/quote']) assert.equal(await st('POST', p, {}), 429, p);
+    for (const p of ['/v1/vaults/create/deposited', '/v1/vaults/create/submit', '/v1/vaults/create/confirm', '/v1/vaults/create/abandon', '/v1/vaults/' + VAULT + '/plays/x/submit', '/v1/vaults/' + VAULT + '/reservations/x/settle', '/v1/vaults/' + VAULT + '/trades/quote']) assert.equal(await st('POST', p, {}), 429, p);
     for (const p of ['/v1/wallets/W/eligible-items', '/v1/vaults/' + VAULT + '/eligible-items?wallet=W', '/v1/vaults/' + VAULT + '/trades/balances?wallet=W', '/v1/vaults/create/quote?wallet=W']) assert.equal(await st('GET', p), 429, p);
     assert.equal(await st('GET', '/v1/vaults/' + VAULT + '/stats?fresh=1'), 200, 'a fresh read over the fence is served from the cache, not refused');
     assert.equal(await st('GET', '/v1/vaults/' + VAULT + '/items'), 200);
@@ -222,7 +220,7 @@ describe('routes — what the page reads', () => {
 describe('routes — two vaults, one server', () => {
   test('each vault answers for its own wallet; the list has both; an unknown wallet is 404', async () => {
     const V2 = Keypair.generate().publicKey.toBase58();
-    const mk = (wallet, name, idx) => ({ wallet, meta: { id: String(idx), name }, service: { listItems: async () => [{ mint: 'M' + idx }], listActivity: () => [], listRedemptions: () => [] }, stats: { read: async () => ({ items: { count: idx }, backing: { indexUsd: idx }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false });
+    const mk = (wallet, name, idx) => ({ wallet, meta: { id: String(idx), name }, service: { listItems: async () => [{ mint: 'M' + idx }], listActivity: () => [] }, stats: { read: async () => ({ items: { count: idx }, backing: { indexUsd: idx }, pool: null, poolStatus: 'not launched' }), ageMs: () => 0 }, admissions: null, trader: null, itemsAge: () => 0, signerConfigured: () => false });
     const app2 = buildApp({ vaults: [mk(VAULT, 'Vault #1', 1), mk(V2, 'Test vault', 2)], readWallet, webDir: null });
     const srv = await new Promise((r) => { const s2 = app2.listen(0, '127.0.0.1', () => r(s2)); });
     const b = `http://127.0.0.1:${srv.address().port}`;
@@ -259,10 +257,5 @@ describe('routes', () => {
     assert.equal(r.status, 200); assert.deepEqual(calls.at(-1), ['settle', { reservationId: 'R1', paymentSignature: 'P' }]);
     const s = await j(`/v1/vaults/${VAULT}/reservations/nope`);
     assert.equal(s.status, 404); assert.equal(s.body.error, 'unknown reservation');
-  });
-  test('redemptions: 202 on record, list is public', async () => {
-    const r = await post(`/v1/vaults/${VAULT}/redemptions`, { mint: 'M', burnSignature: 'B', recipient: 'W' });
-    assert.equal(r.status, 202); assert.equal(r.body.status, 'verifying');
-    assert.equal((await j(`/v1/vaults/${VAULT}/redemptions`)).status, 200);
   });
 });

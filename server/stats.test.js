@@ -1,7 +1,7 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const { Keypair } = require('@solana/web3.js');
-const { createStatsReader, BAND } = require('./stats');
+const { createStatsReader } = require('./stats');
 const { POOL_LAYOUT } = require('../src/reader/pool');
 
 // What the page shows at the top: backing (index and realisable, never summed with the
@@ -31,7 +31,6 @@ describe('stats — backing without a pool', () => {
     assert.equal(s.backing.multiplier, 0.89);
     assert.equal(s.pool, null);
     assert.equal(s.poolStatus, 'not launched');
-    assert.deepEqual(s.band, BAND);
     assert.equal(s.readAt, 1000);
   });
 });
