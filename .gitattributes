@@ -1,5 +1,5 @@
-# Fim de linha LF em tudo. Os hooks e os scripts QUEBRAM com CRLF
-# quando alguém clona noutra máquina — isto não é cosmética.
+# LF line endings everywhere. The hooks and the scripts BREAK with CRLF
+# when someone clones on another machine; this is not cosmetic.
 * text=auto eol=lf
 *.sh text eol=lf
 .githooks/* text eol=lf

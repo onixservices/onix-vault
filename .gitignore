@@ -1,15 +1,15 @@
 # ─────────────────────────────────────────────────────────────
-# LISTA BRANCA. Ignora TUDO por omissão e libera ficheiro a ficheiro.
-# Este repositório é PÚBLICO: um segredo que chegue aqui está
-# comprometido no instante em que sai daqui — apagar o commit não
-# resolve, a única resposta correcta é RODAR A CHAVE.
-# Regra de desenho: se um ficheiro precisa de um segredo para
-# funcionar, está do lado errado da fronteira e não entra.
+# ALLOWLIST. Everything is ignored by default and released file
+# by file. This repository is PUBLIC: a secret that lands here is
+# compromised the moment it leaves this machine. Deleting the
+# commit does not fix it; the only correct answer is to ROTATE
+# THE KEY. Design rule: if a file needs a secret to work, it is
+# on the wrong side of the boundary and does not come in.
 # ─────────────────────────────────────────────────────────────
 *
 !*/
 
-# raiz
+# root
 !.gitignore
 !README.md
 !LICENSE
@@ -19,7 +19,7 @@
 !setup.sh
 !.gitattributes
 
-# código
+# code
 !src/**/*.js
 !src/**/*.mjs
 !src/**/*.json
@@ -37,11 +37,11 @@
 !examples/**/*.js
 !examples/**/*.md
 
-# exemplos de configuração — NUNCA o ficheiro real
+# configuration examples, never the real file
 !*.example
 !config.example.json
 
-# nunca, em circunstância nenhuma
+# never, under any circumstances
 .env
 .env.*
 *.key
@@ -49,10 +49,8 @@
 *keypair*.json
 *secret*
 node_modules/
-!web/config.example.js
 
-# a config REAL do site nunca entra (a lista branca acima libertava-a)
-web/config.js
+# the real configuration and the data never come in (the allowlist above would release them)
 config.json
 data/
 .devnet/

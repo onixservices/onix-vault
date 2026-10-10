@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Liga as travas de segurança deste clone. Correr uma vez, depois de clonar.
+# Turns on this clone's safety locks. Run once, after cloning.
 set -euo pipefail
 cd "$(dirname "$0")"
 
 git config core.hooksPath .githooks
 chmod +x .githooks/pre-commit 2>/dev/null || true
 
-echo "hooks ligados: core.hooksPath = $(git config core.hooksPath)"
+echo "hooks on: core.hooksPath = $(git config core.hooksPath)"
 echo
-echo "Para testar: crie um ficheiro .js com uma atribuicao de chave privada"
-echo "e tente commitar. O hook tem de recusar."
+echo "To test it: create a .js file that assigns a private key to a variable"
+echo "and try to commit it. The hook must refuse."
 echo
-echo "Este repositório é PÚBLICO. Nada que precise de um segredo entra aqui."
+echo "This repository is PUBLIC. Nothing that needs a secret comes in here."
