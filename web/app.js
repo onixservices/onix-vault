@@ -442,12 +442,12 @@
   // the curve charges 10%; Meteora takes 20% of that; the creator's share applies to the rest; the remainder splits 2/3 vault, 1/3 Onix
   function shareOfTrade(creatorPct) {
     var fee = 10, protocol = fee * 20 / 100, after = fee - protocol, creator = after * creatorPct / 100, partner = after - creator;
-    return { creator: creator, treasury: partner * 2 / 3, onix: partner / 3, protocol: protocol };
+    return { creator: creator, treasury: partner * 2 / 3, onix: partner / 3, protocol: protocol, after: after };
   }
   var pct = function (n) { return (Math.round(n * 100) / 100) + '%'; };
   function renderFeeShare() {
     var s = shareOfTrade(Number($('f-fee').value));
-    $('f-fee-earn').textContent = 'You earn ' + pct(s.creator) + ' of every trade';
+    $('f-fee-earn').textContent = 'You earn ' + pct(s.creator) + ' of every trade: ' + $('f-fee').value + '% of the ' + pct(s.after) + ' the curve keeps after Meteora\'s cut';
     $('d-fee').textContent = '10% on every trade: ' + pct(s.creator) + ' goes straight to your wallet, ' + pct(s.treasury) + ' to the vault to buy the next item, ' + pct(s.onix) + ' to Onix, ' + pct(s.protocol) + ' to Meteora. The first 60 s charge 99% → 10% to keep bots out';
   }
   function rulesFromForm() {

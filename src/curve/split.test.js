@@ -38,8 +38,11 @@ test('the page translates every fee-share option with this same arithmetic (web/
   const options = [...html.match(/<select id="f-fee">([\s\S]*?)<\/select>/)[1].matchAll(/<option value="(\d+)"[^>]*>([^<]*)<\/option>/g)];
   assert.ok(options.length >= 4, 'the choices are offered');
   for (const [, v, label] of options) {
-    assert.equal(label.trim(), v + '%', 'the option is the choice; what it means per trade is computed under the select, never typed into a label');
     const ours = splitOfTrade(1000, Number(v)), page = shareOfTrade(Number(v));
+    // every option says what it means per trade, so nobody reads "40%" as a 40% fee: it is 40% of the 8% left after Meteora
+    const said = label.trim().match(/^(\d+)% \((\d+(?:\.\d+)?)% per trade\)$/);
+    assert.ok(said && said[1] === v, `option "${label.trim()}" carries its per-trade meaning`);
+    close(Number(said[2]), Math.round(ours.creatorPct * 100) / 100);
     close(page.creator, ours.creatorPct); close(page.treasury, ours.treasuryPct); close(page.onix, ours.onixPct); close(page.protocol, ours.protocolPct);
   }
 });
