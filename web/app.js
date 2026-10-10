@@ -543,11 +543,11 @@
   // the picture is cropped and resized in the browser before it goes up: the coin to a 512 square, the banner
   // to 3:1 at 1200×400 — whatever the file was (a 6 MB photo included), what leaves is small and the right shape
   var SHAPES = { image: { w: 512, h: 512 }, banner: { w: 1200, h: 400 } };
+  // the file is read as a data: URL, not a blob: one — the page's CSP lets images come from the site and data:
   function fitImage(file, shape) {
     return new Promise(function (resolve, reject) {
-      var url = URL.createObjectURL(file), img = new Image();
+      var reader = new FileReader(), img = new Image();
       img.onload = function () {
-        URL.revokeObjectURL(url);
         var sw = img.naturalWidth, sh = img.naturalHeight, target = shape.w / shape.h, cw = sw, ch = sh;
         if (sw / sh > target) cw = Math.round(sh * target); else ch = Math.round(sw / target);   // centre crop to the shape
         var c = document.createElement('canvas'); c.width = Math.min(shape.w, cw); c.height = Math.round(c.width / target);
@@ -555,8 +555,10 @@
         var png = file.type === 'image/png' && file.size < 400 * 1024;   // keep small PNGs (transparency); photos become JPEG
         c.toBlob(function (blob) { blob ? resolve(blob) : reject(new Error('could not read that image')); }, png ? 'image/png' : 'image/jpeg', 0.9);
       };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('that file is not an image the browser can read')); };
-      img.src = url;
+      img.onerror = function () { reject(new Error('that file is not an image the browser can read')); };
+      reader.onerror = function () { reject(new Error('could not read that file')); };
+      reader.onload = function () { img.src = reader.result; };
+      reader.readAsDataURL(file);
     });
   }
   function wireUpload(kind) {

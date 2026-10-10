@@ -1,4 +1,6 @@
 const { test, describe } = require('node:test');
+const fs = require('fs');
+const path = require('path');
 const assert = require('node:assert/strict');
 const { buildApp } = require('./app');
 const { VaultError } = require('./vaultService');
@@ -48,6 +50,18 @@ describe('headers — the app sends the same security headers as the proxy', () 
       assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
       assert.equal(r.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
       assert.equal(r.headers.get('x-powered-by'), null);
+    } finally { server.close(); }
+  });
+  // 9 Oct 2026: the Create preview read the picked file through a blob: URL, which img-src refuses —
+  // "that file is not an image the browser can read" for every valid PNG. The page and the policy agree here.
+  test('the page never loads an image from a scheme img-src refuses', async () => {
+    const app = buildApp({ vaults: [], webDir: null });
+    const server = app.listen(0); const { port } = server.address();
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/v1/health`);
+      const imgSrc = (r.headers.get('content-security-policy').match(/img-src ([^;]+)/) || [, ''])[1];
+      const page = fs.readFileSync(path.join(__dirname, '..', 'web', 'app.js'), 'utf8');
+      if (!/blob:/.test(imgSrc)) assert.equal(/createObjectURL/.test(page), false, 'web/app.js builds a blob: URL for an image, and img-src has no blob:');
     } finally { server.close(); }
   });
 });
