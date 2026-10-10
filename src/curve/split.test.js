@@ -28,6 +28,22 @@ test('the partner split sums to 100 and bad inputs are refused', () => {
   assert.throws(() => splitOfTrade(1000, 120));
 });
 
+test('the page translates every fee-share option with this same arithmetic (web/app.js shareOfTrade)', () => {
+  const fs = require('fs'), path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'app.js'), 'utf8');
+  const m = src.match(/function shareOfTrade\(creatorPct\) \{[\s\S]*?\n  \}/);
+  assert.ok(m, 'web/app.js defines shareOfTrade');
+  const shareOfTrade = new Function(m[0] + '; return shareOfTrade;')();
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web', 'index.html'), 'utf8');
+  const options = [...html.match(/<select id="f-fee">([\s\S]*?)<\/select>/)[1].matchAll(/<option value="(\d+)"[^>]*>([^<]*)<\/option>/g)];
+  assert.ok(options.length >= 4, 'the choices are offered');
+  for (const [, v, label] of options) {
+    assert.equal(label.trim(), v + '%', 'the option is the choice; what it means per trade is computed under the select, never typed into a label');
+    const ours = splitOfTrade(1000, Number(v)), page = shareOfTrade(Number(v));
+    close(page.creator, ours.creatorPct); close(page.treasury, ours.treasuryPct); close(page.onix, ours.onixPct); close(page.protocol, ours.protocolPct);
+  }
+});
+
 test('our local PROTOCOL_FEE_PERCENT matches the SDK\'s — so the arithmetic cannot drift from the program', () => {
   const sdk = require('@meteora-ag/dynamic-bonding-curve-sdk');
   assert.equal(PROTOCOL_FEE_PERCENT, sdk.PROTOCOL_FEE_PERCENT);

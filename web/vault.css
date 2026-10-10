@@ -372,6 +372,9 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .vhero .coin img{width:100%; height:100%; object-fit:cover; display:block}
 .vhero .who{padding-bottom:6px; min-width:0; flex:1} .vhero .who h1{display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:clamp(22px,3vw,30px)} .vhero .who p{max-width:640px; margin-top:4px; font-size:14px}
 .vhero .acts{display:flex; gap:8px; padding-bottom:8px; flex-wrap:wrap}
+/* the action row overlaps the banner: a ghost button over card art is unreadable, so it gets a solid backdrop */
+.vhero .acts .cta.ghost{background:rgba(5,11,13,.78); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border-color:var(--border2)}
+.vhero .acts .cta.ghost:hover{background:rgba(12,37,41,.92); border-color:var(--brand-a50)}
 .vhero .stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); border-top:1px solid var(--border); margin-top:14px}
 .vhero .stats>div{padding:14px 20px; border-right:1px solid var(--border); min-width:0} .vhero .stats>div:last-child{border-right:0}
 .vhero .stats .k{font:500 11px/1 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--text-faint)}

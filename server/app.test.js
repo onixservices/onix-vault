@@ -252,6 +252,17 @@ describe('routes', () => {
     assert.equal(r.status, 201); assert.equal(r.body.reservationId, 'R1');
     assert.deepEqual(calls.at(-1), ['reserve', { mint: 'M', integrator: 'G', winner: 'W', idempotencyKey: 'k9' }]);
   });
+  test('GET /v1/openapi.json serves the contract the repository holds', async () => {
+    const r = await j('/v1/openapi.json');
+    assert.equal(r.status, 200); assert.equal(r.body.info.version, require('./openapi.json').info.version);
+    assert.ok(r.body.paths['/v1/openapi.json'], 'the contract documents its own route');
+  });
+  test('the Integrate page: "Read the API docs" leaves the page (10 Oct 2026: it linked to itself)', () => {
+    const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'web', 'index.html'), 'utf8');
+    const m = html.match(/<a class="cta" href="([^"]+)"[^>]*>Read the API docs<\/a>/);
+    assert.ok(m, 'the button exists'); assert.notEqual(m[1], '#/integrate'); assert.match(m[1], /^https:\/\//);
+    assert.ok(html.includes('href="/v1/openapi.json"'), 'the contract is linked from the page');
+  });
   test('settle delegates with id + signature; status 404 carries the service code', async () => {
     const r = await post(`/v1/vaults/${VAULT}/reservations/R1/settle`, { paymentSignature: 'P' });
     assert.equal(r.status, 200); assert.deepEqual(calls.at(-1), ['settle', { reservationId: 'R1', paymentSignature: 'P' }]);

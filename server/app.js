@@ -77,6 +77,7 @@ function buildApp(deps) {
   // what a trade may slip: 1–500 bps (5%); a wider band only helps whoever trades against the user
   const slippageOf = (v) => { if (v == null) return 100; const n = Number(v); if (!Number.isInteger(n) || n < 1 || n > 500) throw new VaultError(400, 'slippageBps: an integer from 1 to 500'); return n; };
 
+  app.get('/v1/openapi.json', (req, res) => res.sendFile(path.join(__dirname, 'openapi.json')));
   app.get('/v1/health', (req, res) => res.json({ ok: true, paused: pause.state(), keyring: keyringConfigured(), vaults: vaults.map((v) => ({ vault: v.wallet, signerConfigured: v.signerConfigured(), itemsAgeMs: v.itemsAge() })), ...(vaults[0] ? { vaultWallet: vaults[0].wallet, signerConfigured: vaults[0].signerConfigured(), itemsAgeMs: vaults[0].itemsAge() } : {}) }));
 
   // ── what the page reads (no RPC key ever reaches the browser) ──

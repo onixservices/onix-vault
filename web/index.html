@@ -352,7 +352,7 @@
         <div><b>Above 1×</b> the market pays for the fee flow and the items still to come.</div>
       </div>
     </div>
-    <div class="note blue"><b>Every number here comes from the chain.</b> The open-source reader rebuilds it from your own RPC: <code>npm run backing -- &lt;custody wallet&gt;</code>.</div>
+    <div class="note blue"><b>Every address here links to the chain, and the backing can be rebuilt by anyone.</b> The open-source reader, from your own RPC (one with DAS): <code>npm run backing -- &lt;custody wallet&gt; --mint &lt;token mint&gt;</code>. The ratio above is that backing against the pool price.</div>
   </div>
 
   <!-- the reveal: steps → card flip → proof folded -->
@@ -463,7 +463,7 @@
         <div class="f"><label for="f-cat">Category</label><select id="f-cat"><option value="mixed">Any graded card</option><option value="pokemon">Pokémon</option><option value="one-piece">One Piece</option><option value="sports">Sports</option></select></div>
         <div class="f"><label for="f-minv">Minimum item value</label><select id="f-minv"><option value="0">Any</option><option value="10">$10+</option><option value="25">$25+</option><option value="50">$50+</option><option value="100">$100+</option></select></div>
         <div class="f"><label for="f-grade">Minimum grade</label><select id="f-grade"><option value="any">Any</option><option value="8">8+</option><option value="9">9+</option><option value="10">10 only</option></select></div>
-        <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40% (3.2% of curve volume)</option><option value="50">50%</option></select></div>
+        <div class="f"><label for="f-fee">Your share of the trading fee</label><select id="f-fee"><option value="20">20%</option><option value="30">30%</option><option value="40" selected>40%</option><option value="50">50%</option></select><p class="faint" id="f-fee-earn" style="font-size:12.5px;margin-top:6px">You earn 3.2% of every trade</p></div>
         <div class="f"><label for="f-grad">Opens to the whole market at</label><select id="f-grad"><option value="2">2× the opening cap</option><option value="2.5" selected>2.5× the opening cap</option><option value="3">3× the opening cap</option></select></div>
         <div class="f"><label for="f-rs">What the treasury buys next</label><select id="f-rs"><option value="same" selected>The same as what this vault takes</option><option value="custom">Its own rule…</option></select></div>
       </div>
@@ -476,7 +476,7 @@
       <details class="deal"><summary>The deal, in five lines</summary><div class="terms">
         <div><b>Opens at</b><span>2× what is inside — your 50% is worth your items on day one</span></div>
         <div><b>Token split</b><span>50% you · 50% on the curve. Yours is released when trading opens to everyone, then over 6 months</span></div>
-        <div><b>Fee on the curve</b><span>10%: your share goes straight to your wallet; the vault keeps the rest to buy the next item. The first 60 s charge 99% → 10% to keep bots out</span></div>
+        <div><b>Fee on the curve</b><span id="d-fee">10% on every trade: 3.2% goes straight to your wallet, 3.2% to the vault to buy the next item, 1.6% to Onix, 2% to Meteora. The first 60 s charge 99% → 10% to keep bots out</span></div>
         <div><b>At graduation</b><span>30% of the USDC raised goes into the vault to buy more items</span></div>
         <div><b>Custody</b><span>your items move to the vault's own wallet. You can take them back any time before launch</span></div>
       </div></details>
@@ -530,10 +530,10 @@ console.log(done.deliverySignature);                            <span class="c">
     <div class="prov">
       <div class="r"><span class="k">Sandbox</span><span><span class="mono">npm run rehearse:vault</span> runs the same server against devnet with a test vault.</span></div>
       <div class="r"><span class="k">Limits</span><span>Reservations expire in minutes. Let three expire without settling and the vault stops taking yours. <span class="mono">x-api-key</span> is optional: it identifies you, it unlocks nothing.</span></div>
-      <div class="r"><span class="k">Contract</span><span><span class="mono">server/openapi.json</span> is the source; the docs follow it. Webhooks are roadmap — today you poll the reservation.</span></div>
-      <div class="r"><span class="k">Live</span><span>Onix.Cards runs a <b>Vaults</b> category: one machine per graduated vault, the standard rarity bands weighted by what the vault holds. Its first pull (3 Oct 2026) paid the vault through these three calls and the vault delivered the card.</span></div>
+      <div class="r"><span class="k">Contract</span><span><a href="/v1/openapi.json" target="_blank" rel="noopener"><span class="mono">server/openapi.json</span></a> is the source; the docs follow it. Webhooks are roadmap — today you poll the reservation.</span></div>
+      <div class="r"><span class="k">Live</span><span>Onix.Cards runs an <b>Onix.Vault</b> machine: the cards of every graduated vault in one draw, the standard rarity bands, each card bought from its own vault at the published price. Its first pull (3 Oct 2026) paid the vault through these three calls and the vault delivered the card.</span></div>
     </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="cta" href="#/integrate">Read the API docs</a><a class="cta ghost" href="#/">See the vaults</a></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="cta" href="https://github.com/onixservices/onix-vault/blob/main/docs/vault-api.md" target="_blank" rel="noopener">Read the API docs</a><a class="cta ghost" href="/v1/openapi.json" target="_blank" rel="noopener">The contract (OpenAPI)</a><a class="cta ghost" href="#/">See the vaults</a></div>
   </div>
 </section>
 

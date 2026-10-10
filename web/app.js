@@ -144,7 +144,7 @@
     var p = st && st.pool, lk = p && p.locked, A = function (a) { return a ? '<a href="https://solscan.io/account/' + esc(a) + '" target="_blank" rel="noopener">' + esc(a) + '</a>' : '—'; };
     var rows = [
       ['Custody wallet', A(VAULT) + ' <span class="faint">· the items live here; only Play and the gacha API move them out</span>'],
-      ['Creator', A(META.creator) + ' <span class="faint">· chose the rules · 50% of the supply locked · ' + (META.creatorFeePct || 40) + '% of the curve trade fee, on chain</span>'],
+      ['Creator', A(META.creator) + ' <span class="faint">· chose the rules · 50% of the supply locked · ' + (META.creatorFeePct || 40) + '% of the curve trade fee (' + pct(shareOfTrade(META.creatorFeePct || 40).creator) + ' of every trade), on chain</span>'],
       ['Token mint', p ? '<a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">' + esc(p.baseMint) + '</a>' : '—'],
       ['Curve (Meteora DBC)', p ? A(p.address) + (st.poolStatus === 'migrated' ? ' <span class="faint">· graduated</span>' : '') : '<span class="faint">' + esc(st ? st.poolStatus : '—') + '</span>'],
       ['Pool (DAMM v2)', p && p.damm ? A(p.damm.address) + ' <span class="faint">· liquidity locked for good · 1% fee</span>' : '<span class="faint">after graduation</span>'],
@@ -438,6 +438,18 @@
 
   // ── create: items → token + rules → launch (deposits to custody, then the launch) ──
   var CQ = null, CR = { busy: false, creationId: null }, CSEL = {}, CQ_PICK = { n: 0 };
+  // what a creator's share of the fee means per trade — the arithmetic of src/curve/split.js (a test holds the two together):
+  // the curve charges 10%; Meteora takes 20% of that; the creator's share applies to the rest; the remainder splits 2/3 vault, 1/3 Onix
+  function shareOfTrade(creatorPct) {
+    var fee = 10, protocol = fee * 20 / 100, after = fee - protocol, creator = after * creatorPct / 100, partner = after - creator;
+    return { creator: creator, treasury: partner * 2 / 3, onix: partner / 3, protocol: protocol };
+  }
+  var pct = function (n) { return (Math.round(n * 100) / 100) + '%'; };
+  function renderFeeShare() {
+    var s = shareOfTrade(Number($('f-fee').value));
+    $('f-fee-earn').textContent = 'You earn ' + pct(s.creator) + ' of every trade';
+    $('d-fee').textContent = '10% on every trade: ' + pct(s.creator) + ' goes straight to your wallet, ' + pct(s.treasury) + ' to the vault to buy the next item, ' + pct(s.onix) + ' to Onix, ' + pct(s.protocol) + ' to Meteora. The first 60 s charge 99% → 10% to keep bots out';
+  }
   function rulesFromForm() {
     var r = { category: $('f-cat').value, minValueUsd: Number($('f-minv').value), minGrade: $('f-grade').value === 'any' ? 'any' : Number($('f-grade').value), creatorFeePct: Number($('f-fee').value), gradMult: Number($('f-grad').value) };
     // what the treasury buys with the fees: the entry rule, or the creator's own (category, value band, grade)
@@ -491,12 +503,13 @@
     var r = rulesFromForm();
     $('r-name').textContent = name; $('r-sym').textContent = '$' + sym; $('r-real').textContent = usd(CQ_PICK.realisableUsd); $('r-sel').textContent = CQ_PICK.n + ' item' + (CQ_PICK.n === 1 ? '' : 's');
     $('r-open').textContent = usd(CQ_PICK.openingMcapUsd); $('r-grad').textContent = usd(CQ_PICK.graduationUsd); $('r-get').textContent = usd(CQ_PICK.realisableUsd);
-    $('r-rules').textContent = 'Takes ' + ({ mixed: 'any graded card', pokemon: 'Pokémon cards', 'one-piece': 'One Piece cards', sports: 'sports cards' }[r.category]) + (r.minGrade !== 'any' ? ' graded ' + r.minGrade + '+' : '') + (r.minValueUsd ? ' worth $' + r.minValueUsd + '+' : '') + ' from Collector Crypt · your fee share ' + r.creatorFeePct + '% · graduates at ' + r.gradMult + '× the opening cap.';
+    $('r-rules').textContent = 'Takes ' + ({ mixed: 'any graded card', pokemon: 'Pokémon cards', 'one-piece': 'One Piece cards', sports: 'sports cards' }[r.category]) + (r.minGrade !== 'any' ? ' graded ' + r.minGrade + '+' : '') + (r.minValueUsd ? ' worth $' + r.minValueUsd + '+' : '') + ' from Collector Crypt · your fee share ' + r.creatorFeePct + '% (' + pct(shareOfTrade(r.creatorFeePct).creator) + ' of every trade) · graduates at ' + r.gradMult + '× the opening cap.';
     return true;
   }
   $('pick').addEventListener('click', function (e) { var b = e.target.closest('button.pk'); if (!b) return; CSEL[b.dataset.mint] = !CSEL[b.dataset.mint]; renderPick(); });
   ['f-cat', 'f-minv', 'f-grade'].forEach(function (id) { $(id).addEventListener('change', function () { if (W.addr) scan(W.addr); }); });
   $('f-grad').addEventListener('change', renderPick);
+  $('f-fee').addEventListener('change', renderFeeShare); renderFeeShare();
   $('to2').addEventListener('click', function () { if (CQ && CQ_PICK.n > 0) step(2); });
   $('to3').addEventListener('click', function () { if (review()) step(3); });
   $('back1').addEventListener('click', function () { step(1); });

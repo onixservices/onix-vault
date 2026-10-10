@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Onix.Vault API",
-    "version": "1.5.0",
-    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`.\n\n**1.5.0:** the first design's redemption door is gone from the contract: no `redemptions` route, no `band` in `stats`, no `redeemPriceUsd` on items. The exit by burning is Play in tokens (`/play`, `/plays`), priced in share of backing."
+    "version": "1.5.1",
+    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`.\n\n**1.5.0:** the first design's redemption door is gone from the contract: no `redemptions` route, no `band` in `stats`, no `redeemPriceUsd` on items. The exit by burning is Play in tokens (`/play`, `/plays`), priced in share of backing.\n\n**1.5.1:** the contract is served by the server itself at `GET /v1/openapi.json`."
   },
   "servers": [
     {
@@ -11,6 +11,16 @@
     }
   ],
   "paths": {
+    "/v1/openapi.json": {
+      "get": {
+        "summary": "This contract, as the running server holds it",
+        "responses": {
+          "200": {
+            "description": "the OpenAPI document"
+          }
+        }
+      }
+    },
     "/v1/health": {
       "get": {
         "summary": "What is configured (never a secret)",
