@@ -1,10 +1,9 @@
 # Impact and market
 
 > For the "Impact / TAM" criterion. **Every number below was measured or taken from a named
-> source; none is a projection.** Where we have no number, it says so. Drafted 22 September
-> 2026; rewritten 3 October 2026 for the model that runs.
+> source; none is a projection.** Where we have no number, it says so.
 
-## Who this is for
+## What changes for a collector
 
 **Your collection. A business in minutes.** A collector with graded cards today sells them one at a time, on someone
 else's marketplace, and waits for each buyer. With a vault the same collection becomes a token people trade, a gacha
@@ -69,8 +68,7 @@ the doors. Demand is what the submission window measures.
 
 Meteora published **StockLaunch on 15 September 2026** — bonding curves whose fees
 accumulate in a vault of the reference asset — and named "a new asset class beyond
-memecoins" as the goal of its track. Three of the four declared entries in that track chose
-tokenized stocks.
+memecoins" as the goal of its track.
 
 And Meteora already tried this exact asset class itself. **`$SV151` (Dynamic Assets, Meteora
 + Sunrise, June 2026)**: a $160k presale to buy sealed Pokémon packs, trading fees that buy

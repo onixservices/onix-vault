@@ -1,9 +1,8 @@
 # Threat model
 
 > What can go wrong when a page makes claims about real money and real property, and what stops each
-> one. First written 21 September 2026, before the build; rewritten 3 October 2026 for the model as it
-> runs on mainnet (creator-owned vaults, custody per vault, Play). Deliberately blunt: a vault that holds
-> other people's value earns trust by naming its own failure modes first.
+> one. Deliberately blunt: a vault that holds other people's value earns trust by naming its own failure
+> modes first.
 
 ## What we are protecting
 
@@ -45,7 +44,7 @@ There is no inventory we maintain that can drift from reality.
 ### A creation is abandoned with the items in custody
 Items deposited, launch never signed. **Mitigation:** `abandon` returns every item and the gas to the
 creator, signed by the derived key, only to the creator who opened it; expired creations (2 h) are
-abandoned by a sweep. Measured on mainnet (2 October: a card and 0.03 SOL returned).
+abandoned by a sweep. Measured on mainnet (a card and the gas returned to the creator).
 
 ---
 
@@ -60,7 +59,7 @@ Money that went up the curve becomes migration liquidity; it is not the vault's.
 are never summed anywhere; the strip shows market cap *and* backing *and* the ratio, nothing more.
 
 ### "Raised" is confused with market cap
-It happened on 2 October: the bar showed price × supply as "raised". **Mitigation now:** progress is the
+It happened once: the bar showed price × supply as "raised". **Mitigation now:** progress is the
 curve's own condition — USDC in the reserve ÷ the threshold in the config, both read from the chain.
 
 ### A stale number is shown as fresh
@@ -172,8 +171,8 @@ a second net. **If it happens anyway: rotate.**
   a card it buys is sold to a gacha at the index later. It is automatic and in this repository (`server/restock.js`),
   signed by the custody key, the debit measured before signing — but it is a server-side key spending a vault's money,
   bounded by the vault's rules, one item an hour and $150 a card.
-- **Rehearsed attacks** (`scripts/abuse-rehearsal.js`, run against production): 21 of 21 refused on 3 Oct 2026; 24 of 24 on 4 Oct, after
-  the security review. The first run
+- **Rehearsed attacks** (`scripts/abuse-rehearsal.js`, run against production): 24 of 24 refused on 4 October 2026, after
+  the security review. The first run, the day before (21 of 21),
   found a raw error for wallets with no SOL (now a clear 402) and a broken word-boundary in two regexes (fixed).
 - **Legal shape.** A token whose treasury buys items and a draw for physical goods touch securities and
   gaming rules in several jurisdictions. Named, not solved; the copy avoids making it worse.

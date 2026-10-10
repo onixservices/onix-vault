@@ -1,8 +1,6 @@
 # Business model
 
 > For the "Business Plan" criterion, which the 2026 rules define as *"the team's ability to execute"*.
-> Drafted 22 September 2026; rewritten 3 October 2026 after the model moved to creator-owned vaults and
-> the first full cycle ran on mainnet; repositioned 4 October 2026 around the creator.
 
 ## Your collection. A business in minutes.
 
@@ -57,18 +55,19 @@ same price for everyone, which is what makes the token worth holding for the peo
 
 ## What it costs
 
-Almost nothing marginal: one server, one RPC. Onix fronts the curve config (~0.01 SOL per vault) only after the
+Almost nothing marginal: one server, one RPC. Onix fronts the curve config (0.006 SOL per vault, measured) only after the
 creator's items are in custody, and the migration (~0.02 SOL) when a vault graduates. Custody wallets derive from one
 seed held on the server; the escrow program on the roadmap replaces it.
 
 ## Proof of execution — what already runs
 
-- **Onix.Vault**, mainnet, 2–3 October 2026: a vault created through the page by a third-party wallet (`$OT4`), bought
-  to graduation, migrated to a DAMM v2 pool, a Play paid in USDC and the card delivered from custody, the draw recomputed
-  outside the server. Then `$OCC`, with its own image and banner: graduated, traded on its pool from the page, its treasury
-  **bought cards by itself**, one of them won on Onix.Cards' vault machine and paid to the vault through the public API,
-  and the fees claimed into the treasury automatically. 227 tests; 24 of 24 abuse attempts refused in production; an
-  internal security review with every finding fixed and regression-tested (`docs/security-review.md`).
+- **Onix.Vault**, mainnet, October 2026: two vaults live, both created through the page by a wallet that is not the
+  operator's. `$OCC` (3 October): graduated, traded on its pool from the page, its treasury **bought cards by itself**, one
+  of them won on Onix.Cards' vault machine and paid to the vault through the public API, the fees claimed into the treasury
+  automatically. `$VOLT` (9 October): the curve filled and **the server graduated it by itself**, a Play paid in USDC and
+  delivered from custody, and the treasury bought three cards overnight with nobody clicking. 24 of 24 abuse attempts
+  refused in production; an internal security review with every finding fixed and regression-tested
+  (`docs/security-review.md`); the suite is green with `npm test`.
 - **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized graded cards that buys
   inventory on its own, across venues, under published rules. Its gacha is the vault's first integrator.
 - **Onix.Finance**, in production: an LP inspector that reconstructs PnL from on-chain events for Meteora, Orca and
@@ -87,12 +86,6 @@ first integrator, the treasury loop, the page, the docs.
   graduated vault's cards are sold by Onix.Cards' Onix.Vault machine and by any gacha that integrates the API.
 - **Then:** an escrow program for custody, and new asset classes as soon as their custodians publish identity, value and
   redemption in the token (wine, watches and comics are already tokenized on Solana).
-
-## Where ONIX fits
-
-Onix has a token (ONIX, minted April 2026, never launched, no pool). It is **not** a vault token: a vault token is the
-share of *one* vault. ONIX sits one level up (admission to creating vaults, votes on platform parameters, a treasury
-policy fed only by Onix's own revenue). Nothing about ONIX is built in the window.
 
 ## The platform, in one line
 

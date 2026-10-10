@@ -1,9 +1,6 @@
 # Architecture
 
-> How Onix.Vault is put together, and where the lines are drawn. First written 21 September 2026,
-> before the code; rewritten 3 October 2026 after the model changed (creator-owned vaults, custody
-> per vault, Play) and the whole cycle ran on mainnet; updated 5 October after the security review
-> (`docs/security-review.md`).
+> How Onix.Vault is put together, and where the lines are drawn.
 
 ## The rules everything else follows
 
@@ -23,7 +20,7 @@
 ```
 ┌─ PUBLIC · this repository ─────────────────────────────┐   ┌─ PRIVATE · the server's .env ──────┐
 │  src/reader   what a custody wallet holds, per token    │   │  VAULT_MASTER_SEED  → server/keyring│
-│  src/curve    the DBC configuration (DECIDED) + split   │   │  VAULT_SECRET_KEY   → server/signer │
+│  src/curve    the DBC configuration + the fee split     │   │  VAULT_SECRET_KEY   → server/signer │
 │  server/      API · creation · custody · trade · play   │   │                      (Onix = partner)│
 │               · delivery · uploads · rate limits        │   │  RPC url (paid, with DAS)           │
 │  web/         the page (board · vault mini-site · create)│   └─────────────────────────────────────┘
@@ -72,7 +69,7 @@
 - **`server/ratelimit.js`** is a token bucket per key, no dependency: a first fence on the routes
   that cost something (uploads, creation, plays, builds). The real limits live in the services.
 
-## The curve configuration (decided 2 October 2026 · `src/curve/params.js`)
+## The curve configuration (`src/curve/params.js`)
 
 | | | why |
 |---|---|---|
@@ -81,7 +78,7 @@
 | curve | 50% − 0.1% leftover | the program refuses a supply with no slack when a migration fee is set (measured) |
 | opens at | 2× realisable backing | the creator's half is worth the items on day one |
 | graduates at | 2 / 2.5 / 3 × the opening (creator's choice) | plausible, never a condition |
-| trade fee | 10% · creator 40% of it on chain · scheduler 99%→10% over the first 60 s | the creator is paid by the program; bots cannot front-run the opening |
+| trade fee | 10% · the creator's 40% paid on chain (of what is left after Meteora's 20% cut) · scheduler 99%→10% over the first 60 s | the creator is paid by the program; bots cannot front-run the opening |
 | migration fee | 30% of the USDC raised → the custody wallet | the treasury that buys the next item |
 | graduated pool | DAMM v2, 100% of the LP permanently locked, 1% fee | nobody can pull the liquidity |
 
@@ -103,7 +100,7 @@ The gacha API (`reservations` → payment → `settle`) is the same door for int
 the first one, through the public client in `examples/`. Its **Onix.Vault** machine sells the cards of every graduated
 vault at the house's price and band odds; each card drawn is reserved, paid and settled with the vault that holds it.
 
-## The treasury loop — automatic (3 October 2026)
+## The treasury loop
 
 Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOCK=1`):
 
@@ -126,15 +123,11 @@ Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOC
    is signed, persisted, sent, and confirmed against the chain before the item joins the manifest.
 3. A round that does nothing says why in the log, once per change of reason.
 
-The first automatic purchase: a Weedle PSA 9 for $15 (index $18), 3 Oct 2026 — and the Magnemite the treasury bought
-an hour earlier was won in Onix.Cards' vault machine minutes later, paid to the vault through the public API.
-
 ## Inside the server — layers and patterns
 
 - **Pure core, no I/O.** `src/reader` (custody and pool decoding), `src/curve` (the configuration and the fee split),
   `server/draw.js` (the draw), `server/rules.js` (a vault's rules), the payment readers in `server/payment.js` and the
-  transaction checks in `server/txAssertions.js`. The same `src/reader` runs on the server, in the CLI and in the
-  browser (`web/verify.html`).
+  transaction checks in `server/txAssertions.js`. The same `src/reader` runs on the server and in the CLI.
 - **Services as factories with their dependencies injected** (`createVaultCreator`, `createPlay`, `createRestock`,
   `createFeeClaim`, `createVaultService`, `createAdmissions`, the curve and pool traders). Each receives the chain, the
   indexer, the signer, the clock and the database; tests pass fakes for those and keep the business logic real
@@ -153,8 +146,8 @@ an hour earlier was won in Onix.Cards' vault machine minutes later, paid to the 
 - **Operational safety as code:** the emergency pause (`server/pause.js`), per-address rate fences
   (`server/ratelimit.js`), inputs checked at the door (`server/inputs.js`), generic 500s with a reference, and the
   public contract held to the routes by a test (`server/openapi.test.js`).
-- **Tests:** `node:test`, 227 of them, mocks only at the transport; every security finding has a regression test that
-  fails on the code before its fix (`docs/security-review.md`).
+- **Tests:** `node:test`, mocks only at the transport; every security finding has a regression test that fails on the
+  code before its fix (`docs/security-review.md`).
 
 ## `web/` — the page
 

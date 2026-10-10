@@ -1,8 +1,7 @@
 # The vault API — v1
 
 > How a vault is created, traded and played, and how a gacha (ours or anyone's) buys an item out of it.
-> Written for vaults of graded cards; the contract is the same for any registered custodian.
-> Drafted 30 September 2026; served by `server/` since 1 October. The server only ever
+> Written for vaults of graded cards; the contract is the same for any registered custodian. The server only ever
 > moves an item *after* a payment or a burn is confirmed on chain, and every delivery is a
 > public transaction paired with the one that caused it.
 
@@ -41,7 +40,7 @@ Play, token                       = the band's average × 1.10 ÷ (realisable ba
 The money stays in the vault; a burn shrinks the supply. The vault never picks which item leaves: the gacha
 picks by paying for a specific item, Play draws by commit-reveal.
 
-## Status codes an integrator handles (contract 1.4.0)
+## Status codes an integrator handles (contract 1.5.0)
 
 | code | meaning | what to do |
 |---|---|---|
@@ -69,18 +68,18 @@ number the API did not serve with its source and age.
 
 | endpoint | what |
 |---|---|
-| `GET /v1/vaults` | the vaults (one today) with name, operator, custodians and `stats` |
+| `GET /v1/vaults` | every vault served, with name, creator, rules, token and `stats` |
 | `GET /v1/vaults/{vault}/stats` | backing (`indexUsd`, `realisableUsd`, `multiplier`) and, only when a pool exists, `pool` = price · supply · market cap · `ratio` (market cap ÷ realisable) · graduation progress · fees; until then `pool: null` and `poolStatus` says why. The two numbers are never summed. |
-| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — plays, gacha sales, the creator's additions, each with its signatures |
+| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — graduation, plays, gacha sales, the treasury's fee claims and purchases, the creator's additions, each with its signatures |
 | `GET /v1/wallets/{wallet}/eligible-items` | "Create a vault", step 1: what in a wallet comes from a registered custodian with a value on chain; the rest listed with the reason |
 
-Anyone who prefers their own RPC can run `web/verify.html` with their own endpoint, or the CLI
-reader (`npm run backing`): same decoder, same numbers.
+Anyone who prefers their own RPC can run the CLI reader (`npm run backing -- <custody wallet>`) against
+their own endpoint: same decoder, same numbers.
 
 ### The Admit door — the creator adds an item
 
 A vault is a **rule**, not a wallet that accepts anything (`server/rules.js`): registered custodian(s), a
-category, a minimum value, a minimum grade. **Only the creator adds items** (2 October 2026) and nobody is
+category, a minimum value, a minimum grade. **Only the creator adds items**, and nobody is
 paid tokens for it: the supply is the curve's, and an added item raises backing per token for every holder.
 
 | endpoint | what |
@@ -103,7 +102,7 @@ later. Nothing is ever pre-signed by the server.
 |---|---|---|
 | 0 | `GET /v1/vaults/create/quote?wallet=&rules=` | what the wallet holds that THESE rules take; the curve it implies (opens at 2× realisable; graduates at `gradMult` × that; 50% creator) |
 | — | `POST /v1/vaults/create/upload` (raw image bytes) | the coin image or the banner: PNG, JPEG or WebP **decided by the bytes** (never SVG), ≤ 1 MB, stored under its sha256, previewed at `GET /v1/vaults/create/uploads/{id}`; orphans are swept after an hour; rate-limited per address |
-| 1 | `POST /v1/vaults/create/open` `{ owner, name, symbol, mints, rules, description, links, imageId, bannerId }` | validates (lists only; symbol unique and not reserved; 1 creation in flight per wallet; global cap/hour), allocates the custody index, returns `custodyWallet` and **`depositTransactions[]`** — items → custody (+0.03 SOL gas in the first), each single-signer = creator, unsigned, simulated. **Nothing of Onix is spent here.** |
+| 1 | `POST /v1/vaults/create/open` `{ owner, name, symbol, mints, rules, description, links, imageId, bannerId }` | validates (lists only; symbol unique and not reserved; 1 creation in flight per wallet; global cap/hour), allocates the custody index, returns `custodyWallet` and **`depositTransactions[]`** — items → custody (+0.08 SOL gas in the first), each single-signer = creator, unsigned, simulated. **Nothing of Onix is spent here.** |
 | 2 | `POST /v1/vaults/create/deposited` `{ creationId }` | 409 until the chain shows every item in custody (+ the gas). Then Onix creates the curve **config** (pays its rent, once; `feeClaimer` = the custody wallet) and returns the **launch transaction** (`createPool`, creator = payer), unsigned, simulated |
 | 3 | `POST /v1/vaults/create/submit` `{ creationId, signedTransaction }` | the creator signed it (`signTransaction`): same content as built (ComputeBudget/Lighthouse the wallet adds are ignored) → the throwaway mint key completes it → broadcast |
 | 4 | `POST /v1/vaults/create/confirm` `{ creationId, signature }` | the pool exists on chain → the vault is registered (custody wallet, creator, rules, manifest, image, banner) and served at once. `GET /token/{mint}.json` (what wallets and Meteora read) points at `/token/{mint}.png` and `/token/{mint}-banner.png`, served with a fixed type and `nosniff` |
@@ -159,7 +158,6 @@ Every item in the vault wallet, from the chain, with:
   "custodianValueBasis": "insured",
   "marketRefUsd": null,          // v1 ships without a market reference; when one exists it is named
   "exitPriceUsd": 135.00, "exitPriceBasis": "custodian",
-  "redeemPriceUsd": 155.25,
   "status": "available" | "reserved",
   "reservedUntil": null
 }
@@ -216,11 +214,6 @@ any, is refunded by the operator by hand in v1, and the page says so) · `503` i
 is good but the delivery failed: the reservation is `delivery_failed`, keeps the payment, and
 the operator re-runs the delivery by hand (`scripts/retry-delivery.js`, same path); poll
 `GET …/reservations/{id}` for the `deliverySignature`.
-
-### `POST /v1/vaults/{vault}/redemptions` *(legacy, 30 September design)*
-
-Kept for the record of the first design (burn for a specific item at 1.15×). The exit by burning is now
-**Play in tokens** (a draw from a band, priced in share of backing), which has no cherry-picking surface.
 
 ## What v1 does not do, on purpose
 

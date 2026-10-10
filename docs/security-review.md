@@ -1,6 +1,6 @@
 # Security review — Onix.Vault server
 
-**Date:** 4 October 2026 · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 224 tests, all green (`npm test`)
+**Date:** 4 October 2026 · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 237 tests, all green (`npm test`)
 
 This is an internal review, written so an external auditor can start from it. Every finding below was read in the code, given a regression test that **fails on the code before the fix and passes after**, then fixed. The fix commit and the test are listed for each finding. Nothing here replaces an external audit; it is what that audit should find already done.
 
@@ -9,7 +9,7 @@ This is an internal review, written so an external auditor can start from it. Ev
 | key | where it lives | what it signs |
 |---|---|---|
 | `VAULT_MASTER_SEED` (32 bytes) | `.env` on the server (640, root:onixvault), generated there, never printed | every created vault's custody wallet, derived per vault (SLIP-0010, `m/44'/501'/<index>'/0'`); the draw key (`keyring.drawKey`) |
-| `VAULT_SECRET_KEY` (Onix operator) | same `.env` | curve configs Onix pays for; Vault #1's custody |
+| `VAULT_SECRET_KEY` (Onix operator) | same `.env` | curve configs Onix pays for; the locker and the migration when a vault graduates |
 
 The server signs from five routes (creation steps, play settlement, gacha settlement, admissions, abandon) and three timers (play deliveries, the treasury loop that claims fees and buys items, expired-creation sweep). Each signing path is **build → assert shape → simulate → sign → persist → broadcast**, and the chain is read back before anything is counted.
 
@@ -57,6 +57,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 - **Authors:** one identity throughout, the project's pseudonymous account.
 - **Files:** no `.env`, key, keypair, database or wallet file ever committed. One blob over 500 KB (`web/token/default.png`, 1.4 MB).
 - **Content:** no private key (base58 or byte array), no seed, no API key, no PEM, no server address, no local path, no personal data, no third-party names. The only 32-byte hex values are the SLIP-0010 specification's public test vectors, throwaway test seeds, and the vendored bundle's sha256; the only `api-key=` is a fake value in a test.
+- **Re-run 10 October 2026** over the commits added since (130 in all), same patterns, same result: clean.
 - **Going forward:** the pre-commit hook (tested, R-07) refuses the same patterns. On GitHub, enable secret scanning, push protection and Dependabot alerts, and protect `main`.
 
 ## Trust that remains by design
@@ -67,7 +68,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 ## How to verify
 
 ```bash
-npm ci && timeout 280 npm test                       # 227 tests
+npm ci && timeout 280 npm test                       # 237 tests
 node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004   # public refusals, against a local server
 touch data/PAUSE                                      # every value route answers 503 within 5 s; rm to resume
 ```

@@ -39,11 +39,17 @@ today (Collector Crypt writes insured value, grader, certificate and the vault's
 token). Wine, watches or comics enter the day their custodian meets the same three conditions. Liquid RWAs
 (tokenized stocks) do not need this: they redeem at NAV by design. This is for the illiquid kind.
 
-> **Proven on mainnet, 2–3 October 2026.** A vault created through the door by a third-party wallet (`$OT4`), bought to
-> graduation, migrated by our script, a Play paid in USDC and the card delivered from custody — the draw recomputed outside
-> the server. Then a second (`$OCC`) with its own image and banner: graduated, traded on its pool from the page, its
-> treasury **bought a card by itself** ($13 for a $16 index), that card was won on Onix.Cards' vault machine and paid to
-> the vault through the public API, and the fees were claimed into the treasury automatically.
+> **Proven on mainnet, October 2026.** Two vaults are live at [vault.onix.finance](https://vault.onix.finance), both created
+> through the page by a wallet that is not the operator's. **`$OCC`** (3 October; custody `FJY9e8KkXtTATEdivpnJwpm8tavYCYpvta1hZb7JfFMX`,
+> mint `2PQ4T4cqh4aWHpAQN7wDRpVbYA8yGvxYypF5v3aDPQ5N`, DAMM v2 pool `BffuP3jwtXstCEjB3UwVjD2R21LVBYFc1MSbFpLbJXKT`): graduated, traded on
+> its pool from the page, its treasury **bought a card by itself** ($13 for a $16 index), that card was won on Onix.Cards'
+> vault machine and paid to the vault through the public API, and the fees were claimed into the treasury automatically.
+> **`$VOLT`** (9 October; custody `4uC7H5NPKicQiAi5rcn6g4Bzb1VVLVnF6uttfWd1jp9T`, mint `CtTzeJ6jR8Qtd71rDmhbK5x6m5Jv876NybeM6U3rixnP`,
+> DAMM v2 pool `LFVoEkghV8tYKaGJx97WPri5anMLU4t4kGSPRC8zMvM`): the curve filled and **the server graduated it by itself** within a
+> minute, a Play was paid in USDC and the card delivered from custody, a pull on Onix.Cards' vault machine paid `$OCC`
+> $38 through the API (and that vault bought its next card fourteen minutes later), and overnight the `$VOLT` treasury
+> bought three more cards on its own, one an hour, each at or under its index. Every step is on each vault's Activity
+> tab, with its signature.
 
 ---
 
@@ -56,8 +62,8 @@ Item values come from the custodian's own on-chain `Insured Value` attribute. Th
 price: the measured median the market actually pays is **0.89×** of it. Both numbers are shown, always
 labelled, always with their age.
 
-Anyone who prefers their own RPC can run `web/verify.html` with their own endpoint, or the CLI reader
-(`npm run backing`): same decoder, same numbers.
+Anyone who prefers their own RPC can run the CLI reader (`npm run backing -- <custody wallet>`) against their own
+endpoint: same decoder, same numbers.
 
 ---
 
@@ -66,7 +72,7 @@ Anyone who prefers their own RPC can run `web/verify.html` with their own endpoi
 | | |
 |---|---|
 | `src/reader/` | reads a custody wallet straight from Solana and computes backing per token |
-| `src/curve/` | the bonding-curve configuration (`DECIDED`), the fee split, and the reasoning behind each parameter |
+| `src/curve/` | the bonding-curve configuration, the fee split, and the reasoning behind each parameter |
 | `server/` | the vault server: the API (`/v1/vaults/{vault}/…`), creation with custody by derivation, the trade door (curve, then pool), Play, the delivery that signs with the custody key, uploads, rate limits. `server/openapi.json` is the contract |
 | `web/` | the app: the board, each vault's mini-site (Trade · Play · Items · Activity · Proof), create a vault, integrate. Static; reads only `/v1` |
 | `scripts/` | `create-vault.js` (the four steps with a server-side creator), `graduate.js` (locker → migrate → fee → leftover), `restock.js` (the treasury loop by hand), `abuse-rehearsal.js` (24 refusals through the public routes, run against production), `return-item.js` / `return-usdc.js` / `return-sol.js` |
