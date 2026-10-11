@@ -136,6 +136,8 @@ describe('summaries — what the Activity tab joins by source and reference', ()
     c.recordSale({ source: 'play', refId: 'P1', mint: 'M1', priceUsd: 19, at: T0 });
     c.markPaying(c.owed().ids, 'PAYOUT-1', T0 + 1);
     db.prepare("INSERT INTO vault_fee_claims (id, vault, curve_units, pool_units, onix_units, treasury_units, tx_b64, sig, status, created_at, updated_at) VALUES ('PAYOUT-1', ?, 0, 0, 380000, 0, 'x', 'SIGP', 'sent', ?, ?)").run(CUSTODY, T0, T0);
+    // a sale from before the rule owes nothing and is not joined: the page never shows it a split
+    db.prepare("INSERT INTO vault_sales (id, vault, source, ref_id, mint, price_units, creator_units, onix_units, treasury_units, status, created_at, updated_at) VALUES ('pre', ?, 'play', 'P-old', 'M', 19000000, 0, 0, 19000000, 'pre_rule', ?, ?)").run(CUSTODY, T0, T0);
     assert.deepEqual(c.summaries(), { 'play:P1': { creatorUsd: 0.95, onixUsd: 0.38, treasuryUsd: 17.67, status: 'paying', payoutId: 'PAYOUT-1', payoutSignature: 'SIGP' } });
   });
 });

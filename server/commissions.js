@@ -106,9 +106,9 @@ function createCommissions({ db, vaultWallet, creator = null, now = Date.now, lo
     return db.prepare(`${SELECT} WHERE s.vault = ? ORDER BY s.created_at DESC, s.rowid DESC LIMIT ?`).all(vaultWallet, limit).map(view);
   }
 
-  /** For the Activity tab: `source:refId` → the split, the status and the payout of the latest sales. */
+  /** For the Activity tab: `source:refId` → the split, the status and the payout of the latest sales. Sales from before the rule owe nothing and are not joined. */
   function summaries({ limit = 200 } = {}) {
-    return Object.fromEntries(list({ limit }).map((s) => [`${s.source}:${s.refId}`, { creatorUsd: s.creatorUsd, onixUsd: s.onixUsd, treasuryUsd: s.treasuryUsd, status: s.status, payoutId: s.payoutId, payoutSignature: s.payoutSignature }]));
+    return Object.fromEntries(list({ limit }).filter((s) => s.status !== 'pre_rule').map((s) => [`${s.source}:${s.refId}`, { creatorUsd: s.creatorUsd, onixUsd: s.onixUsd, treasuryUsd: s.treasuryUsd, status: s.status, payoutId: s.payoutId, payoutSignature: s.payoutSignature }]));
   }
 
   return { recordSale, owed, encumberedUnits, markPaying, settle, release, reconcile, list, summaries, get: (source, refId) => { const r = get(source, refId); return r ? view(r) : null; }, creatorWallet, creatorWaived: waived, SALE_SPLIT };
