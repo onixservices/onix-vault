@@ -48,8 +48,11 @@ token). Wine, watches or comics enter the day their custodian meets the same thr
 > DAMM v2 pool `LFVoEkghV8tYKaGJx97WPri5anMLU4t4kGSPRC8zMvM`): the curve filled and **the server graduated it by itself** within a
 > minute, a Play was paid in USDC and the card delivered from custody, a pull on Onix.Cards' vault machine paid `$OCC`
 > $38 through the API (and that vault bought its next card fourteen minutes later), and overnight the `$VOLT` treasury
-> bought three more cards on its own, one an hour, each at or under its index. Every step is on each vault's Activity
-> tab, with its signature.
+> bought three more cards on its own, one an hour, each at or under its index. On 11 October the sale commission went
+> live and was proven the same day: a $20.70 Play on `$VOLT`, then the custody paid $1.035 to the creator and $0.414 to
+> Onix in one transaction (`5QAsuzSWb7u9wDPfxdy8izB9xgPhHfPit6HaiKQkoYsV1P1B8P2Cv9GJhHdKLQBDv7pqQmcZj4MKXdeU5AnRrpNT`), and the
+> treasury bought the next card in the following round. By then the two treasuries had bought fifteen cards on their own.
+> Every step is on each vault's Activity tab, with its signature.
 
 ---
 

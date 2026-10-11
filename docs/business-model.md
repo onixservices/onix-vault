@@ -72,7 +72,9 @@ seed held on the server; the escrow program on the roadmap replaces it.
   operator's. `$OCC` (3 October): graduated, traded on its pool from the page, its treasury **bought cards by itself**, one
   of them won on Onix.Cards' vault machine and paid to the vault through the public API, the fees claimed into the treasury
   automatically. `$VOLT` (9 October): the curve filled and **the server graduated it by itself**, a Play paid in USDC and
-  delivered from custody, and the treasury bought three cards overnight with nobody clicking. 24 of 24 abuse attempts
+  delivered from custody, and the treasury bought three cards overnight with nobody clicking. On 11 October the sale
+  commission shipped and paid its first creator the same day (`5QAsuzSWb7u9…`: $1.035 to the creator, $0.414 to Onix,
+  93% kept; the treasury bought the next card in the following round); fifteen cards bought by the two treasuries by then. 24 of 24 abuse attempts
   refused in production; an internal security review with every finding fixed and regression-tested
   (`docs/security-review.md`); the suite is green with `npm test`.
 - **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized graded cards that buys
