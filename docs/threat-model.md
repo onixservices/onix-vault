@@ -148,6 +148,18 @@ from the chain (finalized); `UNIQUE(payment_sig)`; the server never accepts "I p
 A rebroadcast is the same signature. A delivery that would fail is never signed; the play becomes
 `delivery_failed`, keeps the payment, and only the operator re-runs it, on the server, through the same path.
 
+### The custody pays the wrong address, or pays a sale twice
+Every card sold owes the creator 5% and Onix 2%, paid by the custody key in its fee-claim transaction
+(`server/commissions.js`, `server/feeclaim.js`). **Mitigations:** the creator's leg can only go to the USDC account
+of the creator the vault registered (`vaults.creator` / the registry entry), snapshotted on each sale; rows naming
+another wallet hold every payout until the operator reconciles. The transaction is simulated with every account it
+may move read back: the treasury, Onix and the creator must each move by exactly the planned amount, the creator's
+account must be owned by the creator for the USDC mint, the custody's SOL may fall by the fee and one rent at most
+and never under 0.005 SOL; anything else is refused, unsigned. The claim and the sales it pays are persisted in one
+write (`owed → paying`) before the broadcast; `paid` when it lands, `owed` again when it fails or never lands. One
+claim at a time in the process and across processes (a claim still `sent` holds the next). The restock never spends
+what is owed. Sales from before the rule are `pre_rule` and are never paid.
+
 ### Onix pays for a config the program will refuse
 It happened (SDK said valid; the program said `InvalidTokenSupply`). **Mitigation:** every transaction
 Onix pays is simulated against the program before it is sent; the leftover of 0.1% that the program needs

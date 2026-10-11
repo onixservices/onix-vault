@@ -195,7 +195,7 @@
     <div class="flows-head"><span>Who</span><span>Gives</span><span></span><span>Gets</span></div>
     <div class="flow"><span class="who"><b>Trader</b>buys</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-tok"/></svg></span></div><div class="flow"><span class="who"><b>Trader</b>sells</span><span class="give"><svg><use href="#i-tok"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-usdc"/></svg></span></div><div class="flow"><span class="who"><b>Creator</b>adds items</span><span class="give"><svg><use href="#i-item"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-tok"/></svg><svg><use href="#i-usdc"/></svg></span></div><div class="flow"><span class="who"><b>Player</b>plays in USDC</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Player</b>plays with tokens</span><span class="give"><svg><use href="#i-burn"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Gacha</b>buys through the API</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Treasury</b>restocks</span><span class="give"><svg><use href="#i-usdc"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-item"/></svg></span></div><div class="flow"><span class="who"><b>Holder</b>keeps the token</span><span class="give"><svg><use href="#i-tok"/></svg></span><span class="to">→</span><span class="get"><svg><use href="#i-backing"/></svg></span></div>
   </div>
-  <p class="faint" style="font-size:12.5px;text-align:center">Trade fee on the curve 10%: 3.2% creator · 3.2% treasury · 1.6% Onix · 2% Meteora. After graduation, the pool's 1% goes to the treasury.</p>
+  <p class="faint" style="font-size:12.5px;text-align:center">Trade fee on the curve 10%: 3.2% creator · 3.2% treasury · 1.6% Onix · 2% Meteora. After graduation, the pool's 1% goes to the treasury. Every card sold: 5% creator · 2% Onix · 93% treasury.</p>
   <div class="howgrid">
     <div class="term" id="term" aria-live="off">
       <div class="term-top">
@@ -382,7 +382,7 @@
       </div>
       <div class="door4">
         <div class="d"><div><div class="k">Buy</div><b>Buy the token</b><p>Backed by everything inside — this one too.</p></div><a class="cta sm" id="i-buy" href="#/vault/1">Buy the token</a></div>
-        <div class="d"><div><div class="k">Play</div><b>Play for it</b><p>Drawn from its band: pay USDC (stays in the vault) or burn the token at share of backing.</p></div><div class="big"><span id="i-play"></span><small id="i-play-sub">open the machine →</small></div></div>
+        <div class="d"><div><div class="k">Play</div><b>Play for it</b><p>Drawn from its band: pay USDC (93% stays in the vault; 5% to the creator, 2% to Onix) or burn the token at share of backing.</p></div><div class="big"><span id="i-play"></span><small id="i-play-sub">open the machine →</small></div></div>
         <div class="d"><div><div class="k">Games &amp; shops</div><b>Any app can buy it</b><p>At the listed price, through the API.</p></div><div class="big"><span id="i-exit"></span><small>listed price</small></div></div>
         <div class="d"><div><div class="k">In custody</div><b>How it got here</b><p>Put in by the creator; counted only because the chain shows it in the custody wallet.</p></div><span class="sig mono faint" style="font-size:11px" id="i-admit">—</span></div>
       </div>
@@ -473,10 +473,11 @@
         <div class="f"><label for="f-rs-max">Restock · maximum value</label><select id="f-rs-max"><option value="">No ceiling</option><option value="25">up to $25</option><option value="50">up to $50</option><option value="100" selected>up to $100</option><option value="250">up to $250</option><option value="500">up to $500</option></select></div>
         <div class="f"><label for="f-rs-grade">Restock · minimum grade</label><select id="f-rs-grade"><option value="any">Any</option><option value="8">8+</option><option value="9">9+</option><option value="10">10 only</option></select></div>
       </div>
-      <details class="deal"><summary>The deal, in five lines</summary><div class="terms">
+      <details class="deal"><summary>The deal, in six lines</summary><div class="terms">
         <div><b>Opens at</b><span>2× what is inside — your 50% is worth your items on day one</span></div>
         <div><b>Token split</b><span>50% you · 50% on the curve. Yours is released when trading opens to everyone, then over 6 months</span></div>
         <div><b>Fee on the curve</b><span id="d-fee">10% on every trade: 3.2% goes straight to your wallet, 3.2% to the vault to buy the next item, 1.6% to Onix, 2% to Meteora. The first 60 s charge 99% → 10% to keep bots out</span></div>
+        <div><b>On every sale</b><span>5% to your wallet, 2% to Onix, 93% stays in the vault to buy the next item — every card sold, through Play or any gacha, paid every 15 minutes with the fee claim</span></div>
         <div><b>At graduation</b><span>30% of the USDC raised goes into the vault to buy more items</span></div>
         <div><b>Custody</b><span>your items move to the vault's own wallet. You can take them back any time before launch</span></div>
       </div></details>

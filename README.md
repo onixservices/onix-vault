@@ -19,8 +19,8 @@ Dynamic Bonding Curve. From there:
 |---|---|---|
 | **Create** | the creator's items go into custody; a token launches; the creator keeps **50%** (locked, released over 6 months from graduation) and earns **40% of the trading fee on the curve**, paid by the program | set |
 | **Trade** | 10% fee on the curve: 2% Meteora · 3.2% creator · 3.2% the vault's treasury · 1.6% Onix; the first 60 s charge 99%→10% so bots cannot front-run. At graduation the token moves to a DAMM v2 pool (liquidity locked for good) and **30% of the USDC raised goes to the vault** | rises |
-| **Play** | opens at graduation. One item from a band is drawn — provably — and sent from custody. Pay **USDC** (the band's average × 1.15; the money stays in the vault and buys the next item) or **burn the token** (average × 1.10 in *share of backing*, never at the market price) | rises |
-| **Integrate** | any gacha buys an item at the published price through the API; Onix.Cards' **Onix.Vault** machine sells the cards of every graduated vault, paying each vault for its own card | rises |
+| **Play** | opens at graduation. One item from a band is drawn — provably — and sent from custody. Pay **USDC** (the band's average × 1.15; 93% stays in the vault and buys the next item, 5% goes to the creator, 2% to Onix) or **burn the token** (average × 1.10 in *share of backing*, never at the market price) | rises |
+| **Integrate** | any gacha buys an item at the published price through the API; Onix.Cards' **Onix.Vault** machine sells the cards of every graduated vault, paying each vault for its own card — 93% stays, 5% to the creator, 2% to Onix | rises |
 
 Nothing leaves custody except through Play or the API, at the same price for the creator and for a
 stranger. Anyone can verify what is inside a vault without asking us for anything. That is the point.

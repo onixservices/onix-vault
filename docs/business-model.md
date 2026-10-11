@@ -26,10 +26,11 @@ Every leg is a public transaction and the split is printed on the vault page.
 ```
 the creator        50% of the supply, locked (released over 6 months from graduation)
                    + 40% of the trading fee on the curve, paid by the program (3.2% of volume)
+                   + 5% of every card the vault sells (Play in USDC, or a gacha through the API)
 the vault          3.2% of volume while on the curve  + 30% of the USDC raised at graduation
-                   + the pool's 1% fee after graduation  + every USDC play  → the treasury buys the next item
+                   + the pool's 1% fee after graduation  + 93% of every card sold  → the treasury buys the next item
 Meteora            2% of volume on the curve (fixed by the program)
-Onix               1.6% of volume on the curve  + Meteora's referral share on every swap the page builds
+Onix               1.6% of volume on the curve  + 2% of every card sold  + Meteora's referral share on every swap the page builds
 ```
 
 Of a 10% curve fee: 2% Meteora · 3.2% creator · 3.2% vault treasury · 1.6% Onix (`src/curve/split.js`). Claimed
@@ -37,9 +38,15 @@ automatically every 15 minutes, Onix's third in the same transaction as the vaul
 referral is the host share of Meteora's own fee; the trader pays nothing extra. After graduation the pool's 1% fee
 accrues on the vault's permanently locked LP position and goes 100% to the treasury.
 
+Of every card sold: 5% creator · 2% Onix · 93% treasury (`server/commissions.js`). The buyer — a player, or a gacha
+through the API — pays the full price to custody; the two shares leave in the custody's next fee claim, every 15 minutes,
+in the same transaction, so a payout is one public signature. Never at the sale. Sales made before 11 Oct 2026 owe
+nothing.
+
 Three more doors raise backing per token, the asset everyone above is paid on:
 
-- **Play in USDC.** The band's average × 1.15 goes to custody; the item leaves, the money stays and buys the next.
+- **Play in USDC.** The band's average × 1.15 goes to custody; the item leaves, 93% stays and buys the next (5% to the
+  creator, 2% to Onix, with the fee claim).
   On-chain card gacha moves $324.6M a month (June 2026); the vault is a supplier with no inventory risk of its own.
 - **Play by burning.** The band's average × 1.10 in share of backing, burned: the supply shrinks for every holder.
 - **The gacha API.** Any gacha buys from any vault at the published price (`docs/vault-api.md`); Onix.Cards is the

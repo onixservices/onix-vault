@@ -78,7 +78,7 @@ fee engine works), market cap ~$277k, **mNAV 0.95×**, and 0.80× at its low. Th
 discounts backing it cannot reach, even while that backing grows.
 
 That is the precedent and the gap in one object: the mechanism is proven, the exit is
-missing. Onix.Vault adds the exit — **Play**, a provably fair draw for an item paid in USDC (which stays in the vault)
+missing. Onix.Vault adds the exit — **Play**, a provably fair draw for an item paid in USDC (93% of which stays in the vault, 5% to the creator, 2% to Onix)
 or in the token at its share of backing (burned), and a **gacha API** any machine can buy through — on backing a
 third-party custodian already put on chain, counted from the custody wallet rather than from the team's reporting.
 And it pays the person who brought the items, which SV151 never did.

@@ -139,3 +139,17 @@ describe('summaries — what the Activity tab joins by source and reference', ()
     assert.deepEqual(c.summaries(), { 'play:P1': { creatorUsd: 0.95, onixUsd: 0.38, treasuryUsd: 17.67, status: 'paying', payoutId: 'PAYOUT-1', payoutSignature: 'SIGP' } });
   });
 });
+
+describe('the page says what the module does', () => {
+  test('web/index.html and web/app.js carry the published split, so the numbers cannot drift from the code', () => {
+    const fs = require('fs'), path = require('path');
+    const html = fs.readFileSync(path.join(__dirname, '..', 'web', 'index.html'), 'utf8');
+    const js = fs.readFileSync(path.join(__dirname, '..', 'web', 'app.js'), 'utf8');
+    const line = html.match(/<b>On every sale<\/b><span[^>]*>([^<]*)<\/span>/);
+    assert.ok(line, 'the deal has a line about sales');
+    assert.match(line[1], new RegExp(`${SALE_SPLIT.creator}% .*${SALE_SPLIT.onix}% .*${SALE_SPLIT.treasury}%`));
+    assert.match(line[1], /every 15 minutes/);
+    assert.ok(js.includes(`${SALE_SPLIT.treasury}% stays in the vault`), 'the Play button says how much stays');
+    assert.ok(js.includes('Where each sale goes'), 'the Proof tab has the box');
+  });
+});

@@ -37,8 +37,10 @@ Play, token                       = the band's average × 1.10 ÷ (realisable ba
 | **Play · USDC** | the band price, to the custody wallet | the player pays; the custody key delivers to the player |
 | **Play · token** | the band price in the vault's token, **burned** by the player | the player burns; the custody key delivers |
 
-The money stays in the vault; a burn shrinks the supply. The vault never picks which item leaves: the gacha
-picks by paying for a specific item, Play draws by commit-reveal.
+The buyer pays the full price to custody. Of it, 93% stays in the vault, 5% goes to the creator and 2% to Onix, paid by
+the custody every 15 minutes with the fee claim (contract 1.6.0 — nothing changes in what an integrator signs or how a
+payment is verified); a burn shrinks the supply. The vault never picks which item leaves: the gacha picks by paying for a
+specific item, Play draws by commit-reveal.
 
 ## Status codes an integrator handles (contract 1.5.0)
 
@@ -70,7 +72,7 @@ number the API did not serve with its source and age.
 |---|---|
 | `GET /v1/vaults` | every vault served, with name, creator, rules, token and `stats` |
 | `GET /v1/vaults/{vault}/stats` | backing (`indexUsd`, `realisableUsd`, `multiplier`) and, only when a pool exists, `pool` = price · supply · market cap · `ratio` (market cap ÷ realisable) · graduation progress · fees; until then `pool: null` and `poolStatus` says why. The two numbers are never summed. |
-| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — graduation, plays, gacha sales, the treasury's fee claims and purchases, the creator's additions, each with its signatures |
+| `GET /v1/vaults/{vault}/activity` | the doors that fired, newest first — graduation, plays, gacha sales (each USDC sale with its split and payout), the treasury's fee claims and purchases, the creator's additions, each with its signatures |
 | `GET /v1/wallets/{wallet}/eligible-items` | "Create a vault", step 1: what in a wallet comes from a registered custodian with a value on chain; the rest listed with the reason |
 
 Anyone who prefers their own RPC can run the CLI reader (`npm run backing -- <custody wallet>`) against
@@ -130,10 +132,12 @@ drawn by a play is never sold to an integrator underneath it, and vice versa.
 
 | | |
 |---|---|
-| `GET /v1/vaults/{vault}/fee-claims` | every trading-fee claim into the treasury: curve partner fee, pool LP fee, Onix's third, the signature |
+| `GET /v1/vaults/{vault}/fee-claims` | every trading-fee claim into the treasury: curve partner fee, pool LP fee, Onix's third — and, in the same transaction, the sales paid out (5% creator, 2% Onix) — the signature |
 | `GET /v1/vaults/{vault}/purchases` | every item the treasury bought: name, price, index, status (`sent` · `landed` · `failed`), the signature |
 
-Both also appear on `/activity`. `stats.treasury.usdc` is the USDC in custody right now (never part of backing).
+Both also appear on `/activity`. `stats.treasury.usdc` is the USDC in custody right now (never part of backing);
+`stats.treasury.owedUsd` is the part of it the cards sold owe the creator and Onix until the next claim pays it, and
+`availableUsd` what the treasury may spend.
 
 ### The Buy door
 

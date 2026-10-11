@@ -87,7 +87,8 @@ Of a trade's 10%: 2% Meteora · 3.2% creator · 3.2% vault treasury · 1.6% Onix
 ## Play — the exit door
 
 One item from a band (by custodian value) is drawn and sent from custody. **USDC** = the band's average
-× 1.15, paid to the custody wallet: the item leaves, the money stays and buys the next one. **Token** =
+× 1.15, paid to the custody wallet: the item leaves; 93% stays and buys the next one, 5% goes to the creator and 2% to
+Onix in the custody's next fee claim (`server/commissions.js`). **Token** =
 the band's average × 1.10 ÷ (realisable backing ÷ supply), **in share of backing, never at the market
 price**: a pump buys nothing cheaper; the tokens are burned by the player, so supply falls. The draw is
 commit-reveal (`server/draw.js`, ported from Onix.Cards): each play's server seed is derived from a server key
@@ -115,6 +116,13 @@ Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOC
    vault graduated, the 1% fee of the DAMM v2 pool accrued on the custody's locked LP position (the custody is the
    position's owner: the migration gives the partner's locked LP to the config's fee claimer). Both balances are measured
    in the simulation before signing; anything that moves them differently is refused. Minimum $1 per round.
+   **In the same transaction the custody pays what the cards sold since the last round owe** (`server/commissions.js`,
+   `vault_sales`): 5% to the registered creator (its USDC account created when missing), 2% to Onix. The creator's leg can
+   only go to the creator the vault registered, snapshotted on each sale; every leg is measured in the simulation, the
+   creator's account checked to be the creator's for the USDC mint, the custody's SOL capped at the fee plus one rent and
+   floored at 0.005 SOL. The claim and the sales it pays are written together (`owed → paying`) before the broadcast,
+   `paid` when it lands, `owed` again when it fails. One claim at a time, also across processes. The restock never spends
+   what is owed: its budget is the treasury minus $1 minus the owed.
 2. **Treasury → next item** (`server/restock.js`), graduated vaults only. The cheapest graded card relative to its
    custodian index on Collector Crypt that passes **this vault's rules** (the entry rule, or the creator's own restock
    rule), at or below the index, under $150, one purchase an hour. The custody key signs **only the exact shape of a
