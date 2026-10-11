@@ -1,7 +1,7 @@
 {
   "name": "Veonix",
   "symbol": "VEONIX",
-  "description": "Vault #1 of Onix.Vault: a token backed by graded trading cards held by Collector Crypt in OmniVault, PWCC and PSA Vault, counted on chain by anyone. Admit, redeem, gacha, fees - four published doors, every one raising backing per token. https://vault.onix.finance",
+  "description": "The first Onix.Vault token (1 October 2026): backed by graded trading cards held by Collector Crypt in OmniVault, PWCC and PSA Vault, counted on chain by anyone from its vault wallet. Vaults now open through the page at https://vault.onix.finance",
   "image": "https://vault.onix.finance/token/default.png",
   "external_url": "https://vault.onix.finance",
   "attributes": [

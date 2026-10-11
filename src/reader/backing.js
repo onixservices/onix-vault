@@ -30,7 +30,7 @@ const KNOWN_CUSTODIANS = {
  * Cards sell for LESS than the custodian's insured value. This is the measured
  * median of what the market actually paid, over real sales, not listings.
  *
- *   sample: ~1.5k Pokémon sales, catalogue-wide, August 2026 → 0.88×
+ *   sample: ~1.5k Pokémon sales, catalogue-wide, August 2026 → 0.89×
  *   (One Piece measured ~1.01× on n≈86 — a per-category multiplier is future work)
  *
  * It is a measurement, not an opinion. Re-measure it; do not inherit it.

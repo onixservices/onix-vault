@@ -24,7 +24,7 @@
 │  server/      API · creation · custody · trade · play   │   │                      (Onix = partner)│
 │               · delivery · uploads · rate limits        │   │  RPC url (paid, with DAS)           │
 │  web/         the page (board · vault mini-site · create)│   └─────────────────────────────────────┘
-│  scripts/     create-vault · graduate · return-* · claim│   ┌─ PRIVATE · Onix monorepo ──────────┐
+│  scripts/     create-vault · graduate · payout · returns│   ┌─ PRIVATE · Onix monorepo ──────────┐
 │  examples/    the integrator client Onix.Cards runs     │   │  deployment · vhost · the gacha    │
 │  reads: RPC + DAS · writes: deliveries · holds: NO key  │   │  that integrates over HTTP         │
 └─────────────────────────────────────────────────────────┘   └─────────────────────────────────────┘
@@ -34,8 +34,8 @@
 
 | | |
 |---|---|
-| **custody wallet** | derived for this vault; holds the items; `feeClaimer` and `leftoverReceiver` of its curve; the treasury (USDC from migration fee and Play) |
-| **creator** | the wallet that opened it: pool creator, 50% of the supply in Jupiter Lock (from graduation, over 6 months), 40% of the trading fee on the curve, paid by the program. Only the creator adds items |
+| **custody wallet** | derived for this vault; holds the items; `feeClaimer` and `leftoverReceiver` of its curve; the treasury (USDC from the migration fee, the trading fees, Play and gacha sales, less what the sales owe) |
+| **creator** | the wallet that opened it: pool creator, 50% of the supply in Jupiter Lock (from graduation, over 6 months), 40% of the trading fee on the curve, accrued by the program and claimed by the creator. Only the creator adds items |
 | **rules** | lists, not text (`server/rules.js`): category, minimum value, minimum grade, creator fee share (20–50%), graduation multiple (2 / 2.5 / 3). Enforced on every deposit |
 | **manifest** | the mints the creator declared (`vault_items`); the reader counts only those, and only while the chain shows them in custody. A stray transfer into custody does not count |
 | **token** | one SPL mint per vault, created by the curve. `GET /token/{mint}.json` + the coin image and banner the creator uploaded |
@@ -103,7 +103,7 @@ vault at the house's price and band odds; each card drawn is reserved, paid and 
 
 ## The treasury loop
 
-Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOCK=1`):
+Every 15 minutes, for every vault, the server runs one round (`ONIX_VAULT_RESTOCK=1` or `ONIX_VAULT_SALE_COMMISSION=1`; the fee claim pays the sales owed, the restock only when its own flag is on):
 
 0. **Graduation** (`server/graduation.js`, its own check every minute, `ONIX_VAULT_GRADUATE=1`). A curve whose USDC
    reserve reached the config's threshold and has not migrated is graduated by the server: locker → migrateToDammV2 →

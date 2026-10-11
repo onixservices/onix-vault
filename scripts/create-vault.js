@@ -75,7 +75,7 @@ async function main() {
   for (let t = 0; t < 10 && !def; t++) { try { def = await creator.confirm({ creationId: o.creationId, signature: s.signature }); } catch (e) { if (e.statusCode === 409) await sleep(3000); else throw e; } }
   if (!def) throw new Error('pool not visible after launch');
   console.log(`4. vault ${def.id} · custody ${def.wallet} (index ${def.custodyIndex}) · creator ${def.creator} · pool ${def.pool}`);
-  console.log('\nRestart the API (systemctl restart pm2-onixvault) so the running server mounts it, or it appears on its next boot.');
+  console.log('\nRestart the API so the running server mounts it, or it appears on its next boot.');
 }
 
 main().catch((e) => { console.error(`\n✗ ${e.statusCode || ''} ${e.message}`); process.exit(1); });

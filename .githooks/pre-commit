@@ -10,7 +10,7 @@ fail=0
 red()  { printf '\033[31m%s\033[0m\n' "$1"; }
 warn() { printf '\033[33m%s\033[0m\n' "$1"; }
 
-staged=$(git diff --cached --name-only --diff-filter=ACM)
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
 [ -z "$staged" ] && exit 0
 
 # ── 1. files that never come in, by name ───────────────────────────────────
@@ -22,33 +22,46 @@ while IFS= read -r f; do
 done <<< "$staged"
 
 # ── 2. content: secret patterns ─────────────────────────────────────────────
-# Each entry is "label<TAB>extended regex"
-patterns=$(cat <<'PATTERNS'
-Solana private key in base58 (~88 chars)	[1-9A-HJ-NP-Za-km-z]{80,}
+# Each entry is "label<TAB>extended regex".
+# "always" runs on EVERY staged file, docs and examples included: a value of this shape is never prose.
+always=$(cat <<'PATTERNS'
 Solana keypair as JSON (64-byte array)	\[[[:space:]]*([0-9]{1,3}[[:space:]]*,[[:space:]]*){60,}[0-9]{1,3}[[:space:]]*\]
-Helius API key in a URL	helius-rpc\.com[^"'"'"' ]*api-key=[A-Za-z0-9-]
-secret assigned to a variable	(PRIVATE_KEY|SECRET_KEY|MNEMONIC|SEED_PHRASE|OPERATOR_SECRET)[[:space:]]*[:=]
-API key with a value	(api[_-]?key|apikey|access[_-]?token|bearer)[[:space:]]*[:=][[:space:]]*['"'"'"][A-Za-z0-9_-]{16,}
+API key in a URL (any host)	https?://[^[:space:]"'<>]*[?&](api[_-]?key|apikey|key|token|access_token)=[A-Za-z0-9_-]{16,}
+GitHub token	(^|[^A-Za-z0-9])(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}
+Telegram bot token	(^|[^0-9])[0-9]{8,10}:[A-Za-z0-9_-]{35}([^A-Za-z0-9_-]|$)
 PEM private key block	-----BEGIN[A-Z ]*PRIVATE KEY-----
-seed or draw key with a value	(MASTER_SEED|_SEED|DRAW_KEY)[[:space:]]*[:=][[:space:]]*['"'"'"]?[0-9a-fA-F]{32,}
+PATTERNS
+)
+# "code" runs on code only: examples and docs name these variables without holding a value, and a transaction
+# signature quoted in a doc has the shape of a base58 key.
+code=$(cat <<'PATTERNS'
+Solana private key in base58 (~88 chars)	[1-9A-HJ-NP-Za-km-z]{80,}
+secret assigned to a variable	(PRIVATE_KEY|SECRET_KEY|MNEMONIC|SEED_PHRASE|OPERATOR_SECRET)[[:space:]]*[:=]
+API key with a value	(api[_-]?key|apikey|access[_-]?token|bearer)[[:space:]]*[:=][[:space:]]*['"][A-Za-z0-9_-]{16,}
+seed or draw key with a value	(MASTER_SEED|_SEED|DRAW_KEY)[[:space:]]*[:=][[:space:]]*['"]?[0-9a-fA-F]{32,}
 bare 32-byte hex (a seed or a key)	(^|[^0-9A-Za-z])[0-9a-fA-F]{64}([^0-9A-Za-z]|$)
 PATTERNS
 )
 
-while IFS= read -r f; do
-  [ -f "$f" ] || continue
-  case "$f" in *.example|*.md) continue ;; esac   # examples and docs talk about keys without holding one
+scan() {  # $1 = staged file, $2 = pattern list
   while IFS=$'\t' read -r label rx; do
     [ -z "${rx:-}" ] && continue
     # throwaway test seeds (specification vectors, 0102…) are 32-byte hex by nature
-    case "$label" in bare*) case "$f" in *.test.js) continue ;; esac ;; esac
-    if git show ":$f" 2>/dev/null | grep -nEq -- "$rx"; then
-      red "BLOCKED    $f"
+    case "$label" in bare*) case "$1" in *.test.js) continue ;; esac ;; esac
+    if git show ":$1" 2>/dev/null | grep -nEq -- "$rx"; then
+      red "BLOCKED    $1"
       red "           $label"
-      git show ":$f" | grep -nE -- "$rx" | head -3 | cut -c1-110 | sed 's/^/           /'
+      git show ":$1" | grep -nE -- "$rx" | head -3 | cut -c1-110 | sed 's/^/           /'
       fail=1
     fi
-  done <<< "$patterns"
+  done <<< "$2"
+}
+
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  scan "$f" "$always"
+  case "$f" in *.example|*.md) continue ;; esac   # examples and docs talk about keys without holding one
+  scan "$f" "$code"
 done <<< "$staged"
 
 # ── 3. large files (usually a dump or data that should not be here) ────────

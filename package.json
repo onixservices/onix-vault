@@ -2,10 +2,18 @@
   "name": "onix-vault",
   "version": "0.1.0",
   "description": "Auditable vaults for real-world assets on Solana. Reader, curve config, proof page, and the vault server (API, delivery, fee pipeline). The code is public; the key is not.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/onixservices/onix-vault.git"
+  },
+  "homepage": "https://vault.onix.finance",
+  "bugs": {
+    "url": "https://github.com/onixservices/onix-vault/issues"
+  },
   "license": "MIT",
-  "private": false,
+  "private": true,
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "test": "node --test \"src/**/*.test.js\" \"server/**/*.test.js\" \"examples/**/*.test.js\"",
@@ -27,7 +35,9 @@
     "@solana/spl-token": "^0.4.12",
     "@solana/web3.js": "^1.98.0",
     "better-sqlite3": "^12.2.0",
+    "bn.js": "^5.2.5",
     "bs58": "^6.0.0",
+    "decimal.js": "^10.6.0",
     "express": "^4.21.2"
   }
 }

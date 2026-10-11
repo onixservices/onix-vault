@@ -42,7 +42,7 @@ the custody every 15 minutes with the fee claim (contract 1.6.0 — nothing chan
 payment is verified); a burn shrinks the supply. The vault never picks which item leaves: the gacha picks by paying for a
 specific item, Play draws by commit-reveal.
 
-## Status codes an integrator handles (contract 1.5.0)
+## Status codes an integrator handles (contract 1.6.0)
 
 | code | meaning | what to do |
 |---|---|---|
@@ -59,7 +59,7 @@ server actually serves.
 ## Endpoints
 
 Served at `vault.onix.finance`. `{vault}` is the vault wallet; `GET /v1/vaults` lists every vault, and any other wallet
-answers 404. `x-api-key` is optional: it identifies an integrator for limits and never unlocks anything. `POST` honours
+answers 404. There is no API key: an integrator names itself in `integrator` on a reservation, and limits are per address. `POST` honours
 `Idempotency-Key` (per vault and integrator). All responses carry `readAt` and the basis of every price.
 
 ### What the page reads
@@ -125,7 +125,7 @@ band's snapshot sorted by mint.
 | `POST /v1/vaults/{vault}/plays/{id}/submit` `{ signature }` | 202: recorded (UNIQUE). A sweep (10 s) waits for finality, reads the payment from the transaction itself (payer, amount, memo; for a burn: the instruction, the mint, the authority, the balance delta), draws, holds the item, delivers from custody (build → assert → simulate → sign → persist → broadcast) |
 | `GET /v1/vaults/{vault}/plays/{id}` · `GET …/plays` | the proof: commit, seed (once done), client seed, digest, index, nonce, snapshot, signatures |
 
-A USDC play leaves the money in custody (the treasury buys the next item). A token play burns supply. An item
+A USDC play pays custody: 93% stays and buys the next item; 5% and 2% leave in the custody's next fee claim. A token play burns supply. An item
 drawn by a play is never sold to an integrator underneath it, and vice versa.
 
 ### The treasury, in public
@@ -221,13 +221,15 @@ the operator re-runs the delivery by hand (`scripts/retry-delivery.js`, same pat
 
 ## What v1 does not do, on purpose
 
-- It does not hold anyone's money. Payment goes to the vault wallet; a burn is a burn.
+- It does not hold anyone's money beyond the two shares of a sale, paid out in the custody's next fee claim. Payment goes
+  to the vault wallet; a burn is a burn.
 - It does not run a draw, price a pack or know who the players are. That is the integrator's
   business and the integrator's regulator.
 - It does not let an integrator choose an exit price. The rule is the same for Onix's own
   gacha and for a stranger, and it is printed.
 - It does not enforce custody release by program. Every rule is published and every delivery is a
-  public transaction signed by a derived key that only signs through the doors; a holder still trusts
+  public transaction signed by a derived key whose every signature is public (the doors, the fee claim and payout, the
+  treasury's purchases); a holder still trusts
   the operator not to misuse the seed. Named in the threat model; the program is the destination.
 
 ## First integrator

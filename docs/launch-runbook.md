@@ -14,8 +14,9 @@
    `keyring: true`.
 4. The creator's wallet holds the items, **≥ 0.12 SOL** (0.08 goes to custody as gas for deliveries, fee claims and the
    treasury's purchases; the rest pays the deposits and the launch) and nothing it would mind showing.
-5. `ONIX_VAULT_GRADUATE=1` so a full curve graduates by itself; `ONIX_VAULT_RESTOCK=1` if the treasury loop should run
-   (fee claim + restock, every 15 min).
+5. `ONIX_VAULT_GRADUATE=1` so a full curve graduates by itself; `ONIX_VAULT_RESTOCK=1` if the treasury should buy;
+   `ONIX_VAULT_SALE_COMMISSION=1` if the custody should pay the creator's 5% and Onix's 2% of every sale. Either of the
+   last two runs the 15-minute round (fee claim, payout, restock); the ledger of sales is kept regardless.
 6. For a vault machine on Onix.Cards: the machine's price must leave ≥ 8% over the vault's average exit price, or the
    machine pauses itself.
 
@@ -104,13 +105,15 @@ is the one acting.
 ## 3. After launch: the loop
 
 - the creator's 40% of the curve fee is claimed by the creator (`claimCreatorTradingFee`; lock.jup.ag for the vested half)
-- **automatic, every 15 min (`ONIX_VAULT_RESTOCK=1`):** the partner's curve fee and the pool's LP fee are claimed into
-  custody (Onix's third transferred in the same tx), then the treasury buys the next item that passes the vault's rules.
-  By hand, the same code: `node scripts/restock.js --vault <id> [--go | --confirm]`. Custody needs ≥ 0.05 SOL in the
+- **automatic, every 15 min (`ONIX_VAULT_RESTOCK=1` or `ONIX_VAULT_SALE_COMMISSION=1`):** the partner's curve fee and the
+  pool's LP fee are claimed into custody (Onix's third transferred in the same tx) and the sales owed are paid in that
+  transaction (5% creator, 2% Onix), then the treasury buys the next item that passes the vault's rules. By hand, the same
+  code: `node scripts/payout.js --vault <id> [--go [--pay] | --confirm | --ledger]` and `node scripts/restock.js --vault <id> [--go | --confirm]`. Custody needs ≥ 0.05 SOL in the
   buyer's wallet (creation sends 0.08); below that Collector Crypt hands a sponsored transaction the treasury refuses
-- abuse rehearsal before any release: `node scripts/abuse-rehearsal.js` (24 attacks through the public routes, nothing signed)
+- abuse rehearsal before any release: `node scripts/abuse-rehearsal.js --base <url>` (24 refusals through the public routes, nothing signed)
 - the page reads custody and the pool every load; there is no cache to go stale silently
-- **items leave custody only through Play or the gacha API**, at the published price. There is no third way out.
+- **items leave custody through Play or the gacha API**, at the published price; the only other way out is the operator's
+  `scripts/return-item.js`, signed by the same key and public like everything else.
 
 ## 4. If something goes wrong
 

@@ -10,7 +10,7 @@ vault a name, a coin image, a banner and its rules, sign in the wallet) the crea
 | | what the creator gets |
 |---|---|
 | **A token** | live on a Meteora bonding curve, traded by anyone; half the supply is the creator's (Jupiter Lock, released over 6 months from graduation) |
-| **Income** | 40% of the trading fee on the curve, paid by the program to the creator's wallet |
+| **Income** | 40% of the trading fee on the curve (3.2% of every trade), accrued by the program to the creator, plus 5% of every card sold |
 | **A gacha** | at graduation the items become a provably fair machine on the vault's own page |
 | **A shop everywhere** | every vault sells items to any gacha through the public API; Onix.Cards runs a Vaults category with one machine per vault |
 | **A treasury that restocks** | every 15 minutes the vault claims its fees and buys the next card that follows the creator's rules |
@@ -25,7 +25,7 @@ Every leg is a public transaction and the split is printed on the vault page.
 
 ```
 the creator        50% of the supply, locked (released over 6 months from graduation)
-                   + 40% of the trading fee on the curve, paid by the program (3.2% of volume)
+                   + 40% of the 8% the curve keeps after Meteora, accrued by the program (3.2% of volume)
                    + 5% of every card the vault sells (Play in USDC, or a gacha through the API)
 the vault          3.2% of volume while on the curve  + 30% of the USDC raised at graduation
                    + the pool's 1% fee after graduation  + 93% of every card sold  → the treasury buys the next item
@@ -74,23 +74,22 @@ seed held on the server; the escrow program on the roadmap replaces it.
   automatically. `$VOLT` (9 October): the curve filled and **the server graduated it by itself**, a Play paid in USDC and
   delivered from custody, and the treasury bought three cards overnight with nobody clicking. On 11 October the sale
   commission shipped and paid its first creator the same day (`5QAsuzSWb7u9…`: $1.035 to the creator, $0.414 to Onix,
-  93% kept; the treasury bought the next card in the following round); fifteen cards bought by the two treasuries by then. 24 of 24 abuse attempts
-  refused in production; an internal security review with every finding fixed and regression-tested
-  (`docs/security-review.md`); the suite is green with `npm test`.
+  93% kept; the treasury bought the next card in the following round); fifteen cards bought by the two treasuries by then. An internal security review with every finding fixed and
+  regression-tested (`docs/security-review.md`); the suite is green with `npm test`.
 - **Onix.Cards**, in production since 3 August 2026: a cross-issuer terminal for tokenized graded cards that buys
   inventory on its own, across venues, under published rules. Its gacha is the vault's first integrator.
 - **Onix.Finance**, in production: an LP inspector that reconstructs PnL from on-chain events for Meteora, Orca and
   Raydium, and opens wide Meteora DLMM positions in one atomic transaction.
 - **`solana-lp-utils`**, public, delivered under a Superteam Brazil grant.
 
-Everything but the first predates the hackathon window and is declared as such. Built in the window: the curve
+Everything but the first predates the Crypto World's Fair window (14 September 2026). Built in the window: the curve
 configuration, custody by derivation, the Create door, the trade panel (curve and pool), Play, the gacha API and its
 first integrator, the treasury loop, the page, the docs.
 
 ## Where we are and what comes next
 
-- **Now:** the full loop runs on mainnet; the first public vault is the founder's own Pokémon collection, launched
-  through the same page anyone uses.
+- **Now:** the full loop runs on mainnet on two vaults made to test it (`$OCC`, `$VOLT`); the first public vault, the
+  founder's own Pokémon collection, opens next through the same page anyone uses.
 - **Next:** collectors who already hold tokenized slabs on Collector Crypt and Phygitals open their own vaults; every
   graduated vault's cards are sold by Onix.Cards' Onix.Vault machine and by any gacha that integrates the API.
 - **Then:** an escrow program for custody, and new asset classes as soon as their custodians publish identity, value and

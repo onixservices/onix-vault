@@ -7,7 +7,7 @@
  *   node scripts/restock.js --vault <id|custody> --confirm  # confirm sent purchases against the chain (the server does this every 2 min)
  *
  * The same code path the server's sweep runs when ONIX_VAULT_RESTOCK=1. Runs as the service user
- * (the key never leaves the box): `sudo -u onixvault node --env-file=.env scripts/restock.js …`.
+ * (the key never leaves the box): `node --env-file=.env scripts/restock.js …`.
  */
 'use strict';
 const { createServer } = require('../server/index');

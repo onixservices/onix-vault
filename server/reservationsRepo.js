@@ -49,7 +49,7 @@ function transition(db, id, from, to, { at, set = {} } = {}) {
   return res.changes > 0;
 }
 
-/** Quantas reservas de um integrador expiraram sem liquidar — a reincidência. */
+/** How many of an integrator's reservations expired unsettled — the repeat offender count. */
 function expiredCountFor(db, integrator) {
   return db.prepare("SELECT COUNT(*) n FROM vault_reservations WHERE integrator = ? AND status = 'expired'").get(integrator).n;
 }

@@ -53,8 +53,10 @@ module.exports = Object.freeze({
   CC_API_BASE: env('ONIX_VAULT_CC_API_BASE', 'https://api.collectorcrypt.com'),
   // Onix.Finance's USDC fee account, passed as the REFERRAL of every swap the page builds (curve and pool): Meteora pays the
   // host share of its own fee to it — the trader pays nothing extra. The same wallet the onix.finance swap collects into.
+  // An empty variable means this account (said so in server/env.example): a fork that wants its own sets the variable.
   REFERRAL_USDC_ACCOUNT: env('ONIX_VAULT_REFERRAL_USDC_ACCOUNT', 'B3CHwKZjyX9nJV8CrSNZMMyLGp9n4mhahVy4Y4en4Gep'),
   SWAP_URL: env('ONIX_VAULT_SWAP_URL', 'https://onix.finance'),
-  // Onix's share of the curve's partner fee (1/3, src/curve/split.js) goes here, in the same transaction as the claim
+  // Onix's share of the curve's partner fee (1/3, src/curve/split.js) and the 2% of every card sold (server/commissions.js)
+  // go here, in the same transaction as the claim. Same default rule as the referral above.
   ONIX_REVENUE_USDC_ACCOUNT: env('ONIX_VAULT_ONIX_REVENUE_USDC_ACCOUNT', 'B3CHwKZjyX9nJV8CrSNZMMyLGp9n4mhahVy4Y4en4Gep'),
 });

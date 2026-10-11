@@ -6,7 +6,7 @@ Auditable vaults for real-world assets on Solana. Built by [Onix](https://onix.f
 [vault.onix.finance](https://vault.onix.finance).
 
 Anyone who holds real graded cards on chain can launch a vault in three steps and get, in minutes: a token on a Meteora
-bonding curve (half of it theirs), 40% of the curve's trading fee paid by the program, a provably fair gacha, a shop on
+bonding curve (half of it theirs), 40% of the curve's trading fee (3.2% of every trade, accrued on chain), a provably fair gacha, a shop on
 every gacha site through the public API (Onix.Cards first), and a treasury that restocks itself. Buyers back the
 collections they believe in: a share of real items that sells in seconds and grows with every door.
 
@@ -17,16 +17,19 @@ Dynamic Bonding Curve. From there:
 
 | | what happens | backing per token |
 |---|---|---|
-| **Create** | the creator's items go into custody; a token launches; the creator keeps **50%** (locked, released over 6 months from graduation) and earns **40% of the trading fee on the curve**, paid by the program | set |
+| **Create** | the creator's items go into custody; a token launches; the creator keeps **50%** (locked, released over 6 months from graduation) and earns **40% of the trading fee on the curve** (3.2% of every trade), accrued by the program and claimed from the creator's wallet | set |
 | **Trade** | 10% fee on the curve: 2% Meteora · 3.2% creator · 3.2% the vault's treasury · 1.6% Onix; the first 60 s charge 99%→10% so bots cannot front-run. At graduation the token moves to a DAMM v2 pool (liquidity locked for good) and **30% of the USDC raised goes to the vault** | rises |
 | **Play** | opens at graduation. One item from a band is drawn — provably — and sent from custody. Pay **USDC** (the band's average × 1.15; 93% stays in the vault and buys the next item, 5% goes to the creator, 2% to Onix) or **burn the token** (average × 1.10 in *share of backing*, never at the market price) | rises |
 | **Integrate** | any gacha buys an item at the published price through the API; Onix.Cards' **Onix.Vault** machine sells the cards of every graduated vault, paying each vault for its own card — 93% stays, 5% to the creator, 2% to Onix | rises |
 
-Nothing leaves custody except through Play or the API, at the same price for the creator and for a
-stranger. Anyone can verify what is inside a vault without asking us for anything. That is the point.
+Items leave custody through Play or the API, at the same price for the creator and for a stranger. USDC leaves in the
+custody's own public transactions: the creator's 5% and Onix's 2% of every sale, Onix's third of the curve fee, the next
+card the treasury buys — and whatever the operator moves with the `return-*` scripts, each one a signed, public
+transaction. Anyone can verify what is inside a vault without asking us for anything. That is the point.
 
 **The treasury runs itself.** Every 15 minutes the server claims the trading fees into custody (the curve's partner fee
-— Onix's third split off in the same transaction — and the graduated pool's LP fee), then buys the next graded card that
+— Onix's third split off in the same transaction — and the graduated pool's LP fee), pays the creator's 5% and Onix's 2%
+of the cards sold since the last round in that same transaction (`server/commissions.js`), then buys the next graded card that
 passes the vault's rules, at or below the custodian's index (`server/feeclaim.js`, `server/restock.js`). A curve that
 fills graduates by itself within a minute: the server opens the creator's lock, migrates the pool to DAMM v2 and moves
 30% of the raise into custody (`server/graduation.js`). Every claim, purchase and graduation is a public transaction on
@@ -78,7 +81,7 @@ endpoint: same decoder, same numbers.
 | `src/curve/` | the bonding-curve configuration, the fee split, and the reasoning behind each parameter |
 | `server/` | the vault server: the API (`/v1/vaults/{vault}/…`), creation with custody by derivation, the trade door (curve, then pool), Play, the delivery that signs with the custody key, uploads, rate limits. `server/openapi.json` is the contract |
 | `web/` | the app: the board, each vault's mini-site (Trade · Play · Items · Activity · Proof), create a vault, integrate. Static; reads only `/v1` |
-| `scripts/` | `create-vault.js` (the four steps with a server-side creator), `graduate.js` (locker → migrate → fee → leftover), `restock.js` (the treasury loop by hand), `abuse-rehearsal.js` (24 refusals through the public routes, run against production), `return-item.js` / `return-usdc.js` / `return-sol.js` |
+| `scripts/` | `create-vault.js` (the four steps with a server-side creator), `graduate.js` (locker → migrate → fee → leftover), `payout.js` (the fee claim and the sales owed, by hand), `restock.js` (the treasury's purchase, by hand), `retry-delivery.js`, `abuse-rehearsal.js` (24 refusals through the public routes, against a server you name), `return-item.js` / `return-usdc.js` / `return-sol.js` (the operator's way out, each a public transaction), `rehearse-devnet.js` / `rehearse-vault-devnet.js` (devnet) |
 | `examples/integrator/` | a complete client of the API — the one Onix.Cards' gacha runs |
 | `docs/` | architecture, **security review**, threat model, the curve spec, the API, the runbook, the business model |
 
@@ -93,7 +96,8 @@ your platform.
 npm install
 npm test                               # node:test
 npm run backing -- <CUSTODY_WALLET>    # the reader, from the command line
-npm run server                         # the API + the page on :3004 (see server/env.example)
+cp server/env.example .env             # fill it in: the server reads .env at the repository root
+node --env-file=.env server/index.js   # the API + the page on :3004 (`npm run server` when the variables are already set)
 ```
 
 ## Security

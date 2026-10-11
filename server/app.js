@@ -22,8 +22,8 @@
  *   GET  /v1/vaults/:vault/fee-claims                      the trading fees claimed into the treasury, and the sales paid out to the creator and Onix (server/feeclaim.js)
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
- * are added. `x-api-key` is optional: it identifies the integrator for limits; it never
- * unlocks anything.
+ * are added. There is no API key: an integrator names itself in `integrator` on a reservation;
+ * limits are per address.
  */
 'use strict';
 const path = require('path');

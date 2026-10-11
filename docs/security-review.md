@@ -1,6 +1,6 @@
 # Security review — Onix.Vault server
 
-**Date:** 4 October 2026 · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 237 tests, all green (`npm test`)
+**Date:** 4 October 2026, kept current (last: 11 October 2026 — R-20, the history re-run) · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 287 tests, all green (`npm test`)
 
 This is an internal review, written so an external auditor can start from it. Every finding below was read in the code, given a regression test that **fails on the code before the fix and passes after**, then fixed. The fix commit and the test are listed for each finding. Nothing here replaces an external audit; it is what that audit should find already done.
 
@@ -8,10 +8,10 @@ This is an internal review, written so an external auditor can start from it. Ev
 
 | key | where it lives | what it signs |
 |---|---|---|
-| `VAULT_MASTER_SEED` (32 bytes) | `.env` on the server (640, root:onixvault), generated there, never printed | every created vault's custody wallet, derived per vault (SLIP-0010, `m/44'/501'/<index>'/0'`); the draw key (`keyring.drawKey`) |
+| `VAULT_MASTER_SEED` (32 bytes) | `.env` on the server, file permissions limited to the service account and root, generated there, never printed | every created vault's custody wallet, derived per vault (SLIP-0010, `m/44'/501'/<index>'/0'`); the draw key (`keyring.drawKey`) |
 | `VAULT_SECRET_KEY` (Onix operator) | same `.env` | curve configs Onix pays for; the locker and the migration when a vault graduates |
 
-The server signs from five routes (creation steps, play settlement, gacha settlement, admissions, abandon) and three timers (play deliveries, the treasury loop that claims fees and buys items, expired-creation sweep). Each signing path is **build → assert shape → simulate → sign → persist → broadcast**, and the chain is read back before anything is counted.
+The server signs from four routes (creation steps, play settlement, gacha settlement, abandon; an admission is a transfer the creator signs) and four timers (play deliveries, graduation, the treasury loop that claims fees, pays the sales owed and buys items, expired-creation sweep). Each signing path is **build → assert shape → simulate → sign → persist → broadcast**, and the chain is read back before anything is counted.
 
 **Trust boundaries:** the Collector Crypt API (it builds the buy transaction the custody key signs) · the DAS indexer (custody, ownership, insured value) · the vault API as seen by an integrator · the creator between submitting a launch and confirming it · anything a client sends that is stored and shown.
 
@@ -37,7 +37,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 | R-05 | Custody is decided by the asset's collection. Refuted for Collector Crypt (MPL Core: membership is the collection's own authority; the indexer omits unverified collections). Hardened anyway: a grouping marked `verified:false` never counts. | low | `23bd364` | `backing.test.js` › *unverified collection* |
 | R-06 | No emergency stop. Now `data/PAUSE` (all vaults) or `data/PAUSE-<id|wallet>` (one vault): every value-moving route answers 503, the sweeps and the treasury loop skip; `/v1/health` says so; nothing is lost. A file, not a route: nothing to authenticate, nothing to attack. | high (ops) | `16a5617` | `pause.test.js` (5) |
 | R-07a | The master seed existed only in the server's `.env`: losing the server would have lost every created vault's custody wallet. The operator made an offline backup on 4 Oct 2026 (outside any chat or repository). | high (ops) | operator action, 4 Oct | — |
-| R-07b | Server hardening (`onixvault/scripts/harden-server.sh`, read-only by default, each change behind a flag). Applied 4 Oct: daily consistent DB + uploads backup (SQLite backup API, integrity-checked, 7 days, the seed excluded); the app's systemd unit sandboxed (NoNewPrivileges, PrivateTmp, ProtectSystem=full, RestrictSUIDSGID, UMask 0077 — the kernel shows NoNewPrivs on the running process); fail2ban on sshd. Report clean: only 22/80/443 public, app on loopback as its own user, `.env` 640, code not writable by the app, ssh key-only. | medium (ops) | operator action, 4 Oct | — |
+| R-07b | Server hardening, applied 4 Oct 2026: the service runs as its own user in a sandboxed unit, the database and uploads are backed up daily and integrity-checked (the seed excluded), and the app listens on loopback behind the reverse proxy. The script lives outside this repository. | medium (ops) | operator action, 4 Oct | — |
 | R-07 | The pre-commit hook (last door before a public repo) did not catch a master seed or 32 bytes of hex. Now it does, and the hook is itself tested against a throwaway repository. | medium | `46a7902` | `precommit.test.js` (3) |
 | R-20 | **Two fee claims could run at once** (the server's round and the operator's script): the second was measured against balances the first was about to change, and its Onix leg would have moved the planned amount from the treasury whatever the claim yielded. Now one claim at a time in-process, and a claim still `sent` holds any other until it is confirmed. The same transaction now carries the sales owed to the creator and Onix (11 Oct 2026): the creator's leg goes only to the registered creator, every leg is measured, the claim and the sales move together. | medium | `e67d2a1` | `feeclaim.test.js` › *one payout at a time* · *only the measured shape of a payout is ever signed* (4) |
 | R-15 | Two operator scripts signed before simulating (relying on the RPC's preflight, which runs after signing); `retry-delivery` acted without `--go`. | low | `afedbfa` | — (scripts) |
@@ -46,7 +46,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 
 | id | item | why open | owner |
 |---|---|---|---|
-| R-16 | A delivery is marked delivered once broadcast (after a successful simulation), not once seen on chain. A broadcast that never lands leaves the record ahead of the chain until the operator retries. Recommendation: `delivering` until the signature is seen, rebroadcast the persisted transaction inside the blockhash window, then `delivery_failed`. | state-machine change on a path in production; scheduled after the video | Onix |
+| R-16 | A delivery is marked delivered once broadcast (after a successful simulation), not once seen on chain. A broadcast that never lands leaves the record ahead of the chain until the operator retries. Recommendation: `delivering` until the signature is seen, rebroadcast the persisted transaction inside the blockhash window, then `delivery_failed`. | state-machine change on a path in production; scheduled next | Onix |
 | R-17 | Dependency advisories: all high ones are transitive in the Solana SDKs (`bigint-buffer` via `@solana/spl-token`; `toml` via `@coral-xyz/anchor`, only parsing `Anchor.toml`), no fix without breaking the Meteora SDKs. `@solana/web3.js` is 1.99.0 everywhere (not the compromised 1.95.6/7); the vendored browser bundle is the same version, sha256 `ecfdbe556175b8e7598c7b4189c5abd5b37858671bbb115799fa2b7c0b3715f4`. | accepted, re-checked at each deploy | Onix |
 | — | Seed rotation runbook (move every item, SOL and USDC to a new derivation). Rotating the master seed also rotates the draw key: pause, let paid plays finish, then rotate — a play whose commitment no longer matches is never drawn and keeps its payment on record. | not needed before launch | Onix |
 | — | Custody by a program with escrow instead of a server key; a multisig for the operator; an external audit. | roadmap | Onix |
@@ -59,7 +59,8 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 - **Files:** no `.env`, key, keypair, database or wallet file ever committed. One blob over 500 KB (`web/token/default.png`, 1.4 MB).
 - **Content:** no private key (base58 or byte array), no seed, no API key, no PEM, no server address, no local path, no personal data, no third-party names. The only 32-byte hex values are the SLIP-0010 specification's public test vectors, throwaway test seeds, and the vendored bundle's sha256; the only `api-key=` is a fake value in a test.
 - **Re-run 10 October 2026** over the commits added since (130 in all), same patterns, same result: clean.
-- **Going forward:** the pre-commit hook (tested, R-07) refuses the same patterns. On GitHub, enable secret scanning, push protection and Dependabot alerts, and protect `main`.
+- **Re-run 11 October 2026**, before opening, over every blob of all 142 commits (the sale commission's seven included) and every commit message, for: private keys (base58, 64-byte arrays), 32-byte hex outside test vectors, API keys in URLs or variables, PEM blocks, bearer tokens, GitHub and Telegram tokens, seed-phrase keywords, e-mail addresses, IP addresses, local paths and server hostnames. Clean: the only 64-hex value is the sha256 above, the only e-mail is the co-author line of the commits. The six files deleted along the way (the first fee-claim and launch scripts, the redemption store, the verify page) are in that scan like every other blob.
+- **Going forward:** the pre-commit hook (tested, R-07) refuses the same patterns, docs and examples included for the shapes that are never prose (keys in URLs, tokens, byte arrays, PEM). On GitHub, the day it opens: secret scanning, push protection and Dependabot alerts on; `main` protected.
 
 ## Trust that remains by design
 
@@ -69,7 +70,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 ## How to verify
 
 ```bash
-npm ci && timeout 280 npm test                       # 282 tests
+npm ci && timeout 280 npm test                       # 287 tests
 node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004   # public refusals, against a local server
 touch data/PAUSE                                      # every value route answers 503 within 5 s; rm to resume
 ```

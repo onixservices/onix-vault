@@ -153,5 +153,11 @@ describe('the page says what the module does', () => {
     assert.match(line[1], /every 15 minutes/);
     assert.ok(js.includes(`${SALE_SPLIT.treasury}% stays in the vault`), 'the Play button says how much stays');
     assert.ok(js.includes('Where each sale goes'), 'the Proof tab has the box');
+    assert.ok(!js.includes('EXPLAIN_LONG'), 'no dead branch in front of the box: renderExplain has one path and it renders it');
+    assert.match(js, new RegExp('S\\.cash \\+= it\\.v \\* ' + SALE_SPLIT.treasury / 100), 'the simulated day credits the treasury its share of a sale, not the whole price');
+    const play = html.match(/<dt><a href="#\/">Play<\/a><\/dt><dd>([^<]*)<\/dd>/);
+    assert.ok(play && play[1].includes(`${SALE_SPLIT.treasury}%`), 'How it works says what a USDC play leaves in the treasury');
+    const first = require('./openapi.json').info.description.split('\n')[0];
+    assert.ok(!/USDC stays in the vault/.test(first) && first.includes(`${SALE_SPLIT.treasury}%`), "the contract's opening sentence carries the split, not the rule before it");
   });
 });

@@ -29,6 +29,21 @@ describe('pre-commit — what never reaches the public repository', { skip: !has
   test('32 bytes of hex on their own, outside a test file, are refused', () => {
     assert.ok(hookOn({ 'server/z.js': `module.exports = '${HEX64}';\n` }).blocked);
   });
+  test('a key in a URL is refused on any host, and in a doc or an example file too', () => {
+    // the fake values are assembled at run time so this file never carries the shape the hook refuses
+    const KEY = 'abcdef0123456789'.repeat(2);
+    assert.ok(hookOn({ 'docs/x.md': `rpc: https://mainnet.some-rpc.io/?api-key=${KEY}\n` }).blocked);
+    assert.ok(hookOn({ 'server/env.example': `ONIX_VAULT_RPC_URL=https://rpc.other-host.com/v1?token=${KEY}\n` }).blocked);
+  });
+  test('a GitHub token is refused', () => {
+    assert.ok(hookOn({ 'scripts/x.sh': `TOKEN=ghp_${'a'.repeat(36)}\n` }).blocked);
+  });
+  test('an example file that only names the variables passes', () => {
+    // the variable names are assembled at run time: written out, this test file would itself trip the code patterns
+    const names = ['ONIX_VAULT_RPC_URL', ['VAULT_SECRET', 'KEY'].join('_'), ['VAULT_MASTER', 'SEED'].join('_')];
+    const r = hookOn({ 'server/env.example': names.map((n) => `${n}=\n`).join('') });
+    assert.equal(r.blocked, false, r.out);
+  });
   test('reading the seed from the environment, and throwaway seeds in tests, pass', () => {
     const r = hookOn({ 'server/config.js': "module.exports = { KEYRING_SEED: env('VAULT_MASTER_SEED') };\n", 'server/k.test.js': `const SEED = '${HEX64}';\n` });
     assert.equal(r.blocked, false, r.out);

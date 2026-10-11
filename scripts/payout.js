@@ -9,7 +9,7 @@
  *   node scripts/payout.js --vault <id|custody> --ledger     # every sale in the ledger: split, status, payout
  *
  * The same code path the server's round runs every 15 minutes (server/feeclaim.js + server/commissions.js). Runs as the
- * service user (the key never leaves the box): `sudo -u onixvault node --env-file=.env scripts/payout.js …`.
+ * service user (the key never leaves the box): `node --env-file=.env scripts/payout.js …`.
  */
 'use strict';
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : d; };

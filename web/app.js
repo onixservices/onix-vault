@@ -71,7 +71,7 @@
     });
   }
   // ── vault page: the vault's own mini-site (hero · stats · tabs) ──
-  var ITEM_FILTER = 'all', EXPLAIN_LONG = false;   // the long explainer boxes live in How it works; the Trade tab keeps one line
+  var ITEM_FILTER = 'all';
   function mine() { return !!(W.addr && META.creator && W.addr === META.creator); }
   function renderVault() {
     var tk = META.token || {};
@@ -95,7 +95,7 @@
         html = S('Price', price(p.priceUsd), 'Meteora pool' + (p.damm ? ' · <a href="https://app.meteora.ag/dammv2/' + esc(p.damm.address) + '" target="_blank" rel="noopener">' + short(p.damm.address) + '</a>' : ''))
           + backing
           + S('Market cap', usd(p.mcapUsd) + (p.ratio != null ? '<small>' + p.ratio.toFixed(2) + '× backing</small>' : ''), 'price × ' + p.supply.toLocaleString('en-US'))
-          + S('Treasury', st.treasury && st.treasury.usdc != null ? usd2(st.treasury.usdc) : '\u2014', 'USDC in custody \u00b7 buys the next item')
+          + S('Treasury', st.treasury && st.treasury.usdc != null ? usd2(st.treasury.usdc) : '\u2014', st.treasury && st.treasury.owedUsd > 0 ? usd2(st.treasury.availableUsd) + ' buys the next item \u00b7 ' + usd2(st.treasury.owedUsd) + ' owed to the creator and Onix until the next claim' : 'USDC in custody \u00b7 buys the next item')
           + S('Fees so far', usd2(p.feesLifetimeUsd), 'on the curve · 1% on the pool')
           + (cre != null ? S((mine() ? 'Your' : 'Creator') + ' share', Math.round(cre / 1e6 * 100) / 100 + 'M<small>locked</small>', (lk.locker ? '<a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener">' + esc(lk.locker.program) + '</a> · ' + (lk.vestingMonths || 6) + ' months' : 'releases over ' + (lk.vestingMonths || 6) + ' months') + (mine() && lk.locker ? ' · <a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener"><b>claim</b></a>' : '')) : '');
       } else {
@@ -147,7 +147,7 @@
   function renderProof(st) {
     var p = st && st.pool, lk = p && p.locked, A = function (a) { return a ? '<a href="https://solscan.io/account/' + esc(a) + '" target="_blank" rel="noopener">' + esc(a) + '</a>' : '—'; };
     var rows = [
-      ['Custody wallet', A(VAULT) + ' <span class="faint">· the items live here; only Play and the gacha API move them out</span>'],
+      ['Custody wallet', A(VAULT) + ' <span class="faint">· derived and operated by Onix\'s server; the items live here and leave through Play or the gacha API at the published price — any other movement is the operator\'s, signed by this key and public like the rest</span>'],
       ['Creator', A(META.creator) + ' <span class="faint">· chose the rules · 50% of the supply locked · ' + (META.creatorFeePct || 40) + '% of the curve trade fee (' + pct(shareOfTrade(META.creatorFeePct || 40).creator) + ' of every trade), on chain · 5% of every card this vault sells, paid every 15 minutes with the fee claim</span>'],
       ['Token mint', p ? '<a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">' + esc(p.baseMint) + '</a>' : '—'],
       ['Curve (Meteora DBC)', p ? A(p.address) + (st.poolStatus === 'migrated' ? ' <span class="faint">· graduated</span>' : '') : '<span class="faint">' + esc(st ? st.poolStatus : '—') + '</span>'],
@@ -174,27 +174,11 @@
   }
   $('item-filters').addEventListener('click', function (e) { var b = e.target.closest('button[data-f]'); if (!b) return; ITEM_FILTER = b.dataset.f; if (ITEMS) renderItems(ITEMS); });
   function renderExplain(st) {
-    var p = st.pool, live = p && st.poolStatus === 'migrated', b = st.backing, fee = META.creatorFeePct || 40;
-    if (!EXPLAIN_LONG) {
-      var lk0 = p && p.locked;
-      $('t-explain').innerHTML = '<div class="box"><p>One token = a share of everything in this vault (<b>' + usd(b.realisableUsd) + '</b> today). '
-        + (live ? '' : 'At graduation 30% of the raise goes to the treasury and Play opens. ')
-        + '<a href="#/how">How it works →</a></p></div>';
-      return;
-    }
-    var boxes = ['<div class="box"><h3>What a token is</h3><p>A share of everything in this vault. Backing today: <b>' + usd(b.realisableUsd) + '</b>.</p></div>'];
-    var saleBox = '<div class="box"><h3>Where each sale goes</h3><p>Every card sold, through Play or a gacha: 5% to the creator, 2% to Onix, 93% stays in the treasury and buys the next item. The buyer pays the full price to custody; the custody pays the two shares every 15 minutes, in the same transaction as the fee claim — one signature per round, on the Activity tab.</p></div>';
-    if (live) {
-      var lk = p.locked;
-      boxes.push('<div class="box"><h3>Where each trade goes</h3><p>The pool charges 1% per trade and it goes to the treasury. On the curve, 10% went: 2% Meteora · ' + (fee * 0.08).toFixed(1) + '% creator · the rest to this vault\'s treasury and Onix.</p></div>');
-      boxes.push(saleBox);
-      boxes.push('<div class="box"><h3>Creator unlock</h3><p>' + (lk ? Math.round((lk.creatorPct != null ? p.supply * lk.creatorPct / 100 : lk.tokens) / 1e6 * 100) / 100 + 'M ' + SYM() + ' are in Jupiter Lock, releasing monthly over ' + (lk.vestingMonths || 6) + ' months from graduation.' : 'The creator\'s share is in Jupiter Lock.') + '</p><div class="links">' + (lk && lk.locker ? '<a href="' + esc(lk.locker.url) + '" target="_blank" rel="noopener">Jupiter Lock ↗</a><a href="https://solscan.io/account/' + esc(lk.locker.escrow) + '" target="_blank" rel="noopener">escrow ↗</a>' : '') + (p.damm ? '<a href="https://app.meteora.ag/dammv2/' + esc(p.damm.address) + '" target="_blank" rel="noopener">Pool on Meteora ↗</a>' : '') + '<a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">Mint on Solscan ↗</a></div></div>');
-    } else if (p) {
-      boxes.push('<div class="box"><h3>Where each trade goes</h3><p>10% fee: 2% Meteora · ' + (fee * 0.08).toFixed(1) + '% creator · the rest to the treasury and Onix. The treasury buys the next item.</p></div>');
-      boxes.push(saleBox);
-      boxes.push('<div class="box"><h3>At graduation</h3><p>A Meteora pool opens with locked liquidity, 30% of the raise goes to the treasury, and Play opens.</p><div class="links"><a href="https://solscan.io/account/' + esc(p.address) + '" target="_blank" rel="noopener">Curve on Solscan ↗</a><a href="https://solscan.io/token/' + esc(p.baseMint) + '" target="_blank" rel="noopener">Mint ↗</a></div></div>');
-    }
-    $('t-explain').innerHTML = boxes.join('');
+    var p = st.pool, live = p && st.poolStatus === 'migrated', b = st.backing;
+    $('t-explain').innerHTML = '<div class="box"><p>One token = a share of everything in this vault (<b>' + usd(b.realisableUsd) + '</b> today). '
+      + (live ? '' : 'At graduation 30% of the raise goes to the treasury and Play opens. ')
+      + '<a href="#/how">How it works →</a></p></div>'
+      + '<div class="box"><h3>Where each sale goes</h3><p>Every card sold, through Play or a gacha: 5% to the creator, 2% to Onix, 93% stays in the treasury and buys the next item. The buyer pays the full price to custody; the custody pays the two shares every 15 minutes, in the same transaction as the fee claim — one signature per round, on the Activity tab.</p></div>';
   }
   // ── the trade panel: quote on the API, sign & send in the wallet (never here) ──
   var T = { side: 'buy', wallet: null, timer: null, busy: false };
@@ -455,7 +439,7 @@
   function renderFeeShare() {
     var s = shareOfTrade(Number($('f-fee').value));
     $('f-fee-earn').textContent = 'You earn ' + pct(s.creator) + ' of every trade: ' + $('f-fee').value + '% of the ' + pct(s.after) + ' the curve keeps after Meteora\'s cut';
-    $('d-fee').textContent = '10% on every trade: ' + pct(s.creator) + ' goes straight to your wallet, ' + pct(s.treasury) + ' to the vault to buy the next item, ' + pct(s.onix) + ' to Onix, ' + pct(s.protocol) + ' to Meteora. The first 60 s charge 99% → 10% to keep bots out';
+    $('d-fee').textContent = '10% on every trade: ' + pct(s.creator) + ' is yours, on chain and claimable any time, ' + pct(s.treasury) + ' to the vault to buy the next item, ' + pct(s.onix) + ' to Onix, ' + pct(s.protocol) + ' to Meteora. The first 60 s charge 99% → 10% to keep bots out';
   }
   function rulesFromForm() {
     var r = { category: $('f-cat').value, minValueUsd: Number($('f-minv').value), minGrade: $('f-grade').value === 'any' ? 'any' : Number($('f-grade').value), creatorFeePct: Number($('f-fee').value), gradMult: Number($('f-grad').value) };
@@ -665,7 +649,7 @@
     var steps = [
       function () { var it = take(); S.items.push(it); S.usd += it.v; push('user', '<span class="who">the creator</span> <span class="what">added</span> <span class="item">' + esc(it.n) + '</span>', '+' + usd(it.v), 'backing \u25b2 \u00b7 no new tokens'); paint(it.v); drawShelf(); },
       function () { var t = [40, 120, 260, 75, 900, 310][Math.floor(Math.random() * 6)], buy = Math.random() < 0.6, cut = t * 0.032; S.fees += t * 0.10; S.cash += cut; push(buy ? 'buy' : 'sell', '<span class="who">' + who() + '</span> <span class="what">' + (buy ? 'bought' : 'sold') + '</span> ' + usd(t) + ' <span class="who">of the token</span>', '+' + usd(cut), '3.2% of the trade \u2192 treasury', buy ? 'buy' : 'sell'); paint(0); },
-      function () { if (S.items.length < 2) return steps[0](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var app = ['Pixel Gacha', 'Slab Arena', 'Cellar Club', 'Vault Royale'][Math.floor(Math.random() * 4)]; S.usd -= it.v; S.sold += it.v; S.cash += it.v; push('game', '<span class="who">' + app + '</span> <span class="what">bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">for a player</span>', '+' + usd(it.v), 'USDC to the treasury through the API'); paint(0); drawShelf(); },
+      function () { if (S.items.length < 2) return steps[0](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; var app = ['Pixel Gacha', 'Slab Arena', 'Cellar Club', 'Vault Royale'][Math.floor(Math.random() * 4)]; S.usd -= it.v; S.sold += it.v; S.cash += it.v * 0.93; push('game', '<span class="who">' + app + '</span> <span class="what">bought</span> <span class="item">' + esc(it.n) + '</span> <span class="who">for a player</span>', '+' + usd(it.v * 0.93), '93% of ' + usd(it.v) + ' stays \u00b7 5% creator \u00b7 2% Onix'); paint(0); drawShelf(); },
       function () { if (S.cash < 400) return steps[1](); var it = take(); var spend = Math.min(S.cash, it.v); it = { n: it.n, k: it.k, v: spend }; S.items.push(it); S.cash -= spend; S.usd += spend; push('cart', '<span class="what">The treasury bought</span> <span class="item">' + esc(it.n) + '</span>', '+1 item', usd(spend) + ' \u2192 backing'); paint(spend); drawShelf(); },
       function () { if (S.items.length < 3) return steps[1](); var i = Math.floor(Math.random() * S.items.length); var it = S.items.splice(i, 1)[0]; S.usd -= it.v; push('fire', '<span class="who">' + who() + '</span> <span class="what">burned tokens</span> <span class="who">and drew</span> <span class="item">' + esc(it.n) + '</span>', 'burned', 'supply \u25bc \u00b7 backing per token \u25b2', 'burn'); paint(0); drawShelf(); }
     ];

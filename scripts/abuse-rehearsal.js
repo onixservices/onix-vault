@@ -2,8 +2,7 @@
 /**
  * scripts/abuse-rehearsal.js — attack a running Onix.Vault server through its PUBLIC routes and check every refusal.
  *
- *   node scripts/abuse-rehearsal.js                                  # against https://vault.onix.finance
- *   node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004
+ *   node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004       # a server you run; --base is required, it never picks one
  *
  * Nothing here signs, sends or spends: each attack is a request the server must REFUSE before any transaction exists
  * (or, for the funded ones, before the wallet would ever see it). Rate limits are not hammered against production
@@ -13,7 +12,8 @@
 const { Keypair } = require('@solana/web3.js');
 
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i >= 0 ? process.argv[i + 1] : d; };
-const BASE = arg('--base', 'https://vault.onix.finance').replace(/\/$/, '');
+const BASE = (arg('--base', '') || '').replace(/\/$/, '');
+if (!BASE) { console.error('usage: node scripts/abuse-rehearsal.js --base <url of a server you run>'); process.exit(2); }
 const STRANGER = Keypair.generate().publicKey.toBase58();       // a wallet with nothing in it
 const rows = [];
 

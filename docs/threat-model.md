@@ -25,11 +25,14 @@ Every custody wallet derives from one seed. Lose it and every vault can be empti
 
 **Today:** the seed is generated on the server, lives in a `.env` readable by one user, is read by one
 module (`server/keyring.js`) and is never logged, returned or written anywhere else. The operator keeps an
-offline backup (made 4 Oct 2026; `docs/security-review.md`, R-07a). The same seed derives the draw key (R-04). Each custody wallet signs **only** through the doors (Play delivery, gacha settlement,
-abandon-before-launch), each one built after a payment or a burn was read from the chain. Addresses are
+offline backup (made 4 Oct 2026; `docs/security-review.md`, R-07a). The same seed derives the draw key (R-04). Each custody wallet signs only what this repository builds: the doors (Play delivery, gacha settlement,
+abandon-before-launch), each one built after a payment or a burn was read from the chain; the fee claim with the payout
+of the sales owed; the treasury's purchase; the graduation steps; and the operator's `return-*` scripts. Every one is
+simulated before it is signed, and every one is a public transaction. Addresses are
 public: a theft would be visible within one block.
 **Roadmap, in order:** a program with escrow that can only release under the published rules; until then,
-this is a single point of failure and the page says "custody: derived wallet operated by Onix".
+this is a single point of failure, and the Proof tab of every vault names its custody wallet as derived and operated by
+Onix's server.
 **What we will not do:** call it trustless.
 
 ### The custodian fails
@@ -78,7 +81,8 @@ their prices are on the vault page; a token's share of backing is shown, not pro
 ### The creator dumps on the buyers
 The creator holds half the supply. **Mitigation:** that half is in `lockedVesting`: nothing before
 graduation, then monthly over 6 months, in Jupiter Lock (an escrow anyone can read). Before graduation the
-creator owns no tradable token at all. The creator's income is the fee share, paid by the program per trade.
+creator owns no tradable token at all. The creator's income is the fee share on the curve (accrued per trade, claimed from the creator's wallet) and 5% of every
+card sold.
 
 ### The creator fills the vault with junk, or pulls the good items
 **Mitigations:** deposits pass the vault's **published rules** (custodian, category, minimum value,
@@ -175,7 +179,7 @@ a second net. **If it happens anyway: rotate.**
 ## 5. Known and unresolved
 
 - **Custodian concentration.** Every item so far is held by one custodian (Collector Crypt).
-- **Single operator of the seed.** Named on the page. A program with escrow is the destination; multisig
+- **Single operator of the seed.** Named on the Proof tab of every vault. A program with escrow is the destination; multisig
   of the operator key is roadmap.
 - **A vault with no trading earns no fees, so its treasury never grows.** The most likely way this ends up
   meaning nothing.

@@ -24,6 +24,15 @@ describe('openapi.json — the public contract matches the routes', () => {
     const missing = routes.filter((r) => /fence\('/.test(r.rest)).filter((r) => !spec.paths[r.openapi][r.method].responses['429']).map((r) => `${r.method.toUpperCase()} ${r.openapi}`);
     assert.deepEqual(missing, []);
   });
+  test('the activity types are the ones the server emits (the redemption door left the contract in 1.5.0)', () => {
+    const types = spec.paths['/v1/vaults/{vault}/activity'].get.responses['200'].content['application/json'].schema.properties.activity.items.properties.type.enum;
+    assert.ok(!types.includes('redeem'), types.join(','));
+  });
+  test('admissions/build answers what server/admissions.js returns: a transfer, never tokens owed', () => {
+    const props = spec.paths['/v1/vaults/{vault}/admissions/build'].post.responses['200'].content['application/json'].schema.properties;
+    assert.deepEqual(Object.keys(props).sort(), ['message', 'mint', 'realisableUsd', 'transaction', 'valueUsd']);
+    assert.ok(!/owed tokens/.test(spec.paths['/v1/vaults/{vault}/admissions/build'].post.description));
+  });
   test('health says whether the server is paused; errors may carry a reference; slippage is bounded', () => {
     assert.ok(spec.components.schemas.Health.properties.paused, 'Health.paused');
     assert.ok(spec.components.schemas.Error.properties.ref, 'Error.ref');

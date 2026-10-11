@@ -1,7 +1,7 @@
 # Impact and market
 
-> For the "Impact / TAM" criterion. **Every number below was measured or taken from a named
-> source; none is a projection.** Where we have no number, it says so.
+> **Every number below was measured or taken from a named source; none is a projection.** Where we have no
+> number, it says so.
 
 ## What changes for a collector
 
@@ -62,7 +62,7 @@ the trading actually lands.
   the first vault machine went live on 3 Oct 2026 and paid the vault through the public API on its first pull.
 
 **What we do not claim:** that any of these groups is queuing up. The vaults so far are ours and the ones made to test
-the doors. Demand is what the submission window measures.
+the doors. Demand is what the next weeks measure.
 
 ## Why the timing
 
@@ -93,7 +93,7 @@ inventory**, one vault at a time.
 ## What we still do not know
 
 - whether vaults opened by strangers find buyers — the whole question of a launchpad
-- the realisable multiplier per category (Pokémon measured 0.88×; One Piece ≈1.01× on a small sample)
+- the realisable multiplier per category (Pokémon measured 0.89×; One Piece ≈1.01× on a small sample)
 - whether gacha players prefer a vault's machine to a curated one (the first vault machine on Onix.Cards paused itself
   on margin after one pull: four $24 cards cannot fund a $25 pull — the restock bot buying below the index is what
   reopens it)
