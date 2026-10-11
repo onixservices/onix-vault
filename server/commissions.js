@@ -106,7 +106,12 @@ function createCommissions({ db, vaultWallet, creator = null, now = Date.now, lo
     return db.prepare(`${SELECT} WHERE s.vault = ? ORDER BY s.created_at DESC, s.rowid DESC LIMIT ?`).all(vaultWallet, limit).map(view);
   }
 
-  return { recordSale, owed, encumberedUnits, markPaying, settle, release, reconcile, list, get: (source, refId) => { const r = get(source, refId); return r ? view(r) : null; }, creatorWallet, creatorWaived: waived, SALE_SPLIT };
+  /** For the Activity tab: `source:refId` → the split, the status and the payout of the latest sales. */
+  function summaries({ limit = 200 } = {}) {
+    return Object.fromEntries(list({ limit }).map((s) => [`${s.source}:${s.refId}`, { creatorUsd: s.creatorUsd, onixUsd: s.onixUsd, treasuryUsd: s.treasuryUsd, status: s.status, payoutId: s.payoutId, payoutSignature: s.payoutSignature }]));
+  }
+
+  return { recordSale, owed, encumberedUnits, markPaying, settle, release, reconcile, list, summaries, get: (source, refId) => { const r = get(source, refId); return r ? view(r) : null; }, creatorWallet, creatorWaived: waived, SALE_SPLIT };
 }
 
 module.exports = { createCommissions, splitOfSale, SALE_SPLIT, SOURCES };

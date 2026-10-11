@@ -104,3 +104,16 @@ describe('stats — with a pool', () => {
     assert.ok(stats.ageMs() >= 0);
   });
 });
+
+describe('stats — the treasury and what in it is not its own', () => {
+  test('what is owed to the creator and Onix on the cards sold (the sales ledger) is taken off the USDC in custody: usdc, owedUsd, availableUsd', async () => {
+    const chain = { rpc: async () => ({ value: [{ account: { data: { parsed: { info: { tokenAmount: { uiAmount: 10 } } } } } }] }) };
+    const cfg = { haircut: 0.89, vaultWallet: 'V', usdcMint: 'U' };
+    const a = await createStatsReader({ readItems: async () => items, chain, config: cfg, now: () => 1, encumbered: () => 1_330_000 }).read();
+    assert.deepEqual(a.treasury, { usdc: 10, owedUsd: 1.33, availableUsd: 8.67 });
+    const b = await createStatsReader({ readItems: async () => items, chain, config: cfg, now: () => 1 }).read();
+    assert.deepEqual(b.treasury, { usdc: 10, owedUsd: 0, availableUsd: 10 });
+    const c = await createStatsReader({ readItems: async () => items, chain: {}, config: cfg, now: () => 1, encumbered: () => 1_330_000 }).read();
+    assert.deepEqual(c.treasury, { usdc: null, owedUsd: 1.33, availableUsd: null });
+  });
+});

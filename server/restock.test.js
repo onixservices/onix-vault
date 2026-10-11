@@ -68,7 +68,7 @@ const coreAsset = (owner) => { const b = Buffer.alloc(1 + 32 + 33); b[0] = 1; ne
 
 function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], sponsored = false, simErr = null, inCustody = [], cosigned = false, debitUsd = null,
   priorityMicroLamports = 10_000, cuLimit = null, buys = 1, buyDisc = BUY_DISC, extra = null, solSpent = 14_030, solReadable = true,
-  itemOwner = CUSTODY, itemProgram = MPL_CORE_PROGRAM } = {}) {
+  itemOwner = CUSTODY, itemProgram = MPL_CORE_PROGRAM, encumberedUsd = 0 } = {}) {
   const db = getTestDb();
   const sent = [];
   const chain = {
@@ -100,7 +100,9 @@ function make({ usdc = 40, listings = [row('b', 15, 20), row('c', 16, 20)], spon
     return tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
   };
   let t = 1_800_000_000_000;
-  const rs = createRestock({ db, chain, vaultWallet: CUSTODY, signer: fromKeypair(custodyKp), rules: RULES, cosigners: [ccKp.publicKey.toBase58()], readItems: async () => inCustody.map((m) => ({ mint: m })),
+  // the sales ledger (server/commissions.js): what the custody owes the creator and Onix is not the treasury's
+  const commissions = encumberedUsd ? { encumberedUnits: () => Math.round(encumberedUsd * 1e6) } : null;
+  const rs = createRestock({ db, chain, vaultWallet: CUSTODY, signer: fromKeypair(custodyKp), rules: RULES, commissions, cosigners: [ccKp.publicKey.toBase58()], readItems: async () => inCustody.map((m) => ({ mint: m })),
     fetchListings: async ({ page }) => (page === 1 ? { filterNFtCard: listings } : { filterNFtCard: [] }), buildBuyTx, getUsdcBalance: async () => usdc, ownerOf: async (m) => owners[m] || null, now: () => t, log: { warn: () => {} } });
   return { rs, db, chain, sent, owners, tick: (ms) => { t += ms; } };
 }
@@ -111,6 +113,13 @@ describe('restock — execute and confirm', () => {
     const rs = createRestock({ db, chain: w.chain, vaultWallet: CUSTODY, signer: fromKeypair(custodyKp), rules: RULES, readItems: async () => [], fetchListings: async () => ({ filterNFtCard: [] }), buildBuyTx: async () => '', getUsdcBalance: async () => 40, getSolBalance: async () => 0.017, ownerOf: async () => null, log: { warn: () => {} } });
     const p = await rs.plan();
     assert.equal(p.pick, null); assert.match(p.why, /0\.0170 SOL; the venue needs ≥ 0\.05 SOL/);
+  });
+  test('what the custody owes the creator and Onix on the cards it sold is not the treasury\'s: the budget excludes it and says so', async () => {
+    const p = await make({ usdc: 40, encumberedUsd: 1.33 }).rs.plan();
+    assert.equal(p.treasuryUsd, 40); assert.equal(p.encumberedUsd, 1.33); assert.equal(p.budgetUsd, 37.67); assert.equal(p.pick.mint, 'b');
+    const q = await make({ usdc: 7, encumberedUsd: 1.33 }).rs.plan();
+    assert.equal(q.budgetUsd, 4.67); assert.equal(q.pick, null); assert.match(q.why, /treasury below the minimum buy \(\$4\.67 < \$5\)/); assert.match(q.why, /\$1\.33 owed to the creator and Onix/);
+    assert.equal((await make({ usdc: 40 }).rs.plan()).encumberedUsd, 0);
   });
   test('plan reads the treasury, excludes custody, picks; dry execute asserts and simulates but signs nothing', async () => {
     const w = make({ inCustody: ['b'] });

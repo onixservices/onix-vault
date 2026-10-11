@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Onix.Vault API",
-    "version": "1.5.1",
-    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`.\n\n**1.5.0:** the first design's redemption door is gone from the contract: no `redemptions` route, no `band` in `stats`, no `redeemPriceUsd` on items. The exit by burning is Play in tokens (`/play`, `/plays`), priced in share of backing.\n\n**1.5.1:** the contract is served by the server itself at `GET /v1/openapi.json`."
+    "version": "1.6.0",
+    "description": "Auditable vaults for real-world assets. Create a vault from items a custodian holds (custody derived per vault, the creator paid on chain), trade its token on a Meteora curve and, after graduation, on the pool; play for the items (USDC stays in the vault; a burned token shrinks supply); integrate a gacha through reservations. Every state change is anchored to a public transaction: payments are read from the chain before anything leaves custody. The server never holds a user's key and never signs a user's transaction. `x-api-key` is optional: it identifies an integrator for limits; it unlocks nothing.\n\n**1.4.0 (4 Oct 2026, security review):** every route that moves value answers `503` while the operator has paused the server or that vault (`GET /v1/health` → `paused`); every route that signs, settles or reads the chain on demand is rate-fenced per address (`429`); an unexpected error answers a generic `500` with a `ref` (never RPC or database text); addresses must be base58 public keys and signatures base58 text (`400`); `slippageBps` is an integer from 1 to 500; a reservation or a play is reached only through its own vault; an `Idempotency-Key` replays only for the same vault and integrator (`409` otherwise); an admission shows its value only once admitted, read from the chain. See `docs/security-review.md`.\n\n**1.5.0:** the first design's redemption door is gone from the contract: no `redemptions` route, no `band` in `stats`, no `redeemPriceUsd` on items. The exit by burning is Play in tokens (`/play`, `/plays`), priced in share of backing.\n\n**1.5.1:** the contract is served by the server itself at `GET /v1/openapi.json`.\n\n**1.6.0 (11 Oct 2026):** every card a vault sells pays the creator 5% and Onix 2%; 93% stays in the treasury. Nothing changes on the wire: the buyer (a player, or an integrator through `reservations`) still pays the full price to the custody wallet, exactly as `paymentTransaction` builds it. The custody pays the two shares in its next fee claim (every 15 minutes, in the same transaction as the trading fees; `server/commissions.js`). The Activity rows of a USDC play and of a gacha sale carry `sale` (the split, its status and the payout signature); `fee-claims` carry `creatorUsd`, `salesOnixUsd`, `salesCount`; `stats.treasury` carries `owedUsd` and `availableUsd`; each vault in `GET /v1/vaults` carries `saleSplit`. Sales made before 11 Oct 2026 are `pre_rule` and owe nothing."
   },
   "servers": [
     {
@@ -77,6 +77,21 @@
                           },
                           "stats": {
                             "$ref": "#/components/schemas/Stats"
+                          },
+                          "saleSplit": {
+                            "type": "object",
+                            "description": "where the price of every card sold goes, in percent",
+                            "properties": {
+                              "creator": {
+                                "type": "number"
+                              },
+                              "onix": {
+                                "type": "number"
+                              },
+                              "treasury": {
+                                "type": "number"
+                              }
+                            }
                           }
                         }
                       }
@@ -117,7 +132,7 @@
     },
     "/v1/vaults/{vault}/activity": {
       "get": {
-        "summary": "The doors that fired, newest first: gacha sales and redemptions, each with its signatures",
+        "summary": "The doors that fired, newest first: gacha sales, plays, the creator’s additions, the treasury’s purchases and fee claims (with the sales they paid out), graduation — each with its signatures",
         "parameters": [
           {
             "$ref": "#/components/parameters/vault"
@@ -183,6 +198,66 @@
                           },
                           "status": {
                             "type": "string"
+                          },
+                          "reservationId": {
+                            "type": "string",
+                            "description": "gacha rows: the reservation this sale settled"
+                          },
+                          "playId": {
+                            "type": "string",
+                            "description": "play rows"
+                          },
+                          "sale": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "description": "USDC plays and gacha sales: where the price went (5% creator · 2% Onix · 93% treasury) and whether the custody paid the two shares yet. null for a token play, or a sale made before the rule (pre_rule rows are not joined). Absent on vaults without the ledger.",
+                            "properties": {
+                              "creatorUsd": {
+                                "type": "number"
+                              },
+                              "onixUsd": {
+                                "type": "number"
+                              },
+                              "treasuryUsd": {
+                                "type": "number"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "pre_rule",
+                                  "owed",
+                                  "paying",
+                                  "paid"
+                                ]
+                              },
+                              "payoutId": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "the fee claim that carries the two legs"
+                              },
+                              "payoutSignature": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            }
+                          },
+                          "creatorUsd": {
+                            "type": "number",
+                            "description": "fees rows: paid to the creator in this claim (the 5% of the sales)"
+                          },
+                          "salesOnixUsd": {
+                            "type": "number",
+                            "description": "fees rows: the 2% of the sales, part of onixUsd"
+                          },
+                          "salesCount": {
+                            "type": "integer",
+                            "description": "fees rows: sales paid out in this claim"
                           }
                         }
                       }
@@ -1586,7 +1661,7 @@
     },
     "/v1/vaults/{vault}/fee-claims": {
       "get": {
-        "summary": "Trading fees claimed into the treasury (curve partner fee split 2/3 treasury · 1/3 Onix in the same tx; pool LP fee 100% treasury)",
+        "summary": "Trading fees claimed into the treasury (curve partner fee split 2/3 treasury · 1/3 Onix in the same tx; pool LP fee 100% treasury) and, in the same transaction, the sales paid out: 5% of every card sold to the creator, 2% to Onix",
         "tags": [
           "Treasury"
         ],
@@ -1602,7 +1677,7 @@
         ],
         "responses": {
           "200": {
-            "description": "claims[]: curveUsd, poolUsd, onixUsd, treasuryUsd, status, signature, at"
+            "description": "claims[]: curveUsd, poolUsd, onixUsd (Onix’s third of the curve fee + its 2% of the sales), treasuryUsd (the custody’s net move; negative when only sales were paid), creatorUsd, salesOnixUsd, salesCount, creatorWallet, solSpentLamports, status, signature, at"
           },
           "404": {
             "$ref": "#/components/responses/Error"
@@ -1940,6 +2015,29 @@
               },
               "isMigrated": {
                 "type": "boolean"
+              }
+            }
+          },
+          "treasury": {
+            "type": "object",
+            "description": "USDC in the custody wallet right now (never part of backing)",
+            "properties": {
+              "usdc": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "owedUsd": {
+                "type": "number",
+                "description": "of it, what the cards sold owe the creator and Onix until the next fee claim pays it"
+              },
+              "availableUsd": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "usdc − owedUsd: what the treasury may spend on the next item"
               }
             }
           }

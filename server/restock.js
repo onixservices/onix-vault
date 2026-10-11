@@ -123,8 +123,9 @@ function decide({ budgetUsd, rules: entryRules, listings, exclude = new Set(), l
  * @param {function} deps.buildBuyTx      async ({ mint, wallet, priceUsd }) => base64 unsigned tx from the venue
  * @param {function} deps.getUsdcBalance  async (wallet) => number (ui)
  * @param {function} deps.ownerOf         async (mint) => owner wallet (DAS) or null
+ * @param {object|null} [deps.commissions] server/commissions.js: what the custody owes the creator and Onix on the cards it sold — never spent here
  */
-function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, getSolBalance = null, ownerOf, now = Date.now, limits = RESTOCK, log = console, cosigners = CC_BUY_COSIGNERS, usdcMint = USDC_MINT }) {
+function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetchListings, buildBuyTx, getUsdcBalance, getSolBalance = null, ownerOf, now = Date.now, limits = RESTOCK, log = console, cosigners = CC_BUY_COSIGNERS, usdcMint = USDC_MINT, commissions = null }) {
   const usdcAta = getAssociatedTokenAddressSync(new PublicKey(usdcMint), new PublicKey(vaultWallet), true).toBase58();
   const br = buyRules(rules);
   const categoriesParam = br.category && br.category !== 'mixed' ? { pokemon: 'Pokemon', 'one-piece': 'One Piece', sports: 'Sports' }[br.category] : undefined;
@@ -144,15 +145,17 @@ function createRestock({ db, chain, vaultWallet, signer, rules, readItems, fetch
     const t = now();
     const last = db.prepare("SELECT MAX(created_at) t FROM vault_purchases WHERE vault = ? AND status IN ('sent','landed')").get(vaultWallet).t || 0;
     const treasuryUsd = await getUsdcBalance(vaultWallet);
-    const budgetUsd = Math.max(0, r2(treasuryUsd - limits.reserveUsd));
+    // in custody but not the treasury's: what the cards sold owe the creator and Onix until the next fee claim pays it
+    const encumberedUsd = commissions ? r2(commissions.encumberedUnits() / 1e6) : 0;
+    const budgetUsd = Math.max(0, r2(treasuryUsd - limits.reserveUsd - encumberedUsd));
     const sol = getSolBalance ? await getSolBalance(vaultWallet) : null;
-    if (sol != null && sol < limits.minSol) return { treasuryUsd, budgetUsd, sol, pick: null, why: `custody has ${sol.toFixed(4)} SOL; the venue needs ≥ ${limits.minSol} SOL in the buyer's wallet (below that it hands a sponsored two-signer transaction we refuse)`, considered: 0, rejected: {} };
+    if (sol != null && sol < limits.minSol) return { treasuryUsd, encumberedUsd, budgetUsd, sol, pick: null, why: `custody has ${sol.toFixed(4)} SOL; the venue needs ≥ ${limits.minSol} SOL in the buyer's wallet (below that it hands a sponsored two-signer transaction we refuse)`, considered: 0, rejected: {} };
     const inCustody = new Set((await readItems()).map((it) => it.mint));
     for (const r of db.prepare("SELECT mint FROM vault_purchases WHERE vault = ? AND status = 'sent'").all(vaultWallet)) inCustody.add(r.mint);
-    if (t - last < limits.minIntervalMs) return { treasuryUsd, budgetUsd, pick: null, why: `last purchase ${Math.round((t - last) / 60000)} min ago; one an hour`, considered: 0, rejected: {} };
-    if (budgetUsd < limits.minBuyUsd) return { treasuryUsd, budgetUsd, pick: null, why: `treasury below the minimum buy ($${budgetUsd} < $${limits.minBuyUsd})`, considered: 0, rejected: {} };
+    if (t - last < limits.minIntervalMs) return { treasuryUsd, encumberedUsd, budgetUsd, pick: null, why: `last purchase ${Math.round((t - last) / 60000)} min ago; one an hour`, considered: 0, rejected: {} };
+    if (budgetUsd < limits.minBuyUsd) return { treasuryUsd, encumberedUsd, budgetUsd, pick: null, why: `treasury below the minimum buy ($${budgetUsd} < $${limits.minBuyUsd})${encumberedUsd ? `; $${encumberedUsd} owed to the creator and Onix is not the treasury's` : ''}`, considered: 0, rejected: {} };
     const listings = await market();
-    return { treasuryUsd, budgetUsd, ...decide({ budgetUsd, rules, listings, exclude: inCustody, limits }) };
+    return { treasuryUsd, encumberedUsd, budgetUsd, ...decide({ budgetUsd, rules, listings, exclude: inCustody, limits }) };
   }
 
   // one purchase at a time: overlapping rounds would both pass plan() before either persisted its buy

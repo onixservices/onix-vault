@@ -270,3 +270,27 @@ describe('routes', () => {
     assert.equal(s.status, 404); assert.equal(s.body.error, 'unknown reservation');
   });
 });
+
+describe('routes — the sales ledger on the Activity tab', () => {
+  test('plays and gacha sales carry their split and payout; fee claims carry the legs; the list carries the split; a bundle without the ledger is unchanged', async () => {
+    const commissions = { summaries: () => ({ 'play:PL1': { creatorUsd: 1.265, onixUsd: 0.506, treasuryUsd: 23.529, status: 'paid', payoutId: 'C1', payoutSignature: 'PS1' }, 'gacha:R1': { creatorUsd: 1, onixUsd: 0.4, treasuryUsd: 18.6, status: 'owed', payoutId: null, payoutSignature: null } }) };
+    const play = { list: () => [{ playId: 'PL1', at: 9, band: 'b1', currency: 'usdc', price: 25.3, unit: 'USDC', mint: 'M', player: 'P', status: 'delivered', paymentSignature: 'PS', deliverySignature: 'DS' }], busyMints: () => [] };
+    const feeclaim = { list: () => [{ id: 'C1', at: 8, treasuryUsd: 1.4, onixUsd: 1.77, curveUsd: 3.79, poolUsd: 0, creatorUsd: 1.265, salesOnixUsd: 0.506, salesCount: 1, status: 'landed', signature: 'PS1' }] };
+    const svc = { listItems: async () => [], listActivity: () => [{ type: 'gacha', at: 7, reservationId: 'R1', mint: 'M', to: 'W', priceUsd: 20 }] };
+    const bundle = (c) => ({ wallet: 'VS', meta: { id: 'vs', name: 'VS', saleSplit: { creator: 5, onix: 2, treasury: 93 } }, service: svc, stats: null, admissions: null, trader: null, play, feeclaim, commissions: c, itemsAge: () => 0, signerConfigured: () => true });
+    const serve = async (app) => { const s = await new Promise((r) => { const x = app.listen(0, '127.0.0.1', () => r(x)); }); return { s, b: 'http://127.0.0.1:' + s.address().port }; };
+    const { s: sS, b: bS } = await serve(buildApp({ vaults: [bundle(commissions)], readWallet, webDir: null }));
+    const act = (await (await fetch(bS + '/v1/vaults/VS/activity')).json()).activity;
+    assert.deepEqual(act.map((e) => e.type), ['play', 'fees', 'gacha']);
+    assert.deepEqual(act[0].sale, { creatorUsd: 1.265, onixUsd: 0.506, treasuryUsd: 23.529, status: 'paid', payoutId: 'C1', payoutSignature: 'PS1' });
+    assert.equal(act[1].creatorUsd, 1.265); assert.equal(act[1].salesOnixUsd, 0.506); assert.equal(act[1].salesCount, 1);
+    assert.equal(act[2].sale.status, 'owed'); assert.equal(act[2].reservationId, 'R1');
+    const list = await (await fetch(bS + '/v1/vaults')).json();
+    assert.deepEqual(list.vaults[0].saleSplit, { creator: 5, onix: 2, treasury: 93 });
+    sS.close();
+    const { s: s0, b: b0 } = await serve(buildApp({ vaults: [bundle(null)], readWallet, webDir: null }));
+    const plain = (await (await fetch(b0 + '/v1/vaults/VS/activity')).json()).activity;
+    assert.equal('sale' in plain[0], false); assert.equal('sale' in plain[2], false);
+    s0.close();
+  });
+});

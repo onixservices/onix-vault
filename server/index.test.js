@@ -111,3 +111,21 @@ describe('createServer — the real delivery path', () => {
     assert.equal(reservationsRepo.get(db, r.reservationId).payment_sig, 'PAY');
   });
 });
+
+describe('createServer — the sales ledger is wired into every vault', () => {
+  test('a settled sale is written in the ledger (no registered creator in single-vault mode: the 5% stays, Onix is owed); the bundle carries the fee claim even without a pool, the split in its meta and the owed in its stats', async () => {
+    const chain = fakeChain();
+    const db = getTestDb();
+    const readItems = async () => [{ mint: MINT, custodian: 'test', name: 'Item', category: 'Test', custodianValueUsd: 20, custodianValueBasis: 'fixture', marketRefUsd: null }];
+    const { service, vaults } = createServer({ readItems, db, chain, signer: fromKeypair(vaultKp), vaultWallet: VAULT });
+    const r = await service.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
+    await service.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' });
+    const [v] = vaults;
+    const sales = v.commissions.list();
+    assert.equal(sales.length, 1); assert.equal(sales[0].status, 'owed'); assert.equal(sales[0].creatorWaived, 'no_creator'); assert.equal(sales[0].onixUnits, 400_000); assert.equal(sales[0].creatorUnits, 0);
+    assert.ok(v.feeclaim, 'the fee claim exists without a pool: it is what pays the sales');
+    assert.deepEqual(v.meta.saleSplit, { creator: 5, onix: 2, treasury: 93 });
+    assert.equal((await v.stats.read()).treasury.owedUsd, 0.4);
+  });
+});

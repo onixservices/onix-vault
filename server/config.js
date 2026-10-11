@@ -44,6 +44,9 @@ module.exports = Object.freeze({
   HAIRCUT: parseFloat(env('ONIX_VAULT_HAIRCUT', '0.89')),
   // the treasury buying the next item (server/restock.js): off unless the operator turns it on; the script works regardless
   RESTOCK_ENABLED: env('ONIX_VAULT_RESTOCK') === '1',
+  // the sales owed to the creator and Onix (server/commissions.js) are paid in the fee-claim round: off unless turned on. The
+  // ledger and the restock's reserve for what is owed are always on; scripts/payout.js --pay works regardless.
+  SALE_COMMISSION_ENABLED: env('ONIX_VAULT_SALE_COMMISSION') === '1',
   // the vault graduating itself (server/graduation.js): a full curve is migrated by the server; off unless turned on
   GRADUATION_ENABLED: env('ONIX_VAULT_GRADUATE') === '1',
   GRADUATION_CHECK_MS: parseInt(env('ONIX_VAULT_GRADUATE_CHECK_MS', '60000'), 10),

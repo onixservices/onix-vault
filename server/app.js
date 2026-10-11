@@ -19,7 +19,7 @@
  *   GET  /v1/vaults/:vault/play                            bands, prices, odds
  *   POST /v1/vaults/:vault/plays · /plays/:id/submit · GET /plays/:id · GET /plays   the Play door
  *   GET  /v1/vaults/:vault/purchases                       what the treasury bought (server/restock.js)
- *   GET  /v1/vaults/:vault/fee-claims                      the trading fees claimed into the treasury (server/feeclaim.js)
+ *   GET  /v1/vaults/:vault/fee-claims                      the trading fees claimed into the treasury, and the sales paid out to the creator and Onix (server/feeclaim.js)
  *
  * `:vault` is a vault wallet; an unknown one is 404, so the paths never change as vaults
  * are added. `x-api-key` is optional: it identifies the integrator for limits; it never
@@ -150,11 +150,14 @@ function buildApp(deps) {
     res.json({ ...(await st.read({ fresh })), ageMs: st.ageMs() });
   }));
   app.get('/v1/vaults/:vault/activity', pick, wrap(async (req, res) => {
-    const doors = req.vb.service.listActivity({ limit: 50 });
+    // each USDC sale with its split and payout (server/commissions.js), joined by source and reference
+    const sales = req.vb.commissions ? req.vb.commissions.summaries() : null;
+    const withSale = (source, id, row) => (sales ? { ...row, sale: sales[source + ':' + id] || null } : row);
+    const doors = req.vb.service.listActivity({ limit: 50 }).map((e) => (e.type === 'gacha' ? withSale('gacha', e.reservationId, e) : e));
     const admits = req.vb.admissions ? req.vb.admissions.list({ limit: 50 }).map((a) => ({ type: 'admit', at: a.at, mint: a.mint, from: a.owner, status: a.status, valueUsd: a.valueUsd, signature: a.signature })) : [];
-    const plays = req.vb.play ? req.vb.play.list({ limit: 50 }).map((p) => ({ type: 'play', at: p.at, playId: p.playId, band: p.band, currency: p.currency, price: p.price, unit: p.unit, mint: p.mint, to: p.player, status: p.status, paymentSignature: p.paymentSignature, deliverySignature: p.deliverySignature })) : [];
+    const plays = req.vb.play ? req.vb.play.list({ limit: 50 }).map((p) => withSale('play', p.playId, { type: 'play', at: p.at, playId: p.playId, band: p.band, currency: p.currency, price: p.price, unit: p.unit, mint: p.mint, to: p.player, status: p.status, paymentSignature: p.paymentSignature, deliverySignature: p.deliverySignature })) : [];
     const bought = req.vb.restock ? req.vb.restock.list({ limit: 50 }).map((b) => ({ type: 'bought', at: b.at, mint: b.mint, name: b.name, priceUsd: b.priceUsd, insuredUsd: b.insuredUsd, status: b.status, signature: b.signature })) : [];
-    const fees = req.vb.feeclaim ? req.vb.feeclaim.list({ limit: 50 }).map((f) => ({ type: 'fees', at: f.at, treasuryUsd: f.treasuryUsd, onixUsd: f.onixUsd, curveUsd: f.curveUsd, poolUsd: f.poolUsd, status: f.status, signature: f.signature })) : [];
+    const fees = req.vb.feeclaim ? req.vb.feeclaim.list({ limit: 50 }).map((f) => ({ type: 'fees', at: f.at, treasuryUsd: f.treasuryUsd, onixUsd: f.onixUsd, curveUsd: f.curveUsd, poolUsd: f.poolUsd, creatorUsd: f.creatorUsd, salesOnixUsd: f.salesOnixUsd, salesCount: f.salesCount, status: f.status, signature: f.signature })) : [];
     const grads = req.vb.graduation ? req.vb.graduation.list({ limit: 5 }).map((g) => ({ type: 'graduated', at: g.at, status: g.status, step: g.step, raisedUsd: g.raisedUsd, thresholdUsd: g.thresholdUsd, signature: g.signatures.migrate, signatures: g.signatures, failReason: g.failReason })) : [];
     res.json({ readAt: new Date().toISOString(), activity: [...doors, ...admits, ...plays, ...bought, ...fees, ...grads].sort((x, y) => y.at - x.at).slice(0, 50) });
   }));

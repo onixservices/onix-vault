@@ -13,7 +13,8 @@ const { decodeVirtualPool, priceFromSqrtPrice } = require('../src/reader/pool');
 /**
  * @param {function} [readConfig]  async (configPubkey) => { migrationQuoteThresholdUsd, lockedVestingTokens } — read once (a config is immutable)
  */
-function createStatsReader({ readItems, chain, config = {}, now = Date.now, cacheMs = 30_000, readConfig = null, readDamm = null }) {
+/** @param {function|null} [encumbered]  () => micro-USDC in custody that is owed to the creator and Onix (server/commissions.js) */
+function createStatsReader({ readItems, chain, config = {}, now = Date.now, cacheMs = 30_000, readConfig = null, readDamm = null, encumbered = null }) {
   let cfgCache = null;
   const haircut = config.haircut ?? 0.89;
   const graduationUsd = config.graduationUsd ?? null;
@@ -70,11 +71,13 @@ function createStatsReader({ readItems, chain, config = {}, now = Date.now, cach
     // the treasury: USDC in the custody wallet (migration fee, USDC plays) — what buys the next item; never part of backing
     let treasuryUsd = null;
     if (config.vaultWallet && config.usdcMint && chain.rpc) { try { const r = await chain.rpc('getTokenAccountsByOwner', [config.vaultWallet, { mint: config.usdcMint }, { encoding: 'jsonParsed' }]); treasuryUsd = Math.round((r.value || []).reduce((s, a) => s + (a.account.data.parsed.info.tokenAmount.uiAmount || 0), 0) * 100) / 100; } catch (e) { treasuryUsd = null; } }
+    // owed to the creator and Onix on the cards sold, until the next fee claim pays it: in custody, but not the treasury's to spend
+    const owedUsd = encumbered ? Math.round(encumbered() / 1e6 * 100) / 100 : 0;
     const value = {
       readAt: now(),
       items: { count: items.length },
       backing: { indexUsd, realisableUsd, multiplier: haircut },
-      treasury: { usdc: treasuryUsd },
+      treasury: { usdc: treasuryUsd, owedUsd, availableUsd: treasuryUsd == null ? null : Math.round((treasuryUsd - owedUsd) * 100) / 100 },
       ...poolPart,
     };
     cache = { at: now(), value };
