@@ -12,7 +12,9 @@
  *
  * Prices: USDC = band average × 1.15. Token = band average × 1.10 ÷ (realisable
  * backing ÷ supply) — in SHARE OF BACKING, never at the market price, so a pump buys nothing cheaper.
- * A USDC play leaves the money in custody (the treasury buys the next item); a token play burns supply.
+ * A USDC play pays the custody: 93% stays as the treasury (it buys the next item), 5% goes to the creator and 2% to
+ * Onix in the custody's next fee claim (server/commissions.js — the sale is written here, with the delivery). A token
+ * play burns supply, and pays nobody else.
  *
  * Play opens at GRADUATION: while the curve is still filling, nothing leaves custody — the
  * backing only grows. `bands()` still describes the machines (the page shows them locked); `start()` refuses.
@@ -32,12 +34,12 @@ const PLAY = Object.freeze({
   quoteTtlMs: 60_000, payTtlMs: 10 * 60_000,
   minItemsForDraw: 3,                 // below this a band is a pick, not a draw — said on the page
   perWalletPerHour: 6, unpaidPerWallet: 1,
-  split: Object.freeze({ creator: 40, treasury: 40, onix: 20 }),   // of the 15% edge on a USDC play
   bands: Object.freeze([{ id: 'b1', label: 'under $25', min: 0, max: 25 }, { id: 'b2', label: '$25 – $60', min: 25, max: 60 }, { id: 'b3', label: '$60 – $150', min: 60, max: 150 }, { id: 'b4', label: '$150 and up', min: 150, max: Infinity }]),
 });
 
 /** @param {function|null} seedFor  playId → server seed (hex), derived from the draw key; null = a random seed kept in the row */
-function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readItems, readStats, deliver, isMintBusy = () => false, usdcMint, memoProgramId, now = Date.now, limits = PLAY, requireGraduated = true, seedFor = null }) {
+/** @param {object|null} commissions  server/commissions.js for this vault: a delivered USDC play is a sale it records */
+function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readItems, readStats, deliver, isMintBusy = () => false, usdcMint, memoProgramId, now = Date.now, limits = PLAY, requireGraduated = true, seedFor = null, commissions = null }) {
   // the seed of a play: the row's own (older plays, rehearsals) or derived now from the draw key
   const seedOfRow = (p) => { if (p.server_seed) return p.server_seed; try { return seedFor ? seedFor(p.id) : null; } catch { return null; } };
   const graduated = (st) => Boolean(st && st.pool && (st.poolStatus === 'migrated' || st.pool.isMigrated));
@@ -159,7 +161,12 @@ function createPlay({ db, chain, vaultWallet, baseMint, baseDecimals = 6, readIt
       if (!claimed) continue;   // another sweep drew this play first: one payment, one delivery
       try {
         const { sig } = await deliver({ mint: result.mint, toAddress: p.player, onSigned: (b64) => db.prepare("UPDATE vault_plays SET delivery_tx_b64 = ?, status = 'delivering', updated_at = ? WHERE id = ?").run(b64, now(), p.id) });
-        db.prepare("UPDATE vault_plays SET status = 'delivered', delivery_sig = ?, updated_at = ? WHERE id = ?").run(sig, now(), p.id);
+        // delivered and, in the SAME transaction, the sale in the ledger: a USDC play pays the creator and Onix; a burn already paid everyone
+        const td = now();
+        db.transaction(() => {
+          const done = db.prepare("UPDATE vault_plays SET status = 'delivered', delivery_sig = ?, updated_at = ? WHERE id = ?").run(sig, td, p.id).changes === 1;
+          if (done && commissions && p.currency === 'usdc') commissions.recordSale({ source: 'play', refId: p.id, mint: result.mint, priceUsd: p.price_usdc, at: td });
+        })();
         out.delivered += 1;
       } catch (e) {
         db.prepare("UPDATE vault_plays SET status = 'delivery_failed', fail_reason = ?, updated_at = ? WHERE id = ?").run(String(e.message).slice(0, 300), now(), p.id);

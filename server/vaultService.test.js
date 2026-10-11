@@ -4,6 +4,7 @@ const { Keypair, Transaction } = require('@solana/web3.js');
 const { createVaultService, exitPriceUsd, VaultError } = require('./vaultService');
 const { getTestDb } = require('./db');
 const reservationsRepo = require('./reservationsRepo');
+const { createCommissions } = require('./commissions');
 
 // The vault API, v1. One rule, three verbs. See the header of vaultService.js.
 const VAULT = Keypair.generate().publicKey.toBase58();   // on-curve: the payment derives its ATA
@@ -13,6 +14,7 @@ const OTHER = Keypair.generate().publicKey.toBase58();   // integrators are wall
 const USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 const MEMO = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 const MINT = Keypair.generate().publicKey.toBase58();
+const CREATOR = Keypair.generate().publicKey.toBase58();
 const T0 = 1_800_000_000_000;
 
 const item = (over = {}) => ({ mint: MINT, custodian: 'collector-crypt', name: 'From the vault', category: 'Pokemon', custodianValueUsd: 20, custodianValueBasis: 'insured', marketRefUsd: 17, ...over });
@@ -26,8 +28,9 @@ function parsedPayment({ signer = GACHA, to = VAULT, amount, memo, err = null, m
   };
 }
 
-function make({ now = () => T0, items = [item()], finalized = true } = {}) {
+function make({ now = () => T0, items = [item()], finalized = true, withLedger = false } = {}) {
   const db = getTestDb();
+  const commissions = withLedger ? createCommissions({ db, vaultWallet: VAULT, creator: CREATOR, now, log: { warn: () => {} } }) : null;
   const chain = {
     parsed: null,
     getParsedTransaction: async () => chain.parsed,
@@ -36,9 +39,9 @@ function make({ now = () => T0, items = [item()], finalized = true } = {}) {
   };
   const delivered = [];
   const deliver = async ({ mint, toAddress }) => { delivered.push({ mint, toAddress }); return { sig: `SIG-${mint.slice(0, 4)}` }; };
-  const svc = createVaultService({ db, readItems: async () => items, chain, deliver, now,
+  const svc = createVaultService({ db, readItems: async () => items, chain, deliver, now, commissions,
     config: { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 } });
-  return { svc, db, chain, delivered };
+  return { svc, db, chain, delivered, commissions };
 }
 
 const rejectsWith = async (p, code) => { try { await p; assert.fail('expected rejection'); } catch (e) { assert.equal(e.statusCode, code, e.message); } };
@@ -272,5 +275,33 @@ describe('inputs — what is stored and shown is checked first', () => {
     const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
     chain.getSignatureStatuses = async () => { throw new Error('the chain must not be asked'); };
     await rejectsWith(svc.settle({ reservationId: r.reservationId, paymentSignature: '"><img src=x>' }), 400);
+  });
+});
+
+describe('every settled gacha sale is written in the ledger', () => {
+  const cfgL = { vaultWallet: VAULT, usdcMint: USDC, memoProgramId: MEMO, reservationTtlMs: 600_000, strikesToBlock: 3 };
+  test('settle records 5% creator · 2% Onix · 93% treasury once, with the reservation id and the item; the activity row carries the reservation id', async () => {
+    const { svc, chain, commissions } = make({ withLedger: true });
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
+    await svc.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' });
+    assert.equal(commissions.list().length, 1);
+    const [s] = commissions.list();
+    assert.equal(s.source, 'gacha'); assert.equal(s.refId, r.reservationId); assert.equal(s.mint, MINT); assert.equal(s.priceUsd, 20); assert.equal(s.status, 'owed');
+    assert.equal(s.creatorUnits, 1_000_000); assert.equal(s.onixUnits, 400_000); assert.equal(s.treasuryUnits, 18_600_000); assert.equal(s.creatorWallet, CREATOR);
+    const again = await svc.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' });
+    assert.equal(again.alreadySettled, true); assert.equal(commissions.list().length, 1);
+    assert.equal(svc.listActivity()[0].reservationId, r.reservationId);
+  });
+  test("a paid reservation whose delivery failed records nothing until the operator's retry delivers it — then once", async () => {
+    const { svc, chain, db, commissions } = make({ withLedger: true });
+    const r = await svc.reserve({ mint: MINT, integrator: GACHA, winner: WINNER });
+    chain.parsed = parsedPayment({ amount: 20, memo: r.reservationId });
+    const bad = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => { throw new Error('rpc down'); }, now: () => T0, commissions, config: cfgL });
+    await rejectsWith(bad.settle({ reservationId: r.reservationId, paymentSignature: 'PAY' }), 503);
+    assert.equal(commissions.list().length, 0); assert.equal(commissions.encumberedUnits(), 0);
+    const good = createVaultService({ db, readItems: async () => [item()], chain, deliver: async () => ({ sig: 'DELIV' }), now: () => T0, commissions, config: cfgL });
+    assert.equal((await good.retryDelivery({ reservationId: r.reservationId })).status, 'settled');
+    assert.equal(commissions.list().length, 1); assert.equal(commissions.list()[0].status, 'owed');
   });
 });

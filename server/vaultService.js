@@ -46,8 +46,9 @@ function exitPriceUsd(item) {
  * @param {object} deps.chain              getParsedTransaction, getSignatureStatuses, getLatestBlockhash
  * @param {function} deps.deliver          ({ mint, toAddress, reservationId }) => Promise<{ sig }>
  * @param {object} deps.config             vaultWallet, usdcMint, memoProgramId, reservationTtlMs, strikesToBlock
+ * @param {object|null} [deps.commissions] server/commissions.js for this vault: a settled sale is written in its ledger
  */
-function createVaultService({ db, readItems, chain, deliver, now = Date.now, config, isMintBusy = () => false, canSell = async () => ({ ok: true }) }) {
+function createVaultService({ db, readItems, chain, deliver, now = Date.now, config, isMintBusy = () => false, canSell = async () => ({ ok: true }), commissions = null }) {
   const ttl = config.reservationTtlMs;
   const strikes = config.strikesToBlock ?? 3;
 
@@ -165,7 +166,12 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
       reservationsRepo.transition(db, r.id, 'settling', 'delivery_failed', { at: now(), set: { fail_reason: String(e.message || e) } });
       throw new VaultError(503, `paid, but delivery failed and is pending: ${e.message}`);
     }
-    reservationsRepo.transition(db, r.id, 'settling', 'settled', { at: now(), set: { delivery_sig: out.sig, fail_reason: null } });
+    // settled and, in the SAME transaction, the sale in the ledger (the creator's 5% and Onix's 2% are paid by the custody's next fee claim)
+    const t = now();
+    db.transaction(() => {
+      const done = reservationsRepo.transition(db, r.id, 'settling', 'settled', { at: t, set: { delivery_sig: out.sig, fail_reason: null } });
+      if (done && commissions) commissions.recordSale({ source: 'gacha', refId: r.id, mint: r.mint, priceUsd: r.exit_price_usd, at: t });
+    })();
     return _reservationView(reservationsRepo.get(db, r.id));
   }
 
@@ -191,7 +197,7 @@ function createVaultService({ db, readItems, chain, deliver, now = Date.now, con
   /** The doors that fired through the API, newest first: gacha sales (settled), each with its signatures. */
   function listActivity({ limit = 50 } = {}) {
     return reservationsRepo.listSettled(db, limit, config.vaultWallet).map((r) => ({
-      type: 'gacha', at: r.updated_at, mint: r.mint, to: r.winner, integrator: r.integrator, priceUsd: r.exit_price_usd,
+      type: 'gacha', at: r.updated_at, reservationId: r.id, mint: r.mint, to: r.winner, integrator: r.integrator, priceUsd: r.exit_price_usd,
       paymentSignature: r.payment_sig, deliverySignature: r.delivery_sig,
     })).sort((a, b) => b.at - a.at).slice(0, limit);
   }

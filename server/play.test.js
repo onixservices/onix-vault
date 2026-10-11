@@ -4,11 +4,13 @@ const { Keypair, Transaction } = require('@solana/web3.js');
 const { getTestDb } = require('./db');
 const { createPlay, PLAY } = require('./play');
 const { sha256Hex, draw, serverSeedFor } = require('./draw');
+const { createCommissions } = require('./commissions');
 
 // The Play door: pay (USDC to custody, or burn the vault token), a provably-fair draw from a band,
 // delivery from custody. Prices in share of backing, never at the market price.
 const CUSTODY = Keypair.generate().publicKey.toBase58();
 const PLAYER = Keypair.generate().publicKey.toBase58();
+const CREATOR = Keypair.generate().publicKey.toBase58();
 const MINT = Keypair.generate().publicKey.toBase58();
 const USDC = Keypair.generate().publicKey.toBase58();
 const MEMO = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
@@ -17,9 +19,10 @@ const item = (mint, v) => ({ mint, name: 'Card ' + mint, custodianValueUsd: v, i
 const DRAW_KEY = Buffer.alloc(32, 7);
 const seedOf = (playId) => serverSeedFor({ drawKey: DRAW_KEY, vault: CUSTODY, playId });
 
-function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 100)], supply = 10_000_000, realisable = 154.86, poolLive = true, migrated = true, seedFor = seedOf } = {}) {
+function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 100)], supply = 10_000_000, realisable = 154.86, poolLive = true, migrated = true, seedFor = seedOf, withLedger = false } = {}) {
   const db = getTestDb();
   const delivered = [];
+  const commissions = withLedger ? createCommissions({ db, vaultWallet: CUSTODY, creator: CREATOR, now: () => 1_800_000_000_000, log: { warn: () => {} } }) : null;
   const chain = {
     getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
     simulateTransaction: async () => chain.sim || { err: null, logs: [] }, sim: null,
@@ -29,11 +32,11 @@ function make({ items = [item('a', 20), item('b', 24), item('c', 30), item('d', 
   const play = createPlay({
     db, chain, vaultWallet: CUSTODY, baseMint: MINT, readItems: async () => items, readStats: async () => ({ backing: { realisableUsd: realisable }, poolStatus: poolLive ? (migrated ? 'migrated' : 'live') : 'not launched', pool: poolLive ? { supply, isMigrated: migrated } : null }),
     deliver: async ({ mint, toAddress, onSigned }) => { if (chain.deliverFails) throw new Error('delivery would fail on chain'); onSigned('SIGNED'); delivered.push({ mint, toAddress }); return { sig: 'DELIV' + delivered.length }; },
-    usdcMint: USDC, memoProgramId: MEMO, now: () => 1_800_000_000_000, seedFor,
+    usdcMint: USDC, memoProgramId: MEMO, now: () => 1_800_000_000_000, seedFor, commissions,
   });
   const usdcPaid = ({ memo, amount, signer = PLAYER }) => ({ meta: { err: null, preTokenBalances: [{ accountIndex: 2, owner: CUSTODY, mint: USDC, uiTokenAmount: { uiAmount: 0 } }], postTokenBalances: [{ accountIndex: 2, owner: CUSTODY, mint: USDC, uiTokenAmount: { uiAmount: amount } }] }, transaction: { message: { accountKeys: [{ pubkey: signer, signer: true }], instructions: [{ program: 'spl-memo', parsed: memo }] } } });
   const burned = ({ memo, amount, signer = PLAYER, mint = MINT }) => ({ meta: { err: null, preTokenBalances: [{ accountIndex: 1, owner: PLAYER, mint: MINT, uiTokenAmount: { amount: String(amount * 2) } }], postTokenBalances: [{ accountIndex: 1, owner: PLAYER, mint: MINT, uiTokenAmount: { amount: String(amount) } }] }, transaction: { message: { accountKeys: [{ pubkey: signer, signer: true }], instructions: [{ program: 'spl-token', parsed: { type: 'burnChecked', info: { mint, authority: PLAYER, tokenAmount: { amount: String(amount) } } } }, { program: 'spl-memo', parsed: memo }] } } });
-  return { play, db, chain, delivered, usdcPaid, burned };
+  return { play, db, chain, delivered, usdcPaid, burned, commissions };
 }
 const rejects = async (p, code) => { try { await p; assert.fail('expected rejection'); } catch (e) { assert.equal(e.statusCode, code, e.message); } };
 
@@ -240,5 +243,37 @@ describe('play — one payment, one delivery, even when sweeps overlap', () => {
     w.chain.statuses.PAYW = { confirmationStatus: 'finalized' }; w.chain.parsed.PAYW = w.usdcPaid({ memo: s.memo, amount: s.price });
     await Promise.all([w.play.sweep(), second.sweep()]);
     assert.equal(w.delivered.length, 1, 'one payment, one item');
+  });
+});
+
+describe('play — every USDC sale is written in the ledger, with the delivery', () => {
+  test('a delivered USDC play records 5% creator · 2% Onix · 93% treasury once; a token play and a failed delivery record nothing', async () => {
+    const w = make({ withLedger: true });
+    const s = await w.play.start({ band: 'b1', player: PLAYER, currency: 'usdc', clientSeed: 'l' });
+    w.play.submit({ playId: s.playId, signature: 'PAYL' });
+    w.chain.statuses.PAYL = { confirmationStatus: 'finalized' }; w.chain.parsed.PAYL = w.usdcPaid({ memo: s.memo, amount: 25.3 });
+    assert.equal((await w.play.sweep()).delivered, 1);
+    const p = w.play.get(s.playId);
+    const sales = w.commissions.list();
+    assert.equal(sales.length, 1);
+    assert.equal(sales[0].source, 'play'); assert.equal(sales[0].refId, s.playId); assert.equal(sales[0].mint, p.mint); assert.equal(sales[0].priceUsd, 25.3); assert.equal(sales[0].status, 'owed');
+    assert.equal(sales[0].creatorUnits, 1_265_000); assert.equal(sales[0].onixUnits, 506_000); assert.equal(sales[0].treasuryUnits, 23_529_000); assert.equal(sales[0].creatorWallet, CREATOR);
+    await w.play.sweep();
+    assert.equal(w.commissions.list().length, 1, 'a second sweep writes nothing more');
+    // a token play: the burn already paid everyone
+    const t = await w.play.start({ band: 'b1', player: PLAYER, currency: 'token', clientSeed: 't' });
+    w.play.submit({ playId: t.playId, signature: 'BURNL' });
+    w.chain.statuses.BURNL = { confirmationStatus: 'finalized' }; w.chain.parsed.BURNL = w.burned({ memo: t.memo, amount: t.price * 1e6 });
+    assert.equal((await w.play.sweep()).delivered, 1);
+    assert.equal(w.commissions.list().length, 1);
+    // a delivery that fails: the payment stays on the play, no sale is written, nothing is owed for it
+    const f = await w.play.start({ band: 'b2', player: PLAYER, currency: 'usdc', clientSeed: 'f' });
+    w.play.submit({ playId: f.playId, signature: 'PAYF' });
+    w.chain.statuses.PAYF = { confirmationStatus: 'finalized' }; w.chain.parsed.PAYF = w.usdcPaid({ memo: f.memo, amount: f.price });
+    w.chain.deliverFails = true;
+    assert.equal((await w.play.sweep()).failed, 1);
+    assert.equal(w.play.get(f.playId).status, 'delivery_failed');
+    assert.equal(w.commissions.list().length, 1);
+    assert.equal(w.commissions.encumberedUnits(), 1_265_000 + 506_000);
   });
 });
