@@ -160,16 +160,43 @@ const SCHEMA = `
     vault TEXT NOT NULL,
     curve_units INTEGER NOT NULL,
     pool_units INTEGER NOT NULL,
-    onix_units INTEGER NOT NULL,
-    treasury_units INTEGER NOT NULL,
+    onix_units INTEGER NOT NULL,       -- everything sent to Onix in this tx: its third of the curve fee + its 2% of the sales
+    treasury_units INTEGER NOT NULL,   -- the custody's net USDC move (fees claimed − the two sale legs; can be negative)
     tx_b64 TEXT NOT NULL,
     sig TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL,              -- sent | landed | failed
     fail_reason TEXT,
+    creator_units INTEGER NOT NULL DEFAULT 0,      -- the creator's 5% of the sales paid in this tx (server/commissions.js)
+    sales_onix_units INTEGER NOT NULL DEFAULT 0,   -- Onix's 2% of those sales (part of onix_units)
+    creator_wallet TEXT,                           -- where the creator's leg went
+    sales_count INTEGER NOT NULL DEFAULT 0,
+    sol_spent_lamports INTEGER,                    -- measured in simulation: the fee and, at most, the creator's token account rent
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_fee_claims_vault_status ON vault_fee_claims (vault, status);
+
+  -- every card a vault sells (server/commissions.js): one row per USDC sale, written when the item is delivered;
+  -- the creator's 5% and Onix's 2% are paid by the custody in its next fee claim (payout_id → vault_fee_claims.id)
+  CREATE TABLE IF NOT EXISTS vault_sales (
+    id TEXT PRIMARY KEY,
+    vault TEXT NOT NULL,
+    source TEXT NOT NULL,              -- play | gacha
+    ref_id TEXT NOT NULL,              -- vault_plays.id | vault_reservations.id
+    mint TEXT,
+    price_units INTEGER NOT NULL,      -- micro-USDC the buyer paid to custody
+    creator_units INTEGER NOT NULL,
+    onix_units INTEGER NOT NULL,
+    treasury_units INTEGER NOT NULL,
+    creator_wallet TEXT,               -- the creator registered when the sale was made (the only address a leg may go to)
+    creator_waived TEXT,               -- no_creator | creator_is_custody | creator_invalid: the 5% stayed in the treasury
+    status TEXT NOT NULL,              -- pre_rule | owed | paying | paid
+    payout_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (source, ref_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_sales_vault_status ON vault_sales (vault, status);
 
   -- the vault graduating itself (server/graduation.js): one row per vault; the steps' signatures as they land
   CREATE TABLE IF NOT EXISTS vault_graduations (
@@ -215,15 +242,44 @@ function migrate(db) {
   for (const [name, type] of [['creator', 'TEXT'], ['custody_index', 'INTEGER'], ['rules_json', 'TEXT'], ['grad_mult', 'REAL'], ['creator_fee_pct', 'INTEGER'], ['description', 'TEXT'], ['image', 'TEXT'], ['banner', 'TEXT'], ['links_json', 'TEXT']]) {
     if (!vcols.includes(name)) db.exec(`ALTER TABLE vaults ADD COLUMN ${name} ${type}`);
   }
+  // fee claims from before the sale commission (11 Oct 2026) lack the payout columns
+  const fcols = db.prepare('PRAGMA table_info(vault_fee_claims)').all().map((c) => c.name);
+  for (const [name, type] of [['creator_units', 'INTEGER NOT NULL DEFAULT 0'], ['sales_onix_units', 'INTEGER NOT NULL DEFAULT 0'], ['creator_wallet', 'TEXT'], ['sales_count', 'INTEGER NOT NULL DEFAULT 0'], ['sol_spent_lamports', 'INTEGER']]) {
+    if (!fcols.includes(name)) db.exec(`ALTER TABLE vault_fee_claims ADD COLUMN ${name} ${type}`);
+  }
+}
+
+/**
+ * The sales ledger arriving on a database that already sold: every USDC sale made before the rule is marked
+ * `pre_rule` ONCE — the first time the server boots with the table — and owes nothing. Only sales delivered
+ * after that are owed. A paid play that is still on its way out (drawn, delivering, delivery failed) was sold
+ * before the rule too.
+ */
+function backfillSales(db, now) {
+  const units = (col) => `CAST(ROUND(${col} * 1000000) AS INTEGER)`;
+  const plays = db.prepare(`INSERT OR IGNORE INTO vault_sales (id, vault, source, ref_id, mint, price_units, creator_units, onix_units, treasury_units, creator_wallet, creator_waived, status, payout_id, created_at, updated_at)
+    SELECT 'pre:' || id, vault, 'play', id, mint, ${units('price_usdc')}, 0, 0, ${units('price_usdc')}, NULL, NULL, 'pre_rule', NULL, updated_at, ?
+    FROM vault_plays WHERE currency = 'usdc' AND price_usdc IS NOT NULL AND status IN ('drawn', 'delivering', 'delivered', 'delivery_failed')`).run(now).changes;
+  const gacha = db.prepare(`INSERT OR IGNORE INTO vault_sales (id, vault, source, ref_id, mint, price_units, creator_units, onix_units, treasury_units, creator_wallet, creator_waived, status, payout_id, created_at, updated_at)
+    SELECT 'pre:' || id, vault, 'gacha', id, mint, ${units('exit_price_usd')}, 0, 0, ${units('exit_price_usd')}, NULL, NULL, 'pre_rule', NULL, updated_at, ?
+    FROM vault_reservations WHERE vault IS NOT NULL AND status IN ('settling', 'settled', 'delivery_failed')`).run(now).changes;
+  return plays + gacha;
+}
+
+/** Schema, migrations, and the one-time backfill of the sales ledger. Exported for the tests. */
+function setup(db, { log = console, now = Date.now } = {}) {
+  const hadSales = Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'vault_sales'").get());
+  db.exec(SCHEMA);
+  migrate(db);
+  if (!hadSales) { const n = backfillSales(db, now()); log.log(`[db] vault_sales: ${n} pre_rule sale(s) marked (they owe nothing)`); }
+  return db;
 }
 
 function open(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new Database(file);
   db.pragma('journal_mode = WAL');
-  db.exec(SCHEMA);
-  migrate(db);
-  return db;
+  return setup(db);
 }
 
 let _db = null;
@@ -233,4 +289,4 @@ function getDb() {
 }
 const getTestDb = () => open(':memory:');
 
-module.exports = { open, getDb, getTestDb };
+module.exports = { open, setup, getDb, getTestDb };
