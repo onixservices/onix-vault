@@ -190,6 +190,7 @@
     $('w-connect').textContent = a ? short(a) : 'Connect wallet';
     $('w-connect').classList.toggle('on', !!a);
     if (a) { $('sd-addr').value = a; }
+    $('c-nowallet').style.display = a ? 'none' : '';
     if ($('s-create').classList.contains('on')) { if (a) { scan(a); checkResume(); } else { CQ = null; $('c-summary').textContent = 'Connect your wallet to see your cards.'; renderPick(); } }
     if (STATS) tradePanel(STATS);
     loadBalances();
@@ -197,7 +198,7 @@
   }
   function connectWallet(opts) {
     var w = provider();
-    if (!w || !w.connect) { if (!opts || !opts.silent) alert('No Solana wallet found in this browser.'); return Promise.reject(new Error('no wallet')); }
+    if (!w || !w.connect) { if (!opts || (!opts.silent && !opts.quiet)) alert('No Solana wallet found in this browser.'); return Promise.reject(new Error('no wallet')); }
     return w.connect(opts && opts.silent ? { onlyIfTrusted: true } : undefined)
       .then(function (r) { setWallet((r && r.publicKey ? r.publicKey : w.publicKey).toString()); return W.addr; });
   }
@@ -498,6 +499,10 @@
     return true;
   }
   $('pick').addEventListener('click', function (e) { var b = e.target.closest('button.pk'); if (!b) return; CSEL[b.dataset.mint] = !CSEL[b.dataset.mint]; renderPick(); });
+  $('c-connect').addEventListener('click', function () {
+    $('c-summary').textContent = 'Opening your wallet\u2026';
+    connectWallet({ quiet: true }).catch(function (e) { $('c-summary').textContent = e.message === 'no wallet' ? 'No Solana wallet found in this browser. Install Phantom, then come back to this page.' : 'The wallet did not connect. Try again when you are ready.'; });
+  });
   ['f-cat', 'f-minv', 'f-grade'].forEach(function (id) { $(id).addEventListener('change', function () { if (W.addr) scan(W.addr); }); });
   $('f-grad').addEventListener('change', renderPick);
   $('f-fee').addEventListener('change', renderFeeShare); renderFeeShare();
