@@ -190,7 +190,6 @@
     $('w-connect').textContent = a ? short(a) : 'Connect wallet';
     $('w-connect').classList.toggle('on', !!a);
     if (a) { $('sd-addr').value = a; }
-    $('c-nowallet').style.display = a ? 'none' : '';
     if ($('s-create').classList.contains('on')) { if (a) { scan(a); checkResume(); } else { CQ = null; $('c-summary').textContent = 'Connect your wallet to see your cards.'; renderPick(); } }
     if (STATS) tradePanel(STATS);
     loadBalances();
@@ -472,7 +471,14 @@
     var real = Math.round(idx * 0.89 * 100) / 100, gm = Number($('f-grad').value) || 2.5;
     CQ_PICK = { n: n, indexUsd: idx, realisableUsd: real, openingMcapUsd: Math.round(real * 2 * 100) / 100, graduationUsd: Math.round(real * 2 * gm * 100) / 100 };
     if (q) { $('c-sel').textContent = n; $('c-idx').textContent = usd(idx); $('c-real').textContent = usd(real); $('c-get').textContent = usd(real); }
-    $('to2').disabled = !(q && n > 0 && real >= 5);
+    nextButton();
+  }
+  // the step's one button knows the wallet state: connect → reading → next (or try again after a failed read)
+  function nextButton() {
+    var b = $('to2');
+    if (!W.addr) { b.textContent = 'Connect wallet'; b.disabled = false; return; }
+    if (!CQ) { b.textContent = 'Reading your cards\u2026'; b.disabled = true; return; }
+    b.textContent = 'Next: name your token'; b.disabled = !(CQ_PICK.n > 0 && CQ_PICK.realisableUsd >= 5);
   }
   function scan(addr) {
     $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…'; CQ = null; renderPick();
@@ -480,7 +486,7 @@
       CQ = q; CSEL = {}; q.items.forEach(function (c) { CSEL[c.mint] = true; });
       $('c-summary').textContent = q.canCreate ? q.items.length + ' item' + (q.items.length === 1 ? '' : 's') + ' in ' + short(addr) + ' can back a vault' : 'Nothing in ' + short(addr) + ' can back a vault yet — ' + q.why;
       renderPick();
-    }).catch(function (e) { $('c-summary').textContent = 'Could not read that wallet: ' + e.message; });
+    }).catch(function (e) { $('c-summary').textContent = 'Could not read that wallet: ' + e.message; $('to2').textContent = 'Try again'; $('to2').disabled = false; });
   }
   function step(n) {
     [1, 2, 3].forEach(function (k) { $('c' + k).style.display = k === n ? '' : 'none'; var s = $('st' + k); s.className = 'step' + (k === n ? ' on' : k < n ? ' done' : ''); });
@@ -499,14 +505,18 @@
     return true;
   }
   $('pick').addEventListener('click', function (e) { var b = e.target.closest('button.pk'); if (!b) return; CSEL[b.dataset.mint] = !CSEL[b.dataset.mint]; renderPick(); });
-  $('c-connect').addEventListener('click', function () {
-    $('c-summary').textContent = 'Opening your wallet\u2026';
-    connectWallet({ quiet: true }).catch(function (e) { $('c-summary').textContent = e.message === 'no wallet' ? 'No Solana wallet found in this browser. Install Phantom, then come back to this page.' : 'The wallet did not connect. Try again when you are ready.'; });
-  });
   ['f-cat', 'f-minv', 'f-grade'].forEach(function (id) { $(id).addEventListener('change', function () { if (W.addr) scan(W.addr); }); });
   $('f-grad').addEventListener('change', renderPick);
   $('f-fee').addEventListener('change', renderFeeShare); renderFeeShare();
-  $('to2').addEventListener('click', function () { if (CQ && CQ_PICK.n > 0) step(2); });
+  $('to2').addEventListener('click', function () {
+    if (!W.addr) {
+      $('c-summary').textContent = 'Opening your wallet\u2026';
+      connectWallet({ quiet: true }).catch(function (e) { $('c-summary').textContent = e.message === 'no wallet' ? 'No Solana wallet found in this browser. Install Phantom, then come back to this page.' : 'The wallet did not connect. Try again when you are ready.'; });
+      return;
+    }
+    if (!CQ) { scan(W.addr); return; }
+    if (CQ_PICK.n > 0) step(2);
+  });
   $('to3').addEventListener('click', function () { if (review()) step(3); });
   $('back1').addEventListener('click', function () { step(1); });
   $('back2').addEventListener('click', function () { step(2); });
@@ -719,7 +729,7 @@
     else if ((m = h.match(/^#\/vault\/([^\/]+)\/send$/))) { id = 'send'; selectVault(m[1]); $('sd-crumb-vault').textContent = META.name; $('sd-crumb-vault').href = vpath(); $('sd-back').href = vpath(); $('sd-sym').textContent = SYM(); if (META.rules) $('sd-rules').textContent = (META.name || 'This vault') + ' takes ' + META.rules.category.replace('-', ' ') + ' from ' + META.rules.custodians.join(', '); SD.items = { eligible: [], ineligible: [] }; SD.pick = null; sdRender(); }
     else if ((m = h.match(/^#\/vault\/([^\/]+)(?:\/(trade|play|items|activity|proof))?$/))) { id = 'vault'; selectVault(m[1]); renderVault(); showTab(m[2] || 'items'); }
     else if ((m = h.match(/^#\/item\/(.+)$/))) { id = 'item'; renderItem(m[1]); }
-    else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); if (W.addr) { scan(W.addr); checkResume(); } }
+    else if (h.indexOf('#/create') === 0) { id = 'create'; step(1); if (W.addr) { scan(W.addr); checkResume(); } else renderPick(); }
     else if (h.indexOf('#/integrate') === 0) id = 'integrate';
     else if (h.indexOf('#/how') === 0) id = 'how';
     else if (h.indexOf('#/why') === 0) id = 'why';
