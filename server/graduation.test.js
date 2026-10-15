@@ -77,6 +77,8 @@ describe('graduation — execute', () => {
     const { g, state, signersOf } = make();
     const r = await g.execute({ go: true });
     assert.deepEqual(state.sent.map((s) => s.step), ['locker', 'migrate', 'fee', 'leftover']);
+    const { Transaction: Tx } = require('@solana/web3.js');
+    for (const s of state.sent) assert.equal(Tx.from(Buffer.from(s.b64, 'base64')).instructions[0].programId.toBase58(), 'ComputeBudget111111111111111111111111111111', s.step + ': a priority fee rides first, so a congested chain does not drop the step');
     assert.deepEqual(state.simulated, ['locker', 'migrate', 'fee', 'leftover']);
     const [locker, migrate, fee, leftover] = state.sent.map((s) => signersOf(s.b64));
     assert.deepEqual(locker.map((s) => s.key), [payerKp.publicKey.toBase58()]); assert.ok(locker.every((s) => s.signed));

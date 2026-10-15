@@ -26,7 +26,7 @@
  */
 'use strict';
 const crypto = require('crypto');
-const { PublicKey, Keypair, Transaction, SystemProgram, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+const { PublicKey, Keypair, Transaction, SystemProgram, LAMPORTS_PER_SOL, ComputeBudgetProgram } = require('@solana/web3.js');
 const { parseCard, REALISABLE_MULTIPLIER } = require('../src/reader/backing');
 const { paramsFor, DECIDED } = require('../src/curve/params');
 const { validateRules, itemPassesRules } = require('./rules');
@@ -66,6 +66,9 @@ const LIMITS = Object.freeze({
   creationTtlMs: 2 * 60 * 60 * 1000,
   // a launch transaction's blockhash lives ~60–90 s; past this, a launch with no pool on chain can no longer land
   launchExpiryMs: 5 * 60_000,
+  // the compute-unit price on the transactions Onix signs (the config): ~0.00002 SOL for 200k CU, so a congested chain
+  // does not drop them (15 Oct 2026: a config sent without it expired unconfirmed and a creator's launch stopped)
+  priorityMicroLamports: 100_000,
   maxOpenPerHour: 10,           // global: every launch costs Onix the config rent
   // symbols nobody may take: money, the chain, the big names a buyer could be fooled by
   reservedSymbols: Object.freeze(['USDC', 'USDT', 'SOL', 'WSOL', 'JUP', 'MET', 'BONK', 'VEONIX', 'ONIX', 'CARDS', 'BTC', 'ETH']),
@@ -237,6 +240,16 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
   }
   const LAUNCH_HELD = { live: 'the token is live — its items back it and stay in custody', 'in flight': 'a launch is in flight — the items stay until it lands or can no longer land' };
 
+  const CONFIG_IN_FLIGHT = "Onix's curve setup is on the chain but not confirmed yet — your items and gas are safe in the vault's custody; this retries by itself, and the Continue button on Create picks it up later";
+  /** An attempt on record but never seen confirmed: 'live' (landed) · 'in flight' (may still land) · 'dead' (rejected, or its blockhash can no longer land). */
+  async function configAttemptState(c) {
+    let st = null;
+    try { [st] = await chain.getSignatureStatuses([c.config_sig]); } catch { return 'in flight'; }
+    if (st && st.err) return 'dead';
+    if (st && (st.confirmationStatus === 'confirmed' || st.confirmationStatus === 'finalized')) return 'live';
+    if (st) return 'in flight';
+    return now() - c.updated_at > limits.launchExpiryMs ? 'dead' : 'in flight';
+  }
   const deposited = ({ creationId }) => exclusive(creationId, () => depositedStep(creationId));
   async function depositedStep(creationId) {
     const c = creation(creationId);
@@ -261,19 +274,31 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
 
     // the config — paid by Onix, once per creation; the custody wallet claims the partner fee and the leftover
     let config = c.config;
+    if (config && c.status === 'opened') {
+      // an attempt is on record but was never seen confirmed: landed → it serves; dead → replaced; in flight → wait
+      const s = await configAttemptState(c);
+      if (s === 'live') db.prepare("UPDATE vault_creations SET status = 'deposited', updated_at = ? WHERE id = ?").run(now(), c.id);
+      else if (s === 'dead') { db.prepare('UPDATE vault_creations SET config = NULL, config_sig = NULL, updated_at = ? WHERE id = ?').run(now(), c.id); config = null; }
+      else throw err(409, CONFIG_IN_FLIGHT);
+    }
     if (!config) {
       const curve = sdk.buildCurveWithMarketCap(params);
       const configKp = Keypair.generate();
       const ctx = await client.partner.createConfig({ ...curve, config: configKp.publicKey, feeClaimer: custodyPk, leftoverReceiver: custodyPk, quoteMint: quotePk, payer: partnerPk });
+      ctx.instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: limits.priorityMicroLamports }));
       ctx.feePayer = partnerPk; ctx.recentBlockhash = await chain.getLatestBlockhash();
       // the program's own checks run here, before Onix pays anything (2 Oct 2026: InvalidTokenSupply cost a launch)
       const csim = await chain.simulateTransaction(ctx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64'));
       if (csim && csim.err) throw err(409, `the curve config would be refused by the program: ${JSON.stringify(csim.err)} · ${(csim.logs || []).filter((l) => /Error Code|log:/.test(l)).slice(-2).join(' | ')}`);
       ctx.partialSign(configKp); partner.signTransaction(ctx);
-      const configSig = await chain.sendRawTransaction(ctx.serialize().toString('base64'));
-      await chain.waitForSignature(configSig);
+      const configSig = bs58.encode(ctx.signature);
       config = configKp.publicKey.toBase58();
-      db.prepare("UPDATE vault_creations SET config = ?, config_sig = ?, status = 'deposited', backing_usd = ?, graduation_usd = ?, updated_at = ? WHERE id = ?").run(config, configSig, b.realisableUsd, view.graduationUsd, now(), c.id);
+      // on record BEFORE the broadcast: a retry after a timeout finds the attempt and pays no second config while this one may still land
+      db.prepare('UPDATE vault_creations SET config = ?, config_sig = ?, backing_usd = ?, graduation_usd = ?, updated_at = ? WHERE id = ?').run(config, configSig, b.realisableUsd, view.graduationUsd, now(), c.id);
+      await chain.sendRawTransaction(ctx.serialize().toString('base64'));
+      try { await chain.waitForSignature(configSig); }
+      catch (e) { if (/not confirmed after/.test(e.message)) throw err(409, CONFIG_IN_FLIGHT); throw e; }
+      db.prepare("UPDATE vault_creations SET status = 'deposited', updated_at = ? WHERE id = ?").run(now(), c.id);
     }
     // the RPC node the SDK reads from may lag the one that confirmed the signature (2 Oct 2026: "Pool config not
     // found for virtual pool" right after a finalized createConfig) — read it back until it is there

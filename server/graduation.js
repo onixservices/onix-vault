@@ -17,13 +17,14 @@
  */
 'use strict';
 const crypto = require('crypto');
-const { PublicKey } = require('@solana/web3.js');
+const { PublicKey, ComputeBudgetProgram } = require('@solana/web3.js');
 
 const GRADUATION = Object.freeze({
   checkMs: 60_000,            // how often the server looks at a live curve
   retryAfterMs: 10 * 60_000,  // a failed run is tried again after this
   maxAttempts: 5,             // then it waits for a human (scripts/graduate.js)
   waitMs: 90_000,             // per transaction, for the confirmation
+  priorityMicroLamports: 100_000,  // compute-unit price on every step, so a congested chain does not drop it (15 Oct 2026)
   quoteDecimals: 6,
 });
 const r2 = (n) => Math.round(n * 100) / 100;
@@ -86,6 +87,7 @@ function createGraduation({ db, chain, vaultWallet, pool, signer, payer, getClie
 
   /** build → simulate → (go) sign → send → wait. A simulation that fails is the step's failure; nothing is signed. */
   async function send(step, tx, signers, { go }) {
+    if (!tx.instructions.some((ix) => ix.programId.equals(ComputeBudgetProgram.programId))) tx.instructions.unshift(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: limits.priorityMicroLamports }));
     tx.recentBlockhash = await chain.getLatestBlockhash();
     const unsigned = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
     const sim = await chain.simulateTransaction(unsigned);

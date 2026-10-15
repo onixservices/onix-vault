@@ -201,6 +201,46 @@ describe('Create door — deposited → config (Onix pays, custody is the fee cl
     await creator.deposited({ creationId: o.creationId });
     assert.equal(calls.filter((c) => c[0] === 'config').length, n, 'the config is paid once');
   });
+  test("Onix's config transaction carries a priority fee, first in line, so a congested chain does not drop it", async () => {
+    const { creator, deposit, sent } = make();
+    const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await deposit(o.depositTransactions);
+    const before = sent.length;
+    await creator.deposited({ creationId: o.creationId });
+    const cfg = Transaction.from(Buffer.from(sent[before], 'base64'));
+    assert.equal(cfg.instructions[0].programId.toBase58(), 'ComputeBudget111111111111111111111111111111', 'the first instruction sets the compute-unit price');
+  });
+  test('a config the chain does not confirm in time: 409 in words, the attempt on record, and no second config while the first may still land', async () => {
+    const { creator, chain, deposit, calls, db } = make();
+    const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await deposit(o.depositTransactions);
+    const realWait = chain.waitForSignature;
+    chain.waitForSignature = async (sig) => { throw new Error(`transaction ${sig} not confirmed after 60s`); };
+    try { await creator.deposited({ creationId: o.creationId }); assert.fail('expected 409'); }
+    catch (e) { assert.equal(e.statusCode, 409, e.message); assert.match(e.message, /custody/); assert.doesNotMatch(e.message, /[{}]/); }
+    const row = db.prepare('SELECT status, config, config_sig FROM vault_creations WHERE id = ?').get(o.creationId);
+    assert.equal(row.status, 'opened'); assert.ok(row.config && row.config_sig, 'the attempt is on record before anyone retries');
+    assert.equal(calls.filter((c) => c[0] === 'config').length, 1);
+    chain.waitForSignature = realWait;
+    await rejects(creator.deposited({ creationId: o.creationId }), 409);   // still in flight: wait, do not pay again
+    assert.equal(calls.filter((c) => c[0] === 'config').length, 1, 'no second config while the first may still land');
+    chain.statuses[row.config_sig] = { confirmationStatus: 'finalized' };   // it landed: the same config serves
+    const d = await creator.deposited({ creationId: o.creationId });
+    assert.equal(d.config, row.config); assert.equal(calls.filter((c) => c[0] === 'config').length, 1);
+  });
+  test('a config attempt that can no longer land is replaced, and only then does Onix pay again', async () => {
+    const w = make(); const { creator, chain, deposit, calls, db } = w;
+    const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });
+    await deposit(o.depositTransactions);
+    const realWait = chain.waitForSignature;
+    chain.waitForSignature = async (sig) => { throw new Error(`transaction ${sig} not confirmed after 60s`); };
+    await rejects(creator.deposited({ creationId: o.creationId }), 409);
+    chain.waitForSignature = realWait;
+    const first = db.prepare('SELECT config FROM vault_creations WHERE id = ?').get(o.creationId).config;
+    w.tick(LIMITS.launchExpiryMs + 1);
+    const d = await creator.deposited({ creationId: o.creationId });
+    assert.notEqual(d.config, first); assert.equal(calls.filter((c) => c[0] === 'config').length, 2, 'a dead attempt is replaced once');
+  });
   test('a config the program would refuse (simulation) → 409 and Onix pays nothing', async () => {
     const { creator, chain, deposit, sent } = make();
     const o = await creator.open({ owner: OWNER, name: 'My Cards', symbol: 'MYC', mints: ['a'] });

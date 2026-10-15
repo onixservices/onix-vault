@@ -825,7 +825,7 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "description": "custody does not hold the items yet / no gas / the program would refuse the config"
+            "description": "custody does not hold the items yet / no gas / the program would refuse the config / Onix's config is on the chain but not confirmed yet (retry: it serves when it lands, is replaced when it can no longer land)"
           },
           "410": {
             "$ref": "#/components/responses/Error"

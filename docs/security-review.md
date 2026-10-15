@@ -1,6 +1,6 @@
 # Security review — Onix.Vault server
 
-**Date:** 4 October 2026, kept current (last: 11 October 2026 — R-20, the history re-run) · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 293 tests, all green (`npm test`)
+**Date:** 4 October 2026, kept current (last: 15 October 2026 — R-21) · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 296 tests, all green (`npm test`)
 
 This is an internal review, written so an external auditor can start from it. Every finding below was read in the code, given a regression test that **fails on the code before the fix and passes after**, then fixed. The fix commit and the test are listed for each finding. Nothing here replaces an external audit; it is what that audit should find already done.
 
@@ -41,6 +41,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 | R-07 | The pre-commit hook (last door before a public repo) did not catch a master seed or 32 bytes of hex. Now it does, and the hook is itself tested against a throwaway repository. | medium | `46a7902` | `precommit.test.js` (3) |
 | R-20 | **Two fee claims could run at once** (the server's round and the operator's script): the second was measured against balances the first was about to change, and its Onix leg would have moved the planned amount from the treasury whatever the claim yielded. Now one claim at a time in-process, and a claim still `sent` holds any other until it is confirmed. The same transaction now carries the sales owed to the creator and Onix (11 Oct 2026): the creator's leg goes only to the registered creator, every leg is measured, the claim and the sales move together. | medium | `e67d2a1` | `feeclaim.test.js` › *one payout at a time* · *only the measured shape of a payout is ever signed* (4) |
 | R-15 | Two operator scripts signed before simulating (relying on the RPC's preflight, which runs after signing); `retry-delivery` acted without `--go`. | low | `afedbfa` | — (scripts) |
+| R-21 | **A transaction Onix signs could expire unconfirmed and surface as a 500.** The curve config and the graduation steps carried no priority fee (only a wallet adds one to the creator's transactions), and a 60 s confirmation wait was treated as unexpected. 15 Oct 2026, on a congested night: a creator's launch stopped at `internal error (ref)`, the items and gas safe in custody, the config never recorded or paid. Now a compute-unit price rides first in the config and in every graduation step; the config attempt is on record before the broadcast; a timeout answers `409` in words, and the next call waits for the attempt, serves it when it lands and replaces it only when it can no longer land — Onix never pays a second config while the first may still land. | medium | 15 Oct 2026 | `creation.test.js` › *a config the chain does not confirm in time*, *a config attempt that can no longer land*; `graduation.test.js` › *priority fee rides first* |
 
 ## Open, with owner
 
@@ -70,7 +71,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 ## How to verify
 
 ```bash
-npm ci && timeout 280 npm test                       # 293 tests
+npm ci && timeout 280 npm test                       # 296 tests
 node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004   # public refusals, against a local server
 touch data/PAUSE                                      # every value route answers 503 within 5 s; rm to resume
 ```

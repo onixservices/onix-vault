@@ -49,7 +49,7 @@ specific item, Play draws by commit-reveal.
 | `400` | malformed input: an address that is not a base58 public key, a signature that is not base58 text, `slippageBps` outside 1–500 | fix the request |
 | `402` | the wallet cannot pay: a play or a trade it cannot fund, or a creator's wallet without the SOL a launch needs (about 0.12) — the message carries the numbers | fund the wallet, then retry |
 | `404` | unknown vault, or a reservation / play that belongs to another vault | use the vault the object was created on |
-| `409` | the state does not allow it yet (payment not finalized, item reserved, launch in flight) — or an `Idempotency-Key` already used by another integrator or vault | **retry later**, or choose another key |
+| `409` | the state does not allow it yet (payment not finalized, item reserved, launch or Onix's curve config in flight) — or an `Idempotency-Key` already used by another integrator or vault | **retry later**, or choose another key |
 | `429` | rate limit for this address on this kind of request | **retry later** |
 | `503` | the operator paused the server or this vault (`GET /v1/health` → `paused`); nothing is lost, payments already made are processed when it lifts | **retry later** — never treat it as a failure |
 | `500` | unexpected; the body carries a `ref` the operator finds in the log, never the error text | retry; report the `ref` if it persists |
