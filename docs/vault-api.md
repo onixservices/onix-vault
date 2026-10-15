@@ -42,11 +42,12 @@ the custody every 15 minutes with the fee claim (contract 1.6.0 — nothing chan
 payment is verified); a burn shrinks the supply. The vault never picks which item leaves: the gacha picks by paying for a
 specific item, Play draws by commit-reveal.
 
-## Status codes an integrator handles (contract 1.6.0)
+## Status codes an integrator handles (contract 1.6.1)
 
 | code | meaning | what to do |
 |---|---|---|
 | `400` | malformed input: an address that is not a base58 public key, a signature that is not base58 text, `slippageBps` outside 1–500 | fix the request |
+| `402` | the wallet cannot pay: a play or a trade it cannot fund, or a creator's wallet without the SOL a launch needs (about 0.12) — the message carries the numbers | fund the wallet, then retry |
 | `404` | unknown vault, or a reservation / play that belongs to another vault | use the vault the object was created on |
 | `409` | the state does not allow it yet (payment not finalized, item reserved, launch in flight) — or an `Idempotency-Key` already used by another integrator or vault | **retry later**, or choose another key |
 | `429` | rate limit for this address on this kind of request | **retry later** |

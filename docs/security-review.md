@@ -1,6 +1,6 @@
 # Security review — Onix.Vault server
 
-**Date:** 4 October 2026, kept current (last: 11 October 2026 — R-20, the history re-run) · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 289 tests, all green (`npm test`)
+**Date:** 4 October 2026, kept current (last: 11 October 2026 — R-20, the history re-run) · **Scope:** this repository (`server/`, `src/reader/`, `web/`, `scripts/`), the server it runs on, and Onix.Cards as the first integrator of the vault API · **Suite:** 293 tests, all green (`npm test`)
 
 This is an internal review, written so an external auditor can start from it. Every finding below was read in the code, given a regression test that **fails on the code before the fix and passes after**, then fixed. The fix commit and the test are listed for each finding. Nothing here replaces an external audit; it is what that audit should find already done.
 
@@ -70,7 +70,7 @@ Severity is the impact if exploited, before the fix. Every finding is closed exc
 ## How to verify
 
 ```bash
-npm ci && timeout 280 npm test                       # 289 tests
+npm ci && timeout 280 npm test                       # 293 tests
 node scripts/abuse-rehearsal.js --base http://127.0.0.1:3004   # public refusals, against a local server
 touch data/PAUSE                                      # every value route answers 503 within 5 s; rm to resume
 ```

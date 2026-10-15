@@ -480,10 +480,17 @@
     if (!CQ) { b.textContent = 'Reading your cards\u2026'; b.disabled = true; return; }
     b.textContent = 'Next: name your token'; b.disabled = !(CQ_PICK.n > 0 && CQ_PICK.realisableUsd >= 5);
   }
+  // the SOL a launch needs, against what the wallet holds: green when it is there, the warning colour when it is not; no launch while short
+  function solLine(q) {
+    var s = q && q.sol, ok = !!(s && !s.short), t = '';
+    if (s) t = ok ? 'Gas: ' + s.have.toFixed(3) + ' SOL in this wallet \u00b7 a launch needs about ' + s.need + ' SOL \u2713' : 'This wallet holds ' + s.have.toFixed(3) + ' SOL; a launch needs about ' + s.need + ' SOL (' + (q.gasSol || 0.08) + ' goes to the vault as gas, the rest pays the deposits and the launch). Send SOL to it before launching.';
+    ['c-sol', 'c3-sol'].forEach(function (id) { $(id).textContent = t; $(id).style.color = ok ? 'var(--brand)' : 'var(--warn)'; });
+    $('c-launch').disabled = !!(s && s.short);
+  }
   function scan(addr) {
-    $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…'; CQ = null; renderPick();
+    $('c-summary').textContent = 'Reading ' + short(addr) + ' from the chain…'; CQ = null; solLine(null); renderPick();
     get('/v1/vaults/create/quote?wallet=' + encodeURIComponent(addr) + '&rules=' + encodeURIComponent(JSON.stringify(rulesFromForm()))).then(function (q) {
-      CQ = q; CSEL = {}; q.items.forEach(function (c) { CSEL[c.mint] = true; });
+      CQ = q; solLine(q); CSEL = {}; q.items.forEach(function (c) { CSEL[c.mint] = true; });
       $('c-summary').textContent = q.canCreate ? q.items.length + ' item' + (q.items.length === 1 ? '' : 's') + ' in ' + short(addr) + ' can back a vault' : 'Nothing in ' + short(addr) + ' can back a vault yet — ' + q.why;
       renderPick();
     }).catch(function (e) { $('c-summary').textContent = 'Could not read that wallet: ' + e.message; $('to2').textContent = 'Try again'; $('to2').disabled = false; });
@@ -598,6 +605,7 @@
   wireUpload('image'); wireUpload('banner');
   $('c-launch').addEventListener('click', function () {
     if (CR.busy || !CQ || !W.addr) return;
+    if (CQ.sol && CQ.sol.short) { cmsg('This wallet holds ' + CQ.sol.have.toFixed(3) + ' SOL; a launch needs about ' + CQ.sol.need + ' SOL. Send SOL to it, then come back.'); return; }
     var w = provider(); if (!w) { cmsg('No Solana wallet found in this browser.'); return; }
     var name = $('f-name').value.trim(), sym = $('f-sym').value.trim().toUpperCase();
     var body = { owner: W.addr, name: name, symbol: sym, mints: Object.keys(CSEL).filter(function (m) { return CSEL[m]; }), rules: rulesFromForm(), description: $('f-desc').value.trim() || null, links: $('f-x').value.trim() ? { x: $('f-x').value.trim() } : {}, imageId: UP.image || null, bannerId: UP.banner || null };

@@ -48,7 +48,7 @@ describe('creator + mint assertion', () => {
 function make({ assets = [asset('a'), asset('b', '60')], poolOnChain = true, lamports = null, uploads = null } = {}) {
   const db = getTestDb();
   const sent = [], calls = [];
-  const world = { assets: assets.map((a) => ({ ...a })), sol: {} };
+  const world = { assets: assets.map((a) => ({ ...a })), sol: { [OWNER]: 200_000_000 } };   // the creator holds 0.2 SOL unless a test says otherwise
   const chain = {
     getLatestBlockhash: async () => Keypair.generate().publicKey.toBase58(),
     sendRawTransaction: async (b64) => {
@@ -97,6 +97,7 @@ describe('Create door — quote', () => {
     const q = await creator.quote({ owner: OWNER });
     assert.equal(q.items.length, 2); assert.equal(q.indexUsd, 100); assert.equal(q.realisableUsd, 89);
     assert.equal(q.canCreate, true); assert.equal(q.curve.openingMcapUsd, 178); assert.equal(q.creatorTokensWorthUsd, 89); assert.equal(q.gasSol, LIMITS.gasSol);
+    assert.deepEqual(q.sol, { have: 0.2, need: LIMITS.minOwnerSol, short: false }, 'the quote says what the wallet holds against what a launch needs');
     const q2 = await creator.quote({ owner: OWNER, rules: { minValueUsd: 50 } });
     assert.equal(q2.items.length, 1); assert.equal(q2.ineligible.length, 1);
     await rejects(creator.quote({ owner: OWNER, rules: { category: 'wine' } }), 422);
@@ -106,6 +107,13 @@ describe('Create door — quote', () => {
     const q = await creator.quote({ owner: OWNER });
     assert.deepEqual(q.ineligible.map((x) => [x.mint, x.custodian, x.imageUrl, x.reason]), [['spam', null, null, 'unknown custodian']]);
     assert.equal(q.items[0].imageUrl, 'https://x/a.jpg');
+  });
+  test('a wallet short of SOL learns it in the quote, before it picks a single card', async () => {
+    const { creator, world } = make();
+    world.sol[OWNER] = 17_670_667;
+    const q = await creator.quote({ owner: OWNER });
+    assert.deepEqual(q.sol, { have: 0.018, need: LIMITS.minOwnerSol, short: true });
+    assert.equal(q.canCreate, true, 'the cards are fine; only the gas is missing');
   });
   test('an empty wallet cannot create, and says why', async () => {
     const { creator } = make({ assets: [] });
@@ -127,6 +135,18 @@ describe('Create door — open (custody allocated, deposits built; Onix spends n
     assert.equal(sent.length, 0, 'nothing of ours was sent');
     const row = db.prepare('SELECT * FROM vault_creations WHERE id = ?').get(o.creationId);
     assert.equal(row.status, 'opened'); assert.equal(row.custody_index, 1); assert.deepEqual(JSON.parse(row.mints_json), ['a', 'b']); assert.equal(JSON.parse(row.rules_json).category, 'pokemon');
+  });
+  test('a creator wallet without the SOL for the gas → 402 in words, with the numbers, before any deposit is built', async () => {
+    const { creator, world } = make();
+    world.sol[OWNER] = 17_670_667;   // 0.0177 SOL — what a creator's wallet held on 15 Oct 2026 when the page answered with raw JSON
+    try { await creator.open({ owner: OWNER, name: 'Grand Line', symbol: 'GLN', mints: ['a'] }); assert.fail('expected 402'); }
+    catch (e) { assert.equal(e.statusCode, 402, e.message); assert.match(e.message, /0\.018 SOL/); assert.match(e.message, /0\.12 SOL/); assert.doesNotMatch(e.message, /[{}]/); }
+  });
+  test('a deposit the chain refuses without a program log is explained in words, never as raw JSON', async () => {
+    const { creator, chain } = make();
+    chain.sim = { err: { InstructionError: [0, { Custom: 1 }] }, logs: [] };
+    try { await creator.open({ owner: OWNER, name: 'Grand Line', symbol: 'GLN', mints: ['a'] }); assert.fail('expected 409'); }
+    catch (e) { assert.equal(e.statusCode, 409, e.message); assert.match(e.message, /gas transfer/); assert.doesNotMatch(e.message, /[{}]/); }
   });
   test('packs many items into several transactions under 1232 bytes', async () => {
     const many = Array.from({ length: 12 }, (_, i) => asset('m' + i));
@@ -151,7 +171,8 @@ describe('Create door — open (custody allocated, deposits built; Onix spends n
   });
   test('a global cap on creations per hour (every launch costs Onix the config rent)', async () => {
     const many = Array.from({ length: 12 }, (_, i) => asset('m' + i, '40', Keypair.generate().publicKey.toBase58()));
-    const { creator } = make({ assets: many });
+    const { creator, world } = make({ assets: many });
+    for (const a of many) world.sol[a.ownership.owner] = 200_000_000;   // each creator holds the SOL a launch needs
     for (let i = 0; i < LIMITS.maxOpenPerHour; i++) await creator.open({ owner: many[i].ownership.owner, name: 'v' + i, symbol: 'V' + i, mints: [many[i].id] });
     await rejects(creator.open({ owner: many[10].ownership.owner, name: 'v10', symbol: 'V10', mints: [many[10].id] }), 429);
   });

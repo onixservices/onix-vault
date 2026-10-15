@@ -34,6 +34,20 @@ const { checkSingleSignerUnsigned } = require('./txAssertions');
 const { shownImageUrl } = require('./inputs');
 
 function err(code, msg) { const e = new Error(msg); e.statusCode = code; return e; }
+
+/** A refused deposit, in words: the program's own log when there is one; otherwise which instruction and what it was. Never raw JSON. */
+function explainDepositFailure(sim, tx) {
+  const logs = (sim.logs || []).filter((l) => /log:/.test(l)).slice(-2);
+  if (logs.length) return `a deposit would fail on chain: ${logs.join(' | ')}`;
+  const ie = sim.err && sim.err.InstructionError;
+  if (Array.isArray(ie)) {
+    const [i, detail] = ie; const ix = tx.instructions[i];
+    const code = detail && typeof detail === 'object' ? Object.entries(detail).map(([k, v]) => `${k} ${v}`).join(' ') : String(detail);
+    if (ix && ix.programId.equals(SystemProgram.programId)) return `the chain refused the gas transfer in a deposit (${code}): the wallet cannot cover the SOL it sends the vault. Top it up and try again.`;
+    return `the chain refused a deposit at instruction ${i + 1} (${code}). Nothing was sent; try again in a moment.`;
+  }
+  return `the chain refused a deposit (${typeof sim.err === 'string' ? sim.err : 'simulation error'}). Nothing was sent; try again in a moment.`;
+}
 const bs58 = (() => { const b = require('bs58'); return b.encode ? b : b.default; })();
 const r2 = (n) => Math.round(n * 100) / 100;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -45,6 +59,9 @@ const LIMITS = Object.freeze({
   // and graduation, a delivery and the fee claims spend ~0.003 SOL from custody (measured: 0.047 left after graduating) — so the
   // gas sits well above that minimum, or a vault born with exactly 0.05 would never buy its first item.
   gasSol: 0.08,
+  // what the creator's wallet must hold to launch: the gas above, the deposit transactions and the launch (≈0.03). Checked
+  // before any deposit is built, so a wallet that cannot pay hears it in words, with the numbers, not as a simulation error.
+  minOwnerSol: 0.12,
   txMaxBytes: 1232,
   creationTtlMs: 2 * 60 * 60 * 1000,
   // a launch transaction's blockhash lives ~60–90 s; past this, a launch with no pool on chain can no longer land
@@ -138,7 +155,9 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     const b = await itemsOf(owner, rules);
     const can = b.items.length >= limits.minItems && b.realisableUsd >= limits.minBackingUsd;
     const { view } = curveParamsFor(Math.max(b.realisableUsd, limits.minBackingUsd), { gradMult: rules.gradMult, creatorFeePct: rules.creatorFeePct });
-    return { wallet: owner, rules, ...b, canCreate: can, why: can ? null : `needs at least ${limits.minItems} eligible item worth $${limits.minBackingUsd}+`, curve: view, creatorTokensWorthUsd: r2(view.openingMcapUsd * view.creatorPct / 100), gasSol };
+    // the SOL a launch needs against what the wallet holds, so the page says it before a single card is picked
+    const have = Math.round((await chain.getBalanceLamports(owner)) / 1e6) / 1000;
+    return { wallet: owner, rules, ...b, canCreate: can, sol: { have, need: limits.minOwnerSol, short: have < limits.minOwnerSol }, why: can ? null : `needs at least ${limits.minItems} eligible item worth $${limits.minBackingUsd}+`, curve: view, creatorTokensWorthUsd: r2(view.openingMcapUsd * view.creatorPct / 100), gasSol };
   }
 
   // ── step 1: open — custody allocated, deposit transactions built; nothing of ours is spent ──
@@ -147,6 +166,10 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
     let i = 0; while (used.has(i)) i += 1; return i;
   }
   async function packTransfers({ owner, custody, mints, withGas }) {
+    if (withGas) {
+      const have = (await chain.getBalanceLamports(owner)) / 1e9;
+      if (have < limits.minOwnerSol) throw err(402, `this wallet holds ${have.toFixed(3)} SOL; a launch needs about ${limits.minOwnerSol} SOL — ${gasSol} of gas for the vault's future transactions, plus the deposits and the launch. Top it up and try again.`);
+    }
     const ownerPk = new PublicKey(owner), custodyPk = new PublicKey(custody);
     const blockhash = await chain.getLatestBlockhash();
     const txs = []; let cur = null;
@@ -169,7 +192,7 @@ function createVaultCreator({ db, chain, sdk, getClient, partner, keyring, quote
       const fail = checkSingleSignerUnsigned(Transaction.from(bytes), owner);
       if (fail) throw new Error(`deposit tx does not pass assertions: ${fail.assertion} (${fail.message})`);
       const sim = await chain.simulateTransaction(bytes.toString('base64'));
-      if (sim && sim.err) throw err(409, `a deposit would fail on chain: ${(sim.logs || []).filter((l) => /log:/.test(l)).slice(-2).join(' | ') || JSON.stringify(sim.err)}`);
+      if (sim && sim.err) throw err(409, explainDepositFailure(sim, t));
       out.push(bytes.toString('base64'));
     }
     return out;

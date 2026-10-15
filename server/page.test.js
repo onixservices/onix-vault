@@ -13,6 +13,17 @@ describe('the page on a bad network and without a wallet', () => {
     assert.ok(fs.statSync(path.join(__dirname, '..', 'web', 'token', 'default.png')).size < 150_000, 'default.png under 150 KB');
     assert.match(web('index.html'), /<img id="tk-img" src="\/token\/default\.png" alt="" loading="lazy">/);
   });
+  test('Create shows the SOL a launch needs against what the wallet holds — green when it is there, the warning colour when it is not, and no launch while it is short', () => {
+    const html = web('index.html'), js = web('app.js');
+    const step1 = html.slice(html.indexOf('id="c1"'), html.indexOf('id="c2"')), step3 = html.slice(html.indexOf('id="c3"'));
+    assert.ok(/id="c-sol"/.test(step1) && /id="c3-sol"/.test(step3), 'the line lives in step 1 and next to the launch button');
+    const fn = js.slice(js.indexOf('function solLine('), js.indexOf('function scan('));
+    assert.ok(fn.length > 0, 'solLine exists');
+    assert.ok(/'var\(--brand\)' : 'var\(--warn\)'/.test(fn), 'green when the SOL is there, the warning colour when it is not');
+    assert.ok(/a launch needs about/.test(fn), 'the line says what a launch needs');
+    assert.ok(/\$\('c-launch'\)\.disabled = !!\(s && s\.short\)/.test(fn), 'no launch while the wallet is short');
+    assert.ok(/CQ = q; solLine\(q\);/.test(js), 'the quote feeds the line');
+  });
   test('Create has one button that knows the wallet state: "Connect wallet" without one, then "Next" — no second button', () => {
     const html = web('index.html'), js = web('app.js');
     const step1 = html.slice(html.indexOf('id="c1"'), html.indexOf('id="c2"'));
