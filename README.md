@@ -5,6 +5,10 @@
 Auditable vaults for real-world assets on Solana. Built by [Onix](https://onix.finance). Live at
 [vault.onix.finance](https://vault.onix.finance).
 
+> **Colosseum Crypto World's Fair 2026 (Meteora DBC track).** This repository is the submission. The tag `hackathon-submission`
+> marks the last commit inside the window (12 October 2026); everything after it is maintenance, dated commit by commit
+> and, where it touches security, in `docs/security-review.md`.
+
 Anyone who holds real graded cards on chain can launch a vault in three steps and get, in minutes: a token on a Meteora
 bonding curve (half of it theirs), 40% of the curve's trading fee (3.2% of every trade, accrued on chain), a provably fair gacha, a shop on
 every gacha site through the public API (Onix.Cards first), and a treasury that restocks itself. Buyers back the
