@@ -751,7 +751,7 @@
   // ── the tutorial on the home hero (28 Oct 2026) ──
   // The cover is a button and the player is built when it is pressed: nothing from YouTube loads before the click. Leaving
   // the home puts the cover back, so a vault page never has the hero playing underneath it. Runs after route(): same event.
-  var TUTORIAL = { id: 'SmpR1K9cJHY', title: 'Tutorial: how to create a vault with your graded cards (2 minutes)' };
+  var TUTORIAL = { id: 'pLoLKkOUP8U', title: 'Tutorial: how to create a vault with your graded cards (2 minutes)' };
   var heroBox = $('hero-video'), heroPlay = $('hero-play');
   function tutorialOpen() {
     var f = document.createElement('iframe');

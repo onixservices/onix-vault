@@ -68,7 +68,7 @@ describe('the tutorial on the home hero', () => {
     assert.match(fn, /setAttribute\('allowfullscreen', ''\)/);
     assert.match(fn, /setAttribute\('allow', 'autoplay; encrypted-media; fullscreen; picture-in-picture'\)/);
     assert.match(fn, /f\.title = TUTORIAL\.title/);
-    assert.match(js, /var TUTORIAL = \{ id: 'SmpR1K9cJHY', title: 'Tutorial: how to create a vault with your graded cards \(2 minutes\)' \}/);
+    assert.match(js, /var TUTORIAL = \{ id: 'pLoLKkOUP8U', title: 'Tutorial: how to create a vault with your graded cards \(2 minutes\)' \}/);
     assert.match(fn, /f\.focus\(\)/, 'keyboard focus follows into the player');
     assert.ok(!js.includes('youtube.com/embed') && !js.includes('youtube.com/watch'), 'never the host that sets cookies');
     assert.match(js, /\$\('hero-play'\)\.addEventListener\('click', tutorialOpen\)/);
