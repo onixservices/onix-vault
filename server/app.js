@@ -32,7 +32,7 @@ const express = require('express');
 const { VaultError } = require('./vaultService');
 
 const SECURITY_HEADERS = Object.freeze([
-  ['Content-Security-Policy', "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'"],
+  ['Content-Security-Policy', "default-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; form-action 'self'; frame-src https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self'"],
   ['X-Frame-Options', 'DENY'], ['X-Content-Type-Options', 'nosniff'], ['Referrer-Policy', 'strict-origin-when-cross-origin'],
 ]);
 

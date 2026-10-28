@@ -28,6 +28,7 @@
 !web/**/*.js
 !web/**/*.svg
 !web/**/*.png
+!web/**/*.jpg
 !web/**/*.ico
 !web/**/*.json
 !docs/**/*.md

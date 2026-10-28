@@ -45,7 +45,10 @@ describe('headers — the app sends the same security headers as the proxy', () 
     const server = app.listen(0); const { port } = server.address();
     try {
       const r = await fetch(`http://127.0.0.1:${port}/v1/health`);
-      assert.match(r.headers.get('content-security-policy') || '', /script-src 'self';.*frame-ancestors 'none'/);
+      const csp = r.headers.get('content-security-policy') || '';
+      assert.match(csp, /script-src 'self';.*frame-ancestors 'none'/);
+      // 28 Oct 2026: the home hero builds the tutorial's player on the click; the only frame the page may open is the cookie-less YouTube host
+      assert.equal((csp.match(/frame-src ([^;]+);/) || [])[1], 'https://www.youtube-nocookie.com');
       assert.equal(r.headers.get('x-frame-options'), 'DENY');
       assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
       assert.equal(r.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');

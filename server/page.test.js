@@ -39,3 +39,40 @@ describe('the page on a bad network and without a wallet', () => {
     assert.ok(/renderPick\(\);\s*\}\s*else if \(h\.indexOf\('#\/create'\) === 0\)|else renderPick\(\); \}/.test(js), 'routing to Create without a wallet paints the button');
   });
 });
+
+// 28 Oct 2026: the tutorial took the drawing's place on the home hero. Nothing from YouTube loads before the click: the
+// markup holds a cover (a button) and the player is built when it is pressed, from the cookie-less host the policy allows.
+describe('the tutorial on the home hero', () => {
+  test('the hero keeps its words and its two buttons; the cover is a keyboard button with the label; no player in the markup; words first, video after', () => {
+    const html = web('index.html');
+    const hero = html.slice(html.indexOf('<div class="hero2">'), html.indexOf('id="shelf-live"'));
+    assert.ok(hero.length > 0, 'the hero precedes the live shelf');
+    assert.match(hero, /<h1>Your collection\.<br><span class="g">A business in minutes\.<\/span><\/h1>/);
+    assert.match(hero, /<a class="cta" href="#\/create">Create a vault<\/a><button class="cta ghost" type="button" id="go-board">Browse vaults<\/button>/);
+    assert.match(hero, /<button type="button" class="hero2-play" id="hero-play" aria-label="Play the tutorial: create your vault in 2 minutes">/);
+    assert.match(hero, /<img src="\/video\/create-your-vault\.jpg" alt="" width="1672" height="941" decoding="async" fetchpriority="low">/, 'the cover is a local file, sized, and never ahead of the script on the pipe');
+    assert.ok(hero.includes('Create your vault \u00b7 2 min'), 'the label');
+    assert.ok(!/hubhero/.test(hero), 'the drawing is gone');
+    assert.ok(!html.includes('<iframe'), 'no player in the markup, anywhere');
+    assert.ok(hero.indexOf('class="hero2-txt"') < hero.indexOf('id="hero-video"'), 'the words and the buttons come first, the video after: on a phone, that is the order, then the vaults');
+    assert.match(web('vault.css'), /@media\(max-width:860px\)\{ \.hero2\{grid-template-columns:1fr\} \}/, 'one column on a phone');
+    assert.ok(fs.existsSync(path.join(__dirname, '..', 'web', 'video', 'create-your-vault.jpg')), 'the cover file is in the repository');
+  });
+  test('the player is built on the click only: the cookie-less host, autoplay then, controls and full screen, a descriptive title; the cover returns when the visitor leaves the home', () => {
+    const js = web('app.js');
+    const fn = js.slice(js.indexOf('function tutorialOpen('), js.indexOf('function tutorialClose('));
+    assert.ok(fn.length > 0, 'tutorialOpen exists');
+    assert.match(fn, /createElement\('iframe'\)/, 'the frame is built in the handler');
+    assert.match(fn, /'https:\/\/www\.youtube-nocookie\.com\/embed\/' \+ TUTORIAL\.id \+ '\?autoplay=1&rel=0&playsinline=1'/);
+    assert.ok(!/controls=0/.test(fn), 'the controls stay');
+    assert.match(fn, /setAttribute\('allowfullscreen', ''\)/);
+    assert.match(fn, /setAttribute\('allow', 'autoplay; encrypted-media; fullscreen; picture-in-picture'\)/);
+    assert.match(fn, /f\.title = TUTORIAL\.title/);
+    assert.match(js, /var TUTORIAL = \{ id: 'SmpR1K9cJHY', title: 'Tutorial: how to create a vault with your graded cards \(2 minutes\)' \}/);
+    assert.match(fn, /f\.focus\(\)/, 'keyboard focus follows into the player');
+    assert.ok(!js.includes('youtube.com/embed') && !js.includes('youtube.com/watch'), 'never the host that sets cookies');
+    assert.match(js, /\$\('hero-play'\)\.addEventListener\('click', tutorialOpen\)/);
+    assert.match(js, /if \(!\$\('s-home'\)\.classList\.contains\('on'\)\) tutorialClose\(\)/, 'leaving the home puts the cover back');
+    assert.ok(js.indexOf("window.addEventListener('hashchange', route)") < js.indexOf('tutorialClose();'), 'the router runs first on the same event');
+  });
+});

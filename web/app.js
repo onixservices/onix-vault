@@ -748,6 +748,23 @@
   }
   $('go-board').addEventListener('click', function () { var s = $('shelf-live'); if (s) s.scrollIntoView({ behavior: 'smooth' }); });
   window.addEventListener('hashchange', route);
+  // ── the tutorial on the home hero (28 Oct 2026) ──
+  // The cover is a button and the player is built when it is pressed: nothing from YouTube loads before the click. Leaving
+  // the home puts the cover back, so a vault page never has the hero playing underneath it. Runs after route(): same event.
+  var TUTORIAL = { id: 'SmpR1K9cJHY', title: 'Tutorial: how to create a vault with your graded cards (2 minutes)' };
+  var heroBox = $('hero-video'), heroPlay = $('hero-play');
+  function tutorialOpen() {
+    var f = document.createElement('iframe');
+    f.src = 'https://www.youtube-nocookie.com/embed/' + TUTORIAL.id + '?autoplay=1&rel=0&playsinline=1';
+    f.title = TUTORIAL.title;
+    f.setAttribute('allow', 'autoplay; encrypted-media; fullscreen; picture-in-picture');
+    f.setAttribute('allowfullscreen', '');
+    f.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+    heroBox.textContent = ''; heroBox.appendChild(f); f.focus();
+  }
+  function tutorialClose() { if (heroBox.querySelector('iframe')) { heroBox.textContent = ''; heroBox.appendChild(heroPlay); } }
+  $('hero-play').addEventListener('click', tutorialOpen);
+  window.addEventListener('hashchange', function () { if (!$('s-home').classList.contains('on')) tutorialClose(); });
   loadVaults().then(route).catch(function (e) {
     document.querySelector('main').insertAdjacentHTML('afterbegin', '<p class="note warn" style="margin-top:24px"><b>The vault API is not answering.</b> ' + esc(e.message) + '</p>');
   });

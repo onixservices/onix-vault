@@ -472,10 +472,20 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .hero2 .lede,.why-head .lede,.back2 .lede{color:var(--text-muted); font-size:17px; max-width:46ch}
 .hero2-cta{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
 .hero2-more{font-size:14px; text-decoration:none; margin-left:4px}
-.ba2{width:100%; height:auto; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-xl); padding:10px}
-.ba2 .ba-k{font:600 12px var(--mono); letter-spacing:.14em; fill:var(--text-faint)} .ba2 .g2{fill:var(--buy)}
-.ba2 .ba-s{font:500 13px var(--font); fill:var(--text-muted)} .ba2 .ba-s.b{fill:var(--text); font-weight:600}
 @media(max-width:860px){ .hero2{grid-template-columns:1fr} }
+/* ── home hero: the tutorial where the drawing was (28 Oct 2026). The cover is a button; the player is built on the click, never before ── */
+.hero2-video{position:relative; width:100%; aspect-ratio:16/9; overflow:hidden; background:#000; border:1px solid var(--border); border-radius:var(--r-xl); box-shadow:var(--glow-card)}
+.hero2-video iframe{position:absolute; inset:0; width:100%; height:100%; border:0; display:block; background:#000}
+.hero2-play{position:absolute; inset:0; width:100%; height:100%; margin:0; padding:0; border:0; background:#000; color:var(--text); cursor:pointer; display:block; text-align:left}
+.hero2-play img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; transition:transform .6s ease}
+.hero2-play::after{content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 55%,rgba(3,7,9,.66) 100%); pointer-events:none}
+.hero2-play-ring{position:absolute; left:50%; top:50%; width:76px; height:76px; margin:-38px 0 0 -38px; border-radius:50%; background:var(--cta-green); color:#04140f; display:grid; place-items:center; z-index:1; box-shadow:0 0 0 10px rgba(var(--aura-rgb),.16),0 14px 40px rgba(0,0,0,.55); transition:transform .2s ease,box-shadow .2s ease}
+.hero2-play-ring svg{width:34px; height:34px; fill:currentColor; margin-left:4px}
+.hero2-play-lbl{position:absolute; left:16px; bottom:14px; z-index:1; font:600 14px/1 var(--font); color:var(--text); background:rgba(5,11,13,.74); border:1px solid var(--border2); border-radius:999px; padding:9px 13px; -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px)}
+.hero2-play:hover img,.hero2-play:focus-visible img{transform:scale(1.03)}
+.hero2-play:hover .hero2-play-ring,.hero2-play:focus-visible .hero2-play-ring{transform:scale(1.06); box-shadow:0 0 0 14px rgba(var(--aura-rgb),.22),0 14px 40px rgba(0,0,0,.55)}
+.hero2-play:focus-visible{outline:3px solid var(--brand); outline-offset:-3px}
+@media(max-width:560px){ .hero2-play-ring{width:60px; height:60px; margin:-30px 0 0 -30px} .hero2-play-ring svg{width:28px; height:28px} .hero2-play-lbl{left:auto; right:12px; bottom:10px; font-size:13px; padding:8px 11px} }
 .why-head{display:flex; flex-direction:column; gap:8px}
 .why-problem{color:var(--text-muted); font-size:15px; max-width:62ch; margin:0 0 4px; padding-left:12px; border-left:2px solid var(--border2)}
 .why-now{display:flex; flex-direction:column; gap:8px; padding-block:8px}
@@ -497,7 +507,6 @@ pre .c{color:var(--text-faint)} pre .s{color:var(--aura)} pre .k{color:var(--inf
 .back2 li svg{width:34px; height:34px}
 .why-end{display:flex; flex-direction:column; align-items:center; gap:14px; padding-block:8px}
 @media(max-width:760px){ .steps2,.gets2{grid-template-columns:1fr} .back2{grid-template-columns:1fr} }
-.ba2.hubhero .hub-t{font:600 19px var(--font); fill:var(--text)} .ba2.hubhero .hub-c{font:650 21px var(--font); fill:var(--buy)}
 /* a thin seam between the hero, the live shelf and the maturing shelf */
 #shelf-live,#shelf-mat{position:relative; padding-top:30px}
 #shelf-live::before,#shelf-mat::before{content:""; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--border2) 12%,var(--border2) 88%,transparent)}
